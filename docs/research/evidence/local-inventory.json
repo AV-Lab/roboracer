@@ -1,0 +1,275 @@
+{
+  "recorded_at": "2026-09-28T09:04:56.074831+00:00",
+  "scope": "Read-only inventory; no simulator or stack execution",
+  "repositories": {
+    "workspace": {
+      "path": "/home/a2rl/Workspace/roboracer",
+      "realpath": "/home/a2rl/Workspace/roboracer",
+      "git": [
+        {
+          "command": [
+            "git",
+            "rev-parse",
+            "--show-toplevel",
+            "--git-common-dir"
+          ],
+          "cwd": "/home/a2rl/Workspace/roboracer",
+          "exit_code": 128,
+          "stdout": "",
+          "stderr": "fatal: not a git repository (or any of the parent directories): .git"
+        },
+        {
+          "command": [
+            "git",
+            "log",
+            "-1",
+            "--format=%H%n%cs%n%s"
+          ],
+          "cwd": "/home/a2rl/Workspace/roboracer",
+          "exit_code": 128,
+          "stdout": "",
+          "stderr": "fatal: not a git repository (or any of the parent directories): .git"
+        },
+        {
+          "command": [
+            "git",
+            "status",
+            "--short",
+            "--branch"
+          ],
+          "cwd": "/home/a2rl/Workspace/roboracer",
+          "exit_code": 128,
+          "stdout": "",
+          "stderr": "fatal: not a git repository (or any of the parent directories): .git"
+        },
+        {
+          "command": [
+            "git",
+            "worktree",
+            "list"
+          ],
+          "cwd": "/home/a2rl/Workspace/roboracer",
+          "exit_code": 128,
+          "stdout": "",
+          "stderr": "fatal: not a git repository (or any of the parent directories): .git"
+        }
+      ]
+    },
+    "avlite_target": {
+      "path": "/home/a2rl/Workspace/avlite",
+      "realpath": "/home/a2rl/Workspace/avlite",
+      "git": [
+        {
+          "command": [
+            "git",
+            "rev-parse",
+            "--show-toplevel",
+            "--git-common-dir"
+          ],
+          "cwd": "/home/a2rl/Workspace/avlite",
+          "exit_code": 0,
+          "stdout": "/home/a2rl/Workspace/avlite\n.git",
+          "stderr": ""
+        },
+        {
+          "command": [
+            "git",
+            "log",
+            "-1",
+            "--format=%H%n%cs%n%s"
+          ],
+          "cwd": "/home/a2rl/Workspace/avlite",
+          "exit_code": 0,
+          "stdout": "50dcd0043db0cc17efbe82bda81cd0e8875810a0\n2026-09-22\nGeneralize SensorFrame for named multi-sensor data: each camera and lidar is a snapshot that carries its mount and its reading, and Imu, Gnss, and WheelOdometry subclass Sensor. Breaking: drop additional_frames, the split measurement/mount fields, and get_imu_sensor / get_gnss_sensor; release 0.6.4.",
+          "stderr": ""
+        },
+        {
+          "command": [
+            "git",
+            "status",
+            "--short",
+            "--branch"
+          ],
+          "cwd": "/home/a2rl/Workspace/avlite",
+          "exit_code": 0,
+          "stdout": "## dev...origin/dev",
+          "stderr": ""
+        },
+        {
+          "command": [
+            "git",
+            "worktree",
+            "list"
+          ],
+          "cwd": "/home/a2rl/Workspace/avlite",
+          "exit_code": 0,
+          "stdout": "/home/a2rl/Workspace/avlite  50dcd00 [dev]",
+          "stderr": ""
+        }
+      ]
+    },
+    "avlite_reference_parent": {
+      "path": "/home/a2rl/avlite",
+      "realpath": "/home/a2rl/avlite",
+      "git": [
+        {
+          "command": [
+            "git",
+            "rev-parse",
+            "--show-toplevel",
+            "--git-common-dir"
+          ],
+          "cwd": "/home/a2rl/avlite",
+          "exit_code": 0,
+          "stdout": "/home/a2rl/avlite\n.git",
+          "stderr": ""
+        },
+        {
+          "command": [
+            "git",
+            "log",
+            "-1",
+            "--format=%H%n%cs%n%s"
+          ],
+          "cwd": "/home/a2rl/avlite",
+          "exit_code": 0,
+          "stdout": "f1fac2c24c7b97943ca6dcbed6ae9604439ad8e3\n2026-09-28\nMerge branch 'dev' of https://github.com/AV-Lab/avlite into dev",
+          "stderr": ""
+        },
+        {
+          "command": [
+            "git",
+            "status",
+            "--short",
+            "--branch"
+          ],
+          "cwd": "/home/a2rl/avlite",
+          "exit_code": 0,
+          "stdout": "## dev...origin/dev [ahead 17]\n?? .codex\n?? .venv/\n?? community_plugins/",
+          "stderr": ""
+        },
+        {
+          "command": [
+            "git",
+            "worktree",
+            "list"
+          ],
+          "cwd": "/home/a2rl/avlite",
+          "exit_code": 0,
+          "stdout": "/home/a2rl/avlite  f1fac2c [dev]",
+          "stderr": ""
+        }
+      ]
+    },
+    "a2rl_reference": {
+      "path": "/home/a2rl/avlite/community_plugins/a2rl",
+      "realpath": "/home/a2rl/avlite/community_plugins/a2rl",
+      "git": [
+        {
+          "command": [
+            "git",
+            "rev-parse",
+            "--show-toplevel",
+            "--git-common-dir"
+          ],
+          "cwd": "/home/a2rl/avlite/community_plugins/a2rl",
+          "exit_code": 0,
+          "stdout": "/home/a2rl/avlite/community_plugins/a2rl\n.git",
+          "stderr": ""
+        },
+        {
+          "command": [
+            "git",
+            "log",
+            "-1",
+            "--format=%H%n%cs%n%s"
+          ],
+          "cwd": "/home/a2rl/avlite/community_plugins/a2rl",
+          "exit_code": 0,
+          "stdout": "ae5436d80d909bd04808107f0bafe58956da817b\n2026-09-15\nenable to launch from AVLite GUI and add requirements.txt",
+          "stderr": ""
+        },
+        {
+          "command": [
+            "git",
+            "status",
+            "--short",
+            "--branch"
+          ],
+          "cwd": "/home/a2rl/avlite/community_plugins/a2rl",
+          "exit_code": 0,
+          "stdout": "## dev...origin/dev\n M README.md\n M activation.py\n M core/settings.py\n M docs/a2rl_lap_time_optimization_todo.md\n M docs/gui_launch.md\n M execution/launch_bridge.py\n M execution/launch_presets.py\n M integration/autoverse_bridge.py\n M run_headless_autoverse_can_lap.sh\n M scripts/README.md\n M scripts/launch.py\n M scripts/ops/check_autoverse_can_static_profile.sh\n M scripts/verify_autoverse_limit_probe_live.py\n M test/test_a2rl_extension.py\n M test/test_launch.py\n M test/test_launch_presets.py\n M test/test_script_layout.py\n?? data/experimental_p4_74_seam.json\n?? docs/p4_72_60s_target.md\n?? planning/seam_profile.py\n?? scripts/analyze_autoverse_powertrain_model.py\n?? scripts/analyze_autoverse_ros_backlog.py\n?? scripts/verify_autoverse_launch_damping.py\n?? scripts/verify_autoverse_launch_ros_queue.py\n?? test/test_launch_damping_verification.py\n?? test/test_launch_ros_queue_verification.py\n?? test/test_native_ros_queue.py\n?? test/test_powertrain_model_audit.py\n?? test/test_ros_backlog_audit.py\n?? test/test_seam_profile.py",
+          "stderr": ""
+        },
+        {
+          "command": [
+            "git",
+            "worktree",
+            "list"
+          ],
+          "cwd": "/home/a2rl/avlite/community_plugins/a2rl",
+          "exit_code": 0,
+          "stdout": "/home/a2rl/avlite/community_plugins/a2rl  ae5436d [dev]",
+          "stderr": ""
+        }
+      ]
+    }
+  },
+  "guide_sha256": "42caaa115200bc338a61bd86a04d066ec9455abbc62fc0e2bc35743e9d8cab0b",
+  "avlite_reference_tree_diff": {
+    "command": [
+      "git",
+      "diff",
+      "--stat",
+      "50dcd0043db0cc17efbe82bda81cd0e8875810a0..HEAD"
+    ],
+    "cwd": "/home/a2rl/avlite",
+    "exit_code": 0,
+    "stdout": ".gitignore | 1 +\n 1 file changed, 1 insertion(+)",
+    "stderr": ""
+  },
+  "system": {
+    "python": "3.10.12 (main, Aug 31 2026, 10:18:17) [GCC 11.4.0]",
+    "executable": "/usr/bin/python3",
+    "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.35",
+    "os_release": "PRETTY_NAME=\"Ubuntu 22.04.5 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"22.04\"\nVERSION=\"22.04.5 LTS (Jammy Jellyfish)\"\nVERSION_CODENAME=jammy\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=jammy\n",
+    "logical_cpu_count": 16,
+    "memory_total_kib": "MemTotal:       32770024 kB",
+    "ros_distro_env": "humble",
+    "ros_directories": [
+      "humble"
+    ],
+    "display_variable_present": true,
+    "device_paths_present": {
+      "/dev/dri": false,
+      "/dev/nvidia0": false,
+      "/var/run/docker.sock": true
+    },
+    "installed_metadata": {
+      "avlite": null,
+      "numpy": "1.24.2",
+      "scipy": "1.10.1",
+      "numba": "0.57.1",
+      "gym": null,
+      "gymnasium": null,
+      "f110-gym": null,
+      "f1tenth-gym": null,
+      "pytest": "6.2.5",
+      "pydantic": null,
+      "rich": "15.0.0",
+      "PyYAML": "6.0.3"
+    }
+  },
+  "reference_venv_metadata": {
+    "command": [
+      "/home/a2rl/avlite/.venv/bin/python",
+      "-B",
+      "-c",
+      "import importlib.metadata as m,json; names=['avlite','numpy','scipy','numba','gym','gymnasium','f110-gym','pytest','pydantic','rich']; out={};\nfor n in names:\n try: out[n]=m.version(n)\n except m.PackageNotFoundError: out[n]=None\nprint(json.dumps(out))"
+    ],
+    "cwd": null,
+    "exit_code": 0,
+    "stdout": "{\"avlite\": \"0.6.1\", \"numpy\": \"2.2.6\", \"scipy\": \"1.15.3\", \"numba\": null, \"gym\": null, \"gymnasium\": null, \"f110-gym\": null, \"pytest\": \"9.1.1\", \"pydantic\": \"2.13.5\", \"rich\": null}",
+    "stderr": ""
+  }
+}

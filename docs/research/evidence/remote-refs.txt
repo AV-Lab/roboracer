@@ -1,0 +1,15 @@
+Research access date: 2026-09-28
+Evidence scope: remote ref advertisements only, not installed source revisions.
+Commands executed successfully by the main agent:
+
+git ls-remote https://github.com/f1tenth/f1tenth_gym.git refs/heads/main refs/heads/dev-humble refs/heads/dev-jax 'refs/tags/*'
+bdaec1420c3b0f103858d289866d0d4e2e597c30 refs/heads/dev-humble
+ec3b1a4693ed20317e42e57a9454d94b824cec81 refs/heads/dev-jax
+4fdb9c7e6fb7c701290f4dc18377d07c1681724f refs/heads/main
+
+git ls-remote https://github.com/f1tenth/f1tenth_gym_ros.git refs/heads/main refs/heads/dev-humble refs/heads/dev-jazzy 'refs/tags/*'
+08395766c4d9dc5a763381f1dd6fa4a3d68df66e refs/heads/dev-humble
+2c019810b4098ed82d44cad1d7d282a2dfc12421 refs/heads/dev-jazzy
+883394df0964c555ee05bea69c3002daf6f2d405 refs/heads/main
+
+No tags were returned by these queries. Official branch source was inspected through cached web retrieval. Source-only clones were blocked by sandbox network policy, so the retrieved source snapshots were not conclusively matched to these SHAs. No simulator code was executed.

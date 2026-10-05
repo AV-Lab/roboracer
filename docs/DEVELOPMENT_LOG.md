@@ -326,3 +326,22 @@
   - Guard trace: 0 nonzero-output steps in 78,377. Maximum displacement 3 mm. All children exited 0, the port was released, and all 604 player files were unchanged.
 - Evidence `artifacts/s1/20261005T102231Z-s1-02-live/` (64-file manifest); bilingual [report](stages/S1-observation.md).
 - **S1-02 stays open** for command signs/units against observed response (needs motion). Next (no motion): the S1 supervisor skeleton, then draft the numerical motion protocol and stop for confirmation. Acceptance count unchanged (3/34).
+
+## 2026-10-05 — Plugin checked against the AVLite plugin development guide
+
+- At the user's request, audited `roboracer/` against `/home/a2rl/avlite/docs/plugin-development.md` (AVLite dev checkout, source 0.6.3).
+- **Already conformant:**
+  - layout and `__init__.py` exports;
+  - Pydantic `PluginSettingsSchema` with a `PluginSettings` singleton, filepath assigned by the loader (as in the built-ins);
+  - no `config/` folder or `plugin_*.yaml`; tests live under `tests/`, which the loader skips;
+  - controller `control(ego, plan, control_dt, perception_model, sensors)` and `reset()`;
+  - `control_ego_state(cmd, dt)`;
+  - 2D scans padded to (N, 4) float32 in the device frame, with `base_to_sensor` mounts;
+  - fresh sensor objects per frame, with the capability filter applied in the atomic `get_sensor_frame` override (allowed for atomic reads);
+  - `logging.getLogger(__name__)`.
+- **Changed:**
+  - **Static ground-truth capability.** The bridge's ground-truth `LOCALIZATION` was a `@property` driven by a plugin `gt_localization` setting, which duplicated AVLite's Bridge Setting filter. It is now a public `frozenset` class attribute, like the guide example and the built-in `BasicSim`. The ground truth is switched off with AVLite's `c41_world_stack_capabilities`; the setting was removed.
+  - **Default behaviour.** By default AVLite's control path now runs, and `HoldController`'s zero requests reach `control_ego_state`, where they are only validated and recorded. Nothing is sent to the simulator, and motion still requires the supervisor, guard authorization and the confirmed protocol.
+  - **Getter.** Added `get_lidar_data()`, so the getter API serves the advertised LiDAR.
+  - **README.** Now covers requirements and setup: ROS 2 Humble for `connect()`, the provenance Devkit and the SIM1-02 player, no pip extras and no `launch.sh`. It also documents the settings file location and the GT filter.
+- **Tests.** S1-01 factory cases now use AVLite's filter (default: commands reach the bridge; filtered: never actuates), replacing the test-only GT subclass. The S1-02 bridge case checks that contracts are class-attribute `frozenset`s. 19 plugin tests pass with ResourceWarnings as errors; runner tests pass. The live S1-02 evidence is unaffected because the observation path is unchanged; the reports note the superseded setting.

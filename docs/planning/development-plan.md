@@ -186,7 +186,7 @@ Qualification failures require a report with alternatives, cost and impact. Ther
 - [x] S1-01 — Load/register exports through the AVLite factory; round-trip settings, reject invalid configuration and verify command-consumer compatibility without import-time launch. **Passed 2026-10-05** (AVLite 0.6.3 isolated venv; each case in a fresh process with isolated AVLite/XDG directories):
   - `roboracer/` exports `TargetSpeedSteeringCommand` (m/s and rad, a `ControlCommandBase` subclass), `AutoDriveBridge`, `HoldController` and a validated `PluginSettings`.
   - Importing through AVLite's loader adds no thread, socket, child process or ROS/Socket.IO module.
-  - The factory loads the community plugin itself. Without a localization source it never actuates; a test-only GT bridge delivers the command through the real execution path.
+  - The factory loads the community plugin itself. Without a localization source it never actuates; a test-only GT bridge delivers the command through the real execution path. *(2026-10-05, plugin-guide conformance: the bridge itself now advertises ground-truth `LOCALIZATION` as a static class attribute, like `BasicSim`; the same cases are covered with AVLite's own GT filter: filtered → never actuates, default → zero requests reach the bridge through the real execution path.)*
   - Settings round-trip, and 7 invalid values are rejected with the prior values kept.
   - The bridge refuses the GUI's manual Ackermann commands and every invalid request.
   - The visualizer gauge contract is satisfied by a display mirror. The headless dashboard shows acceleration 0.0, and BasicSim fails loudly on the plugin command; both are recorded limitations.

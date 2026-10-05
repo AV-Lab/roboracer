@@ -77,7 +77,8 @@ def analyze(directory: Path) -> dict:
         failures.append("no snapshots")
     return {"run": str(directory), "frames": len(frames), "acquisition_frames": len(expected),
             "snapshots": len(snapshots), "plugin_statistics": status["statistics"],
-            "plugin_settings": {k: status.get(k) for k in ("gt_localization", "max_target_speed_mps")},
+            "plugin_settings": {k: status[k] for k in ("gt_localization", "stack_capabilities", "max_target_speed_mps")
+                                if k in status},
             "scan_matches": scan_matches, "pose_matches": pose_matches, "yaw_within_5mrad": yaw_ok,
             "commit_latency_after_bridge_receipt_ms_p50_p95_max": percentiles(latency),
             "pose_age_at_commit_ms_p50_p95_max": percentiles(age),

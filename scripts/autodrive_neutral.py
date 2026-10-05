@@ -443,7 +443,7 @@ def plugin_observe(args):
     bridge = plugin.AutoDriveBridge()
     trace = (args.results / "plugin-snapshots.jsonl").open("w", buffering=1)
     state = {"pid": os.getpid(), "plugin": str(args.plugin), "plugin_file": plugin.__file__,
-             "gt_localization": plugin.PluginSettings.gt_localization,
+             "stack_capabilities": sorted(c.name for c in bridge.stack_capabilities),
              "max_target_speed_mps": plugin.PluginSettings.max_target_speed_mps, "ready": False, "snapshots": 0}
     stop = []
 

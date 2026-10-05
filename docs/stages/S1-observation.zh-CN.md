@@ -14,7 +14,7 @@
 | 部分 | 内容 |
 | --- | --- |
 | [`autodrive_observation.py`](../../roboracer/integration/autodrive_observation.py) | 不依赖 ROS 的 `SnapshotAssembler`，见下文。 |
-| [`autodrive_bridge.py`](../../roboracer/integration/autodrive_bridge.py) | 构造仍无副作用。`connect()` 创建私有 rclpy 上下文（不接管信号处理）、一个节点和一个执行线程。快照以原子方式替换。`get_sensor_frame()` 每次返回新的传感器对象，共享只读缓冲区。为监督器和运行器提供 `observation_age_s()`、`statistics()` 和 `snapshot_listener`。声明 `LIDAR_2D` 和 `IMU`。只有开启新设置 `gt_localization`（默认关闭）时才声明 `LOCALIZATION`。 |
+| [`autodrive_bridge.py`](../../roboracer/integration/autodrive_bridge.py) | 构造仍无副作用。`connect()` 创建私有 rclpy 上下文（不接管信号处理）、一个节点和一个执行线程。快照以原子方式替换。`get_sensor_frame()` 每次返回新的传感器对象，共享只读缓冲区。为监督器和运行器提供 `observation_age_s()`、`statistics()` 和 `snapshot_listener`。声明 `LIDAR_2D` 和 `IMU`。*运行时：* `LOCALIZATION` 由插件设置 `gt_localization`（关闭）控制。*当天已被取代*（为符合 AVLite 插件开发指南）：真值 `LOCALIZATION` 改为与 `BasicSim` 相同的静态类属性，通过 AVLite 自身的过滤器 `c41_world_stack_capabilities` 关闭；该设置已删除。观测路径不变。 |
 | [`autodrive_scan_check.py`](../../scripts/autodrive_scan_check.py) | 独立扫描检查：导出播放器序列化的碰撞体，并从记录的位姿对厂商扫描模型做射线投射。 |
 | `autodrive_neutral.py --plugin-observer` | 在实时试验中，把由 AVLite 自身插件加载器加载的桥接（使用隔离的 AVLite/XDG 目录）作为又一个只读子进程运行。provenance 消息现在还携带 `ips_position`。 |
 | [`autodrive_s1_observation.py`](../../scripts/autodrive_s1_observation.py) | 离线比对：将插件快照与原始桥接帧和独立话题观察器的记录逐一对应。 |

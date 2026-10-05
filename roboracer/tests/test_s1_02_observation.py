@@ -131,12 +131,12 @@ class RecordedReplayTests(unittest.TestCase):
     def replay(self, run):
         directory = EVIDENCE / run
         positions = {}
-        for line in (directory / "bridge-frames.jsonl").open():
+        for line in (directory / "bridge-frames.jsonl").read_text().splitlines():
             row = json.loads(line)
             if "provenance" in row:
                 positions[row["provenance"]["telemetry_seq"]] = row["motion"]["Position"]
         a, snaps, provenance_count = obs.SnapshotAssembler(), [], 0
-        for line in (directory / "ros-messages.jsonl").open():
+        for line in (directory / "ros-messages.jsonl").read_text().splitlines():
             row = json.loads(line)
             topic, now = row["topic"], row["received_monotonic_ns"]
             if topic == "provenance":
@@ -176,13 +176,17 @@ class BridgeTests(unittest.TestCase):
     def test_bridge_observation_surface(self):
         r = probe("s1-02-bridge")
         self.assertEqual(["IMU", "LIDAR_2D"], r["world_capabilities"])
-        self.assertEqual({"default": [], "gt_enabled": ["LOCALIZATION"]}, r["stack_capabilities"])
+        self.assertEqual(["LOCALIZATION"], r["stack_capabilities"])
+        self.assertTrue(r["class_attributes"])  # plugin guide: public frozenset class attributes
         self.assertEqual({"lidar_points": None, "imu": None}, r["before"])
+        self.assertEqual([0.0, 0.0], r["ego_before"])  # no pose is invented before the first snapshot
+        self.assertIsNone(r["lidar_data_before"])
         after = r["after"]
         self.assertEqual(1081, after["lidar_points"])
         self.assertEqual([0.2733, 0.0, 0.096], after["lidar_mount"])
         self.assertTrue(after["fresh_objects"])
-        self.assertEqual({"default": [0.0, 0.0], "gt_enabled": [0.741, 3.158]}, after["ego_xy"])
+        self.assertTrue(after["lidar_data_is_snapshot"])
+        self.assertEqual([0.741, 3.158], after["ego_xy"])
         self.assertAlmostEqual(-math.pi / 2, after["gt_theta"], places=2)
         self.assertEqual(1, after["committed"])
         self.assertEqual(r["watched_modules"], [])

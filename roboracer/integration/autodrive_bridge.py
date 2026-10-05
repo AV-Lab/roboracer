@@ -6,6 +6,10 @@ them on one daemon thread; ``close()`` tears that down. Observations are committ
 snapshots by ``SnapshotAssembler`` and swapped in atomically, so a sensor frame and the GT pose
 always come from the same telemetry frame.
 
+Contracts follow the AVLite plugin guide: public ``frozenset`` class attributes. Like the
+built-in ``BasicSim``, the bridge advertises ground-truth ``LOCALIZATION``; switch it off with
+AVLite's own Bridge Setting filter (``c40_execution.c41_world_stack_capabilities``).
+
 Commands are validated and recorded only. The supervisor-owned command path is separate
 (S1 supervisor skeleton); nothing here can move the vehicle.
 """
@@ -35,6 +39,8 @@ NAMESPACE = "/autodrive/f1tenth_1/"
 
 class AutoDriveBridge(WorldBridge):
     world_capabilities = frozenset({WorldCapability.LIDAR_2D, WorldCapability.IMU})
+    # Simulator truth (IPS + IMU orientation), labelled as such on every snapshot.
+    stack_capabilities = frozenset({StackCapability.LOCALIZATION})
     stack_requirements = frozenset({StackCapability.CONTROL})
 
     def __init__(self, ego_state: EgoState | None = None, pm=None):
@@ -50,11 +56,6 @@ class AutoDriveBridge(WorldBridge):
         # Optional callable(snapshot), invoked on the transport thread under the bridge lock for
         # every committed snapshot. It must be quick and must not call back into the bridge.
         self.snapshot_listener = None
-
-    @property
-    def stack_capabilities(self) -> frozenset:
-        """GT localization only when explicitly enabled; it is simulator truth, never an estimate."""
-        return frozenset({StackCapability.LOCALIZATION}) if PluginSettings.gt_localization else frozenset()
 
     # -- observation path --------------------------------------------------------------------
     def connect(self, timeout_s: float = 0.0) -> bool:
@@ -121,6 +122,11 @@ class AutoDriveBridge(WorldBridge):
                                 imu=replace(snapshot.imu), stamp=time.monotonic(), frame_id="base_link")
         return self._apply_world_capability_filter(frame)
 
+    def get_lidar_data(self, agent_id: int = 0):
+        """Points of the latest snapshot in the LiDAR frame, (N, 4) float32, read-only."""
+        snapshot = self.latest()
+        return snapshot.lidar.points if snapshot is not None else None
+
     def get_lidar_sensor(self, agent_id: int = 0) -> Lidar:
         return Lidar(sensor_name="lidar", base_to_sensor=translation(LIDAR_MOUNT_M))
 
@@ -129,10 +135,10 @@ class AutoDriveBridge(WorldBridge):
         return replace(snapshot.imu) if snapshot is not None else None
 
     def get_ego_state(self) -> EgoState:
-        """With GT localization enabled, pose comes from the latest snapshot. Velocity is not
-        observed by this bridge and is left unchanged."""
+        """Ground-truth pose from the latest snapshot (unchanged before the first). Velocity is
+        not observed by this bridge and is left unchanged."""
         snapshot = self.latest()
-        if PluginSettings.gt_localization and snapshot is not None:
+        if snapshot is not None:
             self.ego_state.x, self.ego_state.y, self.ego_state.z = snapshot.pose.x, snapshot.pose.y, snapshot.pose.z
             self.ego_state.theta = snapshot.pose.yaw
         return self.ego_state

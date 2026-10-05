@@ -60,48 +60,40 @@ def run_ticks(executer, ticks=3):
         executer.step(sim_dt=0.01)
 
 
-def case_factory():
-    """The real registration path: AVLite's factory loads the community plugin itself."""
+def factory_run(gt_filter=None):
+    """The real registration path: AVLite's factory loads the community plugin itself.
+    ``gt_filter`` is AVLite's Bridge Setting filter (``c41_world_stack_capabilities``)."""
+    from avlite.c40_execution.c49_settings import ExecutionSettings
     from avlite.c60_apps.c62_factory import executor_factory
     from avlite.c60_apps.c69_settings import AppSettings
     AppSettings.c62_default_plugins = []
     AppSettings.c62_community_plugins = {"roboracer": PLUGIN}
+    ExecutionSettings.c41_world_stack_capabilities = gt_filter
     executer = executor_factory(
         executer_type="SyncExecuter", bridge="AutoDriveBridge", perception_strategy_name="",
         localization_strategy_name="", mapping_strategy_name="", global_planner_strategy_name="",
         local_planner_strategy_name="", controller_strategy_name="HoldController", execution_task_names=[],
         default_global_trajectory_file="", map_file="", load_plugins=True)
     run_ticks(executer)
-    world = executer.world
-    return {"bridge": type(world).__name__, "controller": type(executer.controller).__name__,
-            "can_actuate": executer._can_actuate(), "accepted": world.accepted,
-            "rejections": world.rejections, "last_cmd": type(executer._last_cmd).__name__}
-
-
-def case_factory_gt_probe():
-    """Command path end to end, through a test-only bridge that advertises GT localization."""
-    plugin = load_plugin()
-    from avlite.c50_common.c51_capabilities import StackCapability
-    from avlite.c60_apps.c62_factory import executor_factory
-    from avlite.c60_apps.c69_settings import AppSettings
-
-    class GtProbeBridge(plugin.AutoDriveBridge):
-        stack_capabilities = frozenset({StackCapability.LOCALIZATION})
-
-    AppSettings.c62_default_plugins = []
-    AppSettings.c62_community_plugins = {}
-    executer = executor_factory(
-        executer_type="SyncExecuter", bridge="GtProbeBridge", perception_strategy_name="",
-        localization_strategy_name="", mapping_strategy_name="", global_planner_strategy_name="",
-        local_planner_strategy_name="", controller_strategy_name="HoldController", execution_task_names=[],
-        default_global_trajectory_file="", map_file="", load_plugins=False)
-    run_ticks(executer)
     world, last = executer.world, executer.world.last_request
     gauge = executer.controller.cmd
-    return {"can_actuate": executer._can_actuate(), "accepted": world.accepted, "rejections": world.rejections,
+    return {"bridge": type(world).__name__, "controller": type(executer.controller).__name__,
+            "stack_capabilities": sorted(c.name for c in world.stack_capabilities),
+            "can_actuate": executer._can_actuate(), "accepted": world.accepted, "rejections": world.rejections,
             "last_request": None if last is None else
                 {"type": type(last).__name__, "target_speed": last.target_speed, "steer": last.steer},
             "gauge": {"acceleration": gauge.acceleration, "steer": gauge.steer}}
+
+
+def case_factory():
+    """Default filter: the bridge's ground-truth LOCALIZATION enables control; commands reach
+    the bridge through the real execution path (validated and recorded only)."""
+    return factory_run(None)
+
+
+def case_factory_gt_filtered():
+    """AVLite's GT filter with LOCALIZATION removed: the executer must never actuate."""
+    return factory_run([])
 
 
 def case_settings():
@@ -208,7 +200,6 @@ def case_s1_02_bridge():
     sys.path.insert(0, str(Path(PLUGIN).parent))
     from roboracer.tests import s1_02_fixtures as fx
     bridge = plugin.AutoDriveBridge()
-    settings = plugin.PluginSettings
 
     def view():
         frame = bridge.get_sensor_frame()
@@ -216,11 +207,12 @@ def case_s1_02_bridge():
         return {"lidar_points": None if lidar.points is None else len(lidar.points),
                 "imu": None if frame.imu is None else list(frame.imu.linear_accel)}
 
-    def stack():
-        return sorted(c.name for c in bridge.stack_capabilities)
-
-    result = {"world_capabilities": sorted(c.name for c in bridge.world_capabilities), "before": view()}
-    capabilities = {"default": stack()}
+    result = {"world_capabilities": sorted(c.name for c in bridge.world_capabilities),
+              "stack_capabilities": sorted(c.name for c in bridge.stack_capabilities),
+              "class_attributes": all(isinstance(type(bridge).__dict__.get(name), frozenset) for name in (
+                  "world_capabilities", "stack_capabilities", "stack_requirements")),
+              "before": view(), "ego_before": [bridge.get_ego_state().x, bridge.get_ego_state().y],
+              "lidar_data_before": bridge.get_lidar_data()}
     messages, provenance = fx.frame(2)
     for name, message in messages.items():
         bridge._offer(name, message)
@@ -229,15 +221,11 @@ def case_s1_02_bridge():
     first, second = bridge.get_sensor_frame(), bridge.get_sensor_frame()
     after.update(lidar_mount=first.lidar.base_to_sensor[:3, 3].tolist(),
                  fresh_objects=first.lidar is not second.lidar and first.imu is not second.imu,
-                 committed=bridge.statistics()["committed"])
-    xy = {"default": [bridge.get_ego_state().x, bridge.get_ego_state().y]}
-    settings.gt_localization = True
-    capabilities["gt_enabled"] = stack()
+                 committed=bridge.statistics()["committed"],
+                 lidar_data_is_snapshot=bridge.get_lidar_data() is first.lidar.points)
     ego = bridge.get_ego_state()
-    xy["gt_enabled"] = [ego.x, ego.y]
-    after.update(ego_xy=xy, gt_theta=ego.theta)
-    result.update(stack_capabilities=capabilities, after=after,
-                  watched_modules=host_snapshot()["watched_modules"])
+    after.update(ego_xy=[ego.x, ego.y], gt_theta=ego.theta)
+    result.update(after=after, watched_modules=host_snapshot()["watched_modules"])
     return result
 
 

@@ -39,20 +39,22 @@ class PluginLoadingTests(unittest.TestCase):
             self.assertEqual(r["before"][key], r["after"][key], key)
         self.assertNotIn("avlite.plugins.roboracer.tests.s1_01_probe", r["loaded_modules"])
 
-    def test_factory_loads_plugin_and_gates_actuation_without_localization(self):
+    def test_factory_loads_plugin_and_command_reaches_bridge(self):
         r = probe("factory")
         self.assertEqual(("AutoDriveBridge", "HoldController"), (r["bridge"], r["controller"]))
-        # No GT or estimated localization yet: AVLite must not run control or actuate.
-        self.assertFalse(r["can_actuate"])
-        self.assertEqual((0, {}, "NoneType"), (r["accepted"], r["rejections"], r["last_cmd"]))
-
-    def test_command_reaches_bridge_through_execution_path(self):
-        r = probe("factory-gt-probe")
+        # Ground-truth LOCALIZATION from the bridge (as BasicSim) enables AVLite's control path.
+        self.assertEqual(["LOCALIZATION"], r["stack_capabilities"])
         self.assertTrue(r["can_actuate"])
         self.assertGreaterEqual(r["accepted"], 1)
         self.assertEqual({}, r["rejections"])
         self.assertEqual({"type": "TargetSpeedSteeringCommand", "target_speed": 0.0, "steer": 0.0}, r["last_request"])
         self.assertEqual({"acceleration": 0.0, "steer": 0.0}, r["gauge"])
+
+    def test_avlite_gt_filter_removes_localization_and_actuation(self):
+        r = probe("factory-gt-filtered")
+        # AVLite's own Bridge Setting filter, not a plugin setting, switches the ground truth off.
+        self.assertFalse(r["can_actuate"])
+        self.assertEqual((0, {}, None), (r["accepted"], r["rejections"], r["last_request"]))
 
 
 class SettingsTests(unittest.TestCase):

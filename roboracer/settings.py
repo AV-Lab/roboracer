@@ -28,11 +28,6 @@ class PluginSettingsSchema(SettingsSchema):
         default=AUTODRIVE_STEERING_LIMIT_RAD, gt=0.0, le=AUTODRIVE_STEERING_LIMIT_RAD, allow_inf_nan=False,
         description="Largest accepted steering angle magnitude [rad]; bounded by the simulator's 30° limit.")
 
-    gt_localization: bool = Field(
-        default=False,
-        description="Advertise LOCALIZATION from simulator truth (IPS + IMU orientation). Labelled ground "
-                    "truth for S1 development only; off by default.")
-
     @field_validator("autodrive_host")
     @classmethod
     def _loopback_only(cls, value: str) -> str:

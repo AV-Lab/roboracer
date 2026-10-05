@@ -503,3 +503,23 @@
 - **Analysis correction (retained).** The steady-speed window included the first post-hold, braking frame. Fixed, and **M3 was re-analysed: K = 5.02–5.03, not 4.90**. The M3 report carries the correction, and D5 uses K = 5.02 (within the confirmed ±10 % rule).
 - **Records.** Evidence `artifacts/s1/20261005T133323Z-m3b/` (40 files); bilingual [report](stages/S1-M3b-identification.md). 93 script tests and 26 plugin tests pass.
 - **Next.** M4/M5 await the user's go-ahead.
+
+## 2026-10-05 — M4 built and run; speed tracking blocked by the stale-feedback threshold; v0.3 change request
+
+- **Approval.** The user replied "yes run M4 and M5"; recorded, with M5 to run only after M4 passes.
+- **Built.**
+  - Supervisor stages m4/m5 with `SpeedLoop` (D5 v0.2: K 5.02, trim, u_max 0.07, rise 0.1/s, overspeed and stale rules) and its own encoder feedback subscription (D4 A).
+  - `SpeedStepController` and `GapFollowController` (D6); encoder `EgoState.velocity`.
+  - Runner AVLite stage driver with abort rules; analysis with the D7 latency chain.
+  - Offline smoke tests of both stacks passed.
+- **Attempts 0–2 (no motion).**
+  - 0: supervisor `PYTHONPATH` dropped the ROS paths.
+  - 1: player segfault at start-up, right after a monitor-layout change.
+  - 2: "no feedback yet" was treated as loss, so the supervisor inhibited itself; fixed.
+- **Trial 3 (motion).**
+  - Step 0.1 OK, but steps 0.2/0.3 missed (means 0.164/0.189, 3–4 brakes).
+  - Stop from 0.3 m/s in 0.45 s; stale-feedback cut in 0.20 s, then inhibition; final stop 0.11 s; no guard fault.
+  - Cause: feedback age at the supervisor is p95 405 / max 564 ms (frame period p95 284 ms + about 155 ms delivery), so the approved 0.4 s stale rule hard-brakes routinely.
+- **Analysis fix.** The stop-from-0.3 m/s window ran into the next step.
+- **Proposal v0.3 (change request).** Stale threshold 0.6 s, loss threshold 0.9 s; nothing else changes. Awaiting confirmation; no further M4 or M5 runs.
+- **Records.** Evidence `artifacts/s1/20261005T152922Z-m4/` (96 files); [report](stages/S1-M4-speed.md).

@@ -121,7 +121,8 @@ def analyze(directory: Path) -> dict:
         zero = next((r for r in requests if r.get("target_speed") == 0.0 and r["t"] >= run_start_ns + 8.9e9), None)
         stop_s = None
         if zero:
-            after = speeds_between(zero["gen_ns"], zero["gen_ns"] + 3e9)
+            # Window ends before the next step (0.2 m/s from 11 s): the stop must hold until then.
+            after = speeds_between(zero["gen_ns"], run_start_ns + 10.9e9)
             stop_at = next((t for t, v in after if v < 0.02 and all(w < 0.02 for u, w in after if u >= t)), None)
             stop_s = mono_of_sim(stop_at) - zero["gen_ns"] / 1e9 if stop_at is not None else None
         result["stop_from_0p3_s"] = stop_s

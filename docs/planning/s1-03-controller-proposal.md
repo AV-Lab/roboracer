@@ -4,6 +4,7 @@ Version: **0.2 — D5 revised after M3; awaiting confirmation of the changes.**
 - **v0.1:** confirmed on 2026-10-05 with "approve D4 A, D5, D6, D7; run M3 only". M3 passed ([report](../stages/S1-M3-identification.md)).
 - **What M3 changed:** the plant is a static gain (v ≈ 4.9 m/s × throttle, settled within one frame), not an accelerator. The v0.1 D5 gains and u_max = 0.03 therefore no longer fit. **D5 below is revised and needs your confirmation**, and **M3b** is added to D8.
 - **Unchanged:** D4, D6 and D7 are as confirmed.
+- **v0.3 change request (2026-10-05, after M4 trial 3; awaiting confirmation):** raise D5's stale-feedback thresholds from **0.4 s → 0.6 s** (zero throttle) and from **0.6 s → 0.9 s** (inhibit). Everything else is unchanged; see §7.
 - **v0.2 confirmed** on 2026-10-05 ("comfirm"). **M3b passed** ([report](../stages/S1-M3b-identification.md)): linear over 0.025–0.30 m/s with **K = 5.02**. M3's 4.90 was an analysis-window bias, now corrected. Under the confirmed ±10 % rule, D5 uses K = 5.02; u_max = 0.07 is then about 0.35 m/s. M4 and M5 are not yet authorized.
 
 Date: 2026-10-05. [Chinese version](s1-03-controller-proposal.zh-CN.md). This follows [motion protocol v0.1](s1-motion-protocol.md) §4 "After M0–M2". Evidence: [M0](../stages/S1-M0-steering.md), [M1](../stages/S1-M1-throttle.md), [M2](../stages/S1-M2-stops.md).
@@ -131,3 +132,27 @@ D4, D6 and D7 are already confirmed. For v0.2, please confirm or change:
 - whether to run **M3b** (throttle 0.03 / 0.045 / 0.06).
 
 M4 and M5 stay unauthorized until you say otherwise.
+
+## 7. v0.3 change request: stale-feedback thresholds (after M4 trial 3)
+
+**What M4 trial 3 showed** ([report](../stages/S1-M4-speed.md)):
+- **Feedback age.** The supervisor's own encoder feedback (D4 A) arrives every telemetry frame: p50 243 ms, p95 284 ms, max 298 ms. That is slower than in M3b (206 ms), with the additional subscriber running. Delivery takes about 155 ms more. At request time the feedback is therefore **p50 274 ms, p95 405 ms, max 564 ms old**.
+- **Spurious hard brakes.** The 0.4 s stale rule fires routinely. Zero throttle is a hard brake, so the car stops within a frame and the rise limit ramps it back. That cycling pulled the 0.2 / 0.3 m/s step means down to 0.164 / 0.189 m/s, with 3–4 brake events per step.
+- **Loss rule.** The 0.6 s loss rule would occasionally inhibit a healthy run.
+- **Everything else passed:**
+  - the stop from 0.3 m/s took 0.45 s;
+  - the stale-feedback cut took 0.20 s, with inhibition 0.40 s after the blackout;
+  - the final stop took 0.11 s;
+  - there was no guard fault.
+
+**Proposed change.**
+- `stale_ns` 0.4 s → **0.6 s**, giving zero throttle (hard brake);
+- `lost_ns` 0.6 s → **0.9 s**, giving sticky inhibition.
+
+Each threshold is the measured maximum age (564 ms) plus a margin. Nothing else changes.
+
+**Cost.** The worst-case reaction to frozen feedback rises from about 0.4 s + one frame to about 0.6 s + one frame, and braking still takes about one frame. At the 0.35 m/s throttle-cap speed, that adds at most about 7 cm of travel before braking. The guard's own lease (0.5 s from generation) and the supervisor's runner lease are unchanged, so a hung algorithm or runner is still stopped exactly as in M2.
+
+**Alternative (not recommended alone):** cut the bridge's reply pacing from 50 ms to 0, a tooling change that shortens the frame period. On its own it would leave a max age of about 0.5 s, still above 0.4 s.
+
+**Requested reply:** confirm v0.3 (thresholds 0.6 / 0.9 s), and say whether to re-run M4, then M5 if M4 passes.

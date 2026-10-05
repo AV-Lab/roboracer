@@ -391,3 +391,25 @@
 - **Tests.** 89 script tests and 26 plugin tests pass.
 - **Records.** Evidence `artifacts/s1/20261005T113714Z-m0/` (92 files). Bilingual [report](stages/S1-M0-steering.md).
 - **Next.** The user's decision on M1. Acceptance count unchanged (3/34).
+
+## 2026-10-05 — M1 (forward throttle pulses) passes
+
+- **Approval.** The user replied "approve M1 as drafted"; the approval record now lists M0 and M1. M2 and AVLite motion remain unauthorized.
+- **Added.**
+  - Supervisor/runner stage `m1`: throttle {0, 0.002, 0.005, 0.01, 0.02}, steering exactly 0. Throttle feedback is checked at those values, and the bridge child fails closed at 2 m total displacement.
+  - An event-driven M1 calibration source. Each pulse lasts exactly one telemetry interval (~0.20 s after D3). It escalates only under the caps, plus a linear-extrapolation skip rule.
+  - All §3 workspace and abort rules, an 18 s armed limit, and a silent finish so the lease expires with zero output.
+  - Analysis `autodrive_s1_m1.py`.
+- **Trial 1.** The vehicle sequence completed, but the source exited its loop and the runner failed the trial on the child exit. An analysis parser defect (6-field accept events) initially hid the stop timings. Re-analysed, every pulse passes. Fixed both.
+- **Trial 2: pass, unassisted, 52 s.**
+  - Throttle 0.002 / 0.005 / 0.01 / 0.02 was applied for 0.20 s each.
+  - Torque per wheel was exactly 85.6 × throttle / 4.
+  - Peak speeds were 0.010 / 0.020 / 0.045 / 0.095 m/s, and travel 2 / 4 / 10 / 19 mm forward, with 0 mm lateral and 0° yaw.
+  - Stops came 0.35–0.58 s after generation.
+  - After every pulse all motor torque was 0 with brakes applied (D1 verified live).
+  - Encoders +180 ticks / +0.589 rad, which matches 35 mm of IPS travel at a 0.059 m radius.
+  - All 85 requests were forwarded; observation age was 97/110/120 ms.
+  - No fault or rejection, one final lease expiry, all 604 player files unchanged.
+- **Finding.** The ideal-force estimate in the protocol overstated the response ~20×; the measured response map replaces it.
+- **Records.** Evidence `artifacts/s1/20261005T115944Z-m1/` (67 files). Bilingual [report](stages/S1-M1-throttle.md). 91 script tests and 26 plugin tests pass.
+- **Next.** The user's decision on M2. S1-02's box is left for user review. Acceptance count unchanged (3/34).

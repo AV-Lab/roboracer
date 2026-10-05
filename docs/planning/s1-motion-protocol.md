@@ -1,6 +1,6 @@
 # S1 Numerical Motion Protocol — Draft for Confirmation
 
-Version: **0.1 — confirmed in part** on 2026-10-05: "approve D1 A, D2, D3; run M0 only" ([record](s1-motion-approval.json)). **M0 passed** ([report](../stages/S1-M0-steering.md)). M1 and M2 are not authorized. Date: 2026-10-05. [Chinese version](s1-motion-protocol.zh-CN.md). Required by [amendment 1.2](s1-first-amendment.md) before any command that can move the vehicle. Evidence: [SIM1-02 guard](../stages/SIM1-guard.md), [S1-02 observation](../stages/S1-observation.md), [S1 supervisor](../stages/S1-supervisor.md).
+Version: **0.1 — confirmed in part** on 2026-10-05: "approve D1 A, D2, D3; run M0 only" ([record](s1-motion-approval.json)). **M0 passed** ([report](../stages/S1-M0-steering.md)). M1 approved ("approve M1 as drafted") and **passed** ([report](../stages/S1-M1-throttle.md)). M2 is not authorized. Date: 2026-10-05. [Chinese version](s1-motion-protocol.zh-CN.md). Required by [amendment 1.2](s1-first-amendment.md) before any command that can move the vehicle. Evidence: [SIM1-02 guard](../stages/SIM1-guard.md), [S1-02 observation](../stages/S1-observation.md), [S1 supervisor](../stages/S1-supervisor.md).
 
 **Until you confirm this document (or a changed version), nothing here is executed.** The guard's zero-output interlock stays on, `-roboracerMotionAuthorized` is not passed, and the supervisor's motion gate stays closed in code.
 

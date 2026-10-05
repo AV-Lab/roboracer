@@ -1277,7 +1277,9 @@ def trial(args, context, out):
                         if window is not None:
                             capture(window, "ui-completed")
                         break
-                    if args.guard == "observe" and bridge_state.get("guard", {}).get("complete"):
+                    # Observe and calibration trials end when the bridge-side driver completes
+                    # (calibration: after its final checks and disarm; M0 attempt 2 waited for the timeout).
+                    if args.guard in ("observe", "calibration") and bridge_state.get("guard", {}).get("complete"):
                         if window is not None:
                             capture(window, "ui-completed")
                         record.update(completed_observation=True, observation_end_ns=time.monotonic_ns(),

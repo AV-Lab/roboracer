@@ -132,14 +132,30 @@ def analyze(directory: Path) -> dict:
         if expiry["command_before"] != 0.5 or expiry["zero_after_s"] is None or expiry["zero_after_s"] > 0.2:
             failures.append(f"expiry case: {expiry}")
 
+    # Translation over the M0 window: from the first profile request until the expiry wait ended
+    # (last request + 4 s). Passive creep (SIM0: ~3-4 mm/min) outside it is reported separately.
+    requests = rows(directory / "calibration-requests.jsonl")
+    profile = [r["gen_ns"] for r in requests if r["phase"] == "profile"]
+    window = (min(profile), max(r["gen_ns"] for r in requests) + 4_000_000_000) if profile else None
     reference = frames[0]["motion"]
-    displacement = max(math.dist(reference["Position"], f["motion"]["Position"]) for f in frames)
+
+    def millimetres(frame):  # IPS is reported in whole millimetres; avoid float artefacts
+        return round(math.dist(reference["Position"], frame["motion"]["Position"]) * 1000, 3)
+
+    inside = [f for f in frames if window and window[0] <= f["received_monotonic_ns"] <= window[1]]
+    start = [f for f in frames if window and f["received_monotonic_ns"] < window[0]]
+    base = millimetres(start[-1]) if start else 0.0
+    displacement = max((abs(millimetres(f) - base) for f in inside), default=None)
+    whole_run = max(millimetres(f) for f in frames)
     encoders_changed = any(f["motion"]["Encoder Ticks"] != reference["Encoder Ticks"] for f in frames)
-    if displacement > 0.005 or encoders_changed:
-        failures.append(f"translation: {displacement:.4f} m, encoders changed {encoders_changed}")
+    if displacement is None or displacement > 5.0 or encoders_changed:
+        failures.append(f"translation in the M0 window: {displacement} mm, encoders changed {encoders_changed}")
     feedback = [f["motion"].get("Steering Feedback") for f in frames if "Steering Feedback" in f["motion"]]
     return {"run": str(directory), "guard_steps": len(steps), "segments": results, "commanded": commanded,
-            "expiry": expiry, "max_displacement_m": displacement, "encoders_changed": encoders_changed,
+            "expiry": expiry, "m0_window_displacement_mm": displacement, "whole_run_displacement_mm": whole_run,
+            "m0_window_s": (window[1] - window[0]) / 1e9 if window else None,
+            "whole_run_s": (frames[-1]["received_monotonic_ns"] - frames[0]["received_monotonic_ns"]) / 1e9,
+            "encoders_changed": encoders_changed,
             "steering_feedback_rad_min_max": [min(feedback), max(feedback)] if feedback else None,
             "calibration": {k: calibration.get(k) for k in ("phase", "sent", "send_failures", "precheck", "abort")},
             "supervisor_decisions": len(supervisor), "guard_faults": faults, "guard_rejections": rejects,
@@ -155,7 +171,7 @@ def main():
         parser.error("Output must be fresh")
     report = analyze(args.run)
     args.output.write_text(json.dumps(report, indent=2) + "\n")
-    print(json.dumps({k: report[k] for k in ("commanded", "max_displacement_m", "expiry", "failures", "passes")}))
+    print(json.dumps({k: report[k] for k in ("commanded", "m0_window_displacement_mm", "whole_run_displacement_mm", "expiry", "failures", "passes")}))
     return 0 if report["passes"] else 1
 
 

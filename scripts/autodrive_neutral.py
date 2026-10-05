@@ -115,7 +115,8 @@ SIM1_REPLY_FIELDS = {"RR Ping Mono", "RR Test Freeze", "RR Reply To", "RR Reply 
 # roboracer.runtime.supervisor_core.STAGES (a test checks they are equal).
 MOTION_STAGES = {"m0": {"throttle": (0.0,), "steering": (0.0, 0.1, -0.1, 0.5, -0.5, 1.0, -1.0)},
                  "m1": {"throttle": (0.0, 0.002, 0.005, 0.01, 0.02), "steering": (0.0,)},
-                 "m2": {"throttle": (0.0, 0.01), "steering": (0.0,)}}
+                 "m2": {"throttle": (0.0, 0.01), "steering": (0.0,)},
+                 "m3": {"throttle": (0.0, 0.005, 0.01, 0.02), "steering": (0.0,)}}
 # M1 hard containment in the bridge (fails closed): four pulses at the 0.5 m per-pulse cap.
 # The calibration source applies the finer protocol abort rules (speed, travel, yaw, lateral, clearance).
 M1_CONTAINMENT_M = 2.0
@@ -173,7 +174,7 @@ def motion_fields(data, stage=None):
             result["Steering Feedback"] = value
             continue
         # M1/M2: throttle feedback (reported to 3 decimals) must be one of the stage's values.
-        if key == "Throttle" and stage in ("m1", "m2") and math.isfinite(value) and \
+        if key == "Throttle" and stage in ("m1", "m2", "m3") and math.isfinite(value) and \
                 any(abs(value - allowed) <= 0.0005 for allowed in MOTION_STAGES[stage]["throttle"]):
             result["Throttle Feedback"] = value
             continue
@@ -339,7 +340,7 @@ def bridge(args):
                 reference = motion
                 save(out / "first-raw-frame.json", data)
             changed = rejected_motion_fields(reference, motion, args.profile)
-            if args.motion_stage in ("m1", "m2"):
+            if args.motion_stage in ("m1", "m2", "m3"):
                 # Motion is intended: only the hard containment bound stops the bridge here.
                 changed = ["Position"] if math.dist(reference["Position"], motion["Position"]) >= M1_CONTAINMENT_M else []
             displacement = math.dist(reference["Position"], motion["Position"])
@@ -611,6 +612,8 @@ def calibrate(args):
         return calibrate_m1(args)
     if args.motion_stage == "m2":
         return calibrate_m2(args)
+    if args.motion_stage == "m3":
+        return calibrate_m3(args)
     if args.motion_stage != "m0":
         raise SystemExit("Unknown motion stage")
     import_plugin_modules(str(args.plugin), pkg_name="roboracer")
@@ -1042,6 +1045,185 @@ def calibrate_m2(args):
             elif phase in ("hang", "observe"):
                 if now - phase_start >= M2_OBSERVE_S:
                     state["phase"] = "done"
+            checkpoint()
+    finally:
+        bridge.close()
+        sock.close()
+        state["completed"] = True
+        checkpoint()
+        log.close()
+        frames_log.close()
+
+
+M3_HOLDS = (0.005, 0.01, 0.02)
+M3_SPEED_END_MPS = 0.3      # hold ends at this encoder speed ...
+M3_HOLD_MAX_S = 2.0         # ... or after this long ...
+M3_HOLD_TRAVEL_M = 0.4      # ... or at this encoder travel (keeps travel incl. braking under 0.5 m)
+M3_REST_MIN_S = 1.5         # after the hold ends, before the next may start (stop window)
+WHEEL_RADIUS_M = 0.059      # WheelCollider radius; encoder angle (rad) x radius = distance (M1)
+
+
+def calibrate_m3(args):
+    """S1-03 M3 identification (proposal v0.1, D8): open-loop throttle holds, steering 0.
+    Frame-locked like M1; encoder speed (mean of both wheels, acquisition sim time) ends each
+    hold; zero throttle (hard brake) follows. Never exceeds the stage profile."""
+    import queue
+    from avlite.c60_apps.c63_plugins import import_plugin_modules
+
+    import_plugin_modules(str(args.plugin), pkg_name="roboracer")
+    plugin = sys.modules["avlite.plugins.roboracer"]
+    bridge = plugin.AutoDriveBridge()
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    sock.setblocking(False)
+    log = (args.results / "calibration-requests.jsonl").open("w", buffering=1)
+    frames_log = (args.results / "calibration-frames.jsonl").open("w", buffering=1)
+    arrivals = queue.Queue()
+    state = {"pid": os.getpid(), "stage": "m3", "phase": "wait-armed", "ready": False, "seq": 0, "sent": 0,
+             "send_failures": 0, "holds": [], "abort": None, "precheck": None, "finish_reason": None}
+    stop = []
+    signal.signal(signal.SIGTERM, lambda *_: stop.append(True))
+
+    def checkpoint():
+        save(args.results / "calibration-status.json", state)
+
+    def send(snapshot, throttle):
+        state["seq"] += 1
+        message = {"kind": "calibration", "origin": "cal", "seq": state["seq"], "gen_ns": time.monotonic_ns(),
+                   "throttle": throttle, "steering": 0.0,
+                   "observation": {"telemetry_seq": snapshot.telemetry_seq,
+                                   "stamp_ns": int(round(snapshot.pose.stamp * 1e9))}}
+        try:
+            sock.sendto(json.dumps(message).encode(), "\0" + args.supervisor)
+            state["sent"] += 1
+        except (BlockingIOError, ConnectionRefusedError, FileNotFoundError):
+            state["send_failures"] += 1
+        log.write(json.dumps(dict(message, phase=state["phase"])) + "\n")
+
+    bridge.snapshot_listener = arrivals.put
+    bridge.connect()
+    state["ready"] = True
+    checkpoint()
+    previous = None  # (mean encoder angle, encoder sim time)
+    armed_at = phase_start = hold = start_pose = None
+    still_frames = 0
+    try:
+        while not stop:
+            try:
+                snapshot = arrivals.get(timeout=M1_FRAME_GAP_S)
+                if state["phase"] in ("done", "aborted-done"):
+                    continue
+            except queue.Empty:
+                if state["phase"] in ("done", "aborted-done"):
+                    continue
+                if state["phase"] in ("hold", "brake", "ready") and state["abort"] is None:
+                    state.update(phase="aborted", abort=f"no new observation for {M1_FRAME_GAP_S} s")
+                    phase_start = time.monotonic()
+                elif state["phase"] in ("finish", "aborted") and time.monotonic() - phase_start >= 4.0:
+                    state["phase"] = "done" if state["phase"] == "finish" else "aborted-done"
+                checkpoint()
+                continue
+            now = time.monotonic()
+            angle = sum(snapshot.encoder_angles_rad) / 2
+            encoder_sim = snapshot.sources["left_encoder"]["sim_time"]
+            speed = ((angle - previous[0]) * WHEEL_RADIUS_M / (encoder_sim - previous[1])
+                     if previous and encoder_sim > previous[1] else 0.0)
+            previous = (angle, encoder_sim)
+            x, y, yaw = snapshot.pose.x, snapshot.pose.y, snapshot.pose.yaw
+            ranges = snapshot.scan_ranges
+            forward, left, right = sector_min(ranges, -15, 15), sector_min(ranges, 80, 100), sector_min(ranges, -100, -80)
+            guard_state = read(args.results / "bridge-status.json").get("guard", {}).get("state")
+            phase = state["phase"]
+            frames_log.write(json.dumps({"t": time.monotonic_ns(), "telemetry_seq": snapshot.telemetry_seq,
+                                         "encoder_sim_time": encoder_sim, "ips_sim_time": snapshot.sources["ips"]["sim_time"],
+                                         "encoder_angle_rad": angle, "encoder_speed_mps": speed,
+                                         "pose": [x, y, yaw], "forward_m": forward, "left_m": left, "right_m": right,
+                                         "guard": guard_state, "phase": phase}) + "\n")
+            still_frames = still_frames + 1 if abs(speed) < M1_STOP_SPEED_MPS else 0
+
+            # Protocol §3 abort monitor while anything may be moving.
+            if phase in ("hold", "brake", "ready") and start_pose is not None and state["abort"] is None:
+                dx, dy = x - start_pose[0], y - start_pose[1]
+                heading = start_pose[2]
+                lateral = abs(-math.sin(heading) * dx + math.cos(heading) * dy)
+                yaw_change = abs(math.degrees(math.remainder(yaw - heading, math.tau)))
+                hold_travel = (angle - hold["start_angle"]) * WHEEL_RADIUS_M if hold else 0.0
+                reason = ("guard fault" if guard_state == "fault" else
+                          "speed %.3f m/s" % speed if speed > M1_SPEED_CAP_MPS else
+                          "hold travel %.3f m" % hold_travel if hold_travel > M1_TRAVEL_CAP_M else
+                          "yaw change %.1f deg" % yaw_change if yaw_change > 10 else
+                          "lateral deviation %.3f m" % lateral if lateral > 0.15 else
+                          "forward clearance %.2f m" % forward if forward < 1.0 else
+                          "side clearance %.2f m" % min(left, right) if min(left, right) < 0.25 else None)
+                if reason:
+                    state.update(phase="aborted", abort=reason)
+                    phase_start = now
+            phase = state["phase"]
+
+            if phase == "wait-armed":
+                send(snapshot, 0.0)
+                if guard_state == "armed":
+                    state["phase"], armed_at, phase_start = "settle", now, now
+            elif phase == "settle":
+                send(snapshot, 0.0)
+                if now - phase_start >= M0_SETTLE_S:
+                    check = {"spawn_offset_m": math.dist((x, y), M0_SPAWN_XY), "forward_min_m": forward,
+                             "left_min_m": left, "right_min_m": right, "telemetry_seq": snapshot.telemetry_seq}
+                    check["passed"] = check["spawn_offset_m"] <= 0.020 and forward >= 1.5 and min(left, right) >= 0.4
+                    state["precheck"] = check
+                    start_pose = (x, y, yaw)
+                    if check["passed"]:
+                        state["phase"] = "ready"
+                    else:
+                        state.update(phase="aborted", abort="workspace precheck")
+                        phase_start = now
+            elif phase == "ready":
+                done = state["holds"]
+                travelled = sum(h["travel_m"] for h in done)
+                reason = ("sequence complete" if len(done) >= len(M3_HOLDS) else
+                          "armed time" if now - armed_at + M3_HOLD_MAX_S + M3_REST_MIN_S + 1.0 > M1_ARMED_LIMIT_S else
+                          "trial travel" if travelled + M1_TRAVEL_CAP_M > M1_TRIAL_TRAVEL_M else
+                          "forward clearance before hold" if forward < 1.5 else
+                          "side clearance before hold" if min(left, right) < 0.4 else None)
+                if reason:
+                    state.update(phase="finish", finish_reason=reason)
+                    phase_start = now  # silent: the lease expires with zero output
+                elif still_frames >= 2:
+                    throttle = M3_HOLDS[len(done)]
+                    hold = {"throttle": throttle, "start_angle": angle, "start_encoder_sim": encoder_sim,
+                            "start_pose": [x, y, yaw], "start_telemetry_seq": snapshot.telemetry_seq,
+                            "max_speed_mps": 0.0, "end_reason": None, "started_at": now}
+                    state["phase"] = "hold"
+                    send(snapshot, throttle)
+                else:
+                    send(snapshot, 0.0)
+            elif phase == "hold":
+                hold["max_speed_mps"] = max(hold["max_speed_mps"], speed)
+                travel = (angle - hold["start_angle"]) * WHEEL_RADIUS_M
+                hold_s = encoder_sim - hold["start_encoder_sim"]
+                end = ("speed" if speed >= M3_SPEED_END_MPS else "time" if hold_s >= M3_HOLD_MAX_S else
+                       "travel" if travel >= M3_HOLD_TRAVEL_M else None)
+                if end:
+                    hold.update(end_reason=end, end_speed_mps=speed, end_encoder_sim=encoder_sim,
+                                end_travel_m=travel, end_telemetry_seq=snapshot.telemetry_seq)
+                    state["phase"], phase_start = "brake", now
+                    send(snapshot, 0.0)  # zero throttle = hard brake
+                else:
+                    send(snapshot, hold["throttle"])
+            elif phase == "brake":
+                send(snapshot, 0.0)
+                if still_frames >= 2 and now - phase_start >= M3_REST_MIN_S:
+                    hold.update(travel_m=(angle - hold["start_angle"]) * WHEEL_RADIUS_M, stop_encoder_sim=encoder_sim,
+                                final_pose=[x, y, yaw])
+                    state["holds"].append({k: v for k, v in hold.items() if k != "started_at"})
+                    state["phase"] = "ready"
+            elif phase == "finish":
+                if now - phase_start >= 4.0:
+                    state["phase"] = "done"
+            elif phase == "aborted":
+                if now - phase_start < 1.0:
+                    send(snapshot, 0.0)
+                elif now - phase_start >= 5.0:
+                    state["phase"] = "aborted-done"
             checkpoint()
     finally:
         bridge.close()

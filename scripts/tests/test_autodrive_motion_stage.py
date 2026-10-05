@@ -39,9 +39,19 @@ class RunnerStageTests(unittest.TestCase):
     def test_stage_tables_agree_and_approval_names_only_m0(self):
         self.assertEqual(core.STAGES, MOTION_STAGES)
         approval = json.loads(MOTION_APPROVAL.read_text())
-        self.assertEqual(("0.1", ["M0", "M1", "M2"], "A"), (approval["version"], approval["stages"],
-                                                            approval["decisions"]["D1"]))
-        self.assertIn("AVLite target-speed motion", approval["not_authorized"])
+        self.assertEqual(("0.1", ["M0", "M1", "M2", "M3"], "A"), (approval["version"], approval["stages"],
+                                                                  approval["decisions"]["D1"]))
+        for stage in ("M4", "M5", "AVLite target-speed motion", "steering while moving"):
+            self.assertIn(stage, approval["not_authorized"])
+
+    def test_m3_bounds(self):
+        for throttle in (0, 0.005, 0.01, 0.02):
+            check_guard_request(f"1 sup-1 3 10 20 {throttle} 0 cal.3.t9", "m3")
+        for text in ("1 sup-1 3 10 20 0.03 0 cal.3.t9", "1 sup-1 3 10 20 0.002 0 cal.3.t9",
+                     "1 sup-1 3 10 20 0.01 0.1 cal.3.t9"):
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                check_guard_request(text, "m3")
+        self.assertEqual(0.02, motion_fields(frame(throttle="0.020"), "m3")["Throttle Feedback"])
 
     def test_m2_bounds(self):
         check_guard_request("1 sup-1 3 10 20 0.01 0 cal.3.t9", "m2")

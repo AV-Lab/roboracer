@@ -1678,7 +1678,9 @@ def trial(args, context, out):
                     "--name", supervisor_name, "--target", read(out / "bridge-status.json")["guard_socket"],
                     "--origin", "sup-1", "--status", str(out / "supervisor-1-status.json"),
                     "--trace", str(out / "supervisor-trace.jsonl"), *stage],
-                    dict(plugin_environment, PYTHONPATH=str(PLUGIN_DIRECTORY.parent)))
+                    # Keep the sourced ROS paths: the M4/M5 supervisor subscribes to ROS itself (D4 A).
+                    dict(plugin_environment, PYTHONPATH=":".join(
+                        p for p in (str(PLUGIN_DIRECTORY.parent), plugin_environment.get("PYTHONPATH", "")) if p)))
                 deadline = time.monotonic() + 30
                 while not read(out / "supervisor-1-status.json").get("ready"):
                     if any(p.poll() is not None for p, _, _ in children) or time.monotonic() > deadline:

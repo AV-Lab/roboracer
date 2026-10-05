@@ -39,8 +39,12 @@ class RunnerStageTests(unittest.TestCase):
     def test_stage_tables_agree_and_approval_names_only_m0(self):
         self.assertEqual(core.STAGES, MOTION_STAGES)
         approval = json.loads(MOTION_APPROVAL.read_text())
-        self.assertEqual(("0.1", ["M0", "M1", "M2", "M3"], "A"), (approval["version"], approval["stages"],
-                                                                  approval["decisions"]["D1"]))
+        self.assertEqual(("0.1", ["M0", "M1", "M2", "M3", "M3B"], "A"), (approval["version"], approval["stages"],
+                                                                         approval["decisions"]["D1"]))
+        for throttle in (0.03, 0.045, 0.06):
+            check_guard_request(f"1 sup-1 3 10 20 {throttle} 0 cal.3.t9", "m3b")
+        with self.assertRaises(ValueError):
+            check_guard_request("1 sup-1 3 10 20 0.07 0 cal.3.t9", "m3b")
         for stage in ("M4", "M5", "AVLite target-speed motion", "steering while moving"):
             self.assertIn(stage, approval["not_authorized"])
 

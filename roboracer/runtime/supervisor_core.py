@@ -14,7 +14,8 @@ forwarded, as normalized throttle/steering "0"/"0". Speed control comes with S1-
 Calibration requests (motion protocol v0.1, D2): normalized throttle/steering, bounded in code
 by the stage profile: ``m0`` (steering only, throttle exactly 0), ``m1`` (forward throttle
 pulses 0.002–0.02, steering exactly 0), ``m2`` (throttle 0.01 for the hang/runner-loss
-stop cases, steering exactly 0) and ``m3`` (S1-03 identification holds 0.005–0.02, steering 0). The process opens a stage only with the committed
+stop cases, steering exactly 0), ``m3`` (S1-03 identification holds 0.005–0.02, steering 0) and
+``m3b`` (identification holds 0.03–0.06 up to about 0.3 m/s, steering 0). The process opens a stage only with the committed
 approval record (``s1-motion-approval.json``) naming it.
 
 Validation order (the first failure is the reason):
@@ -37,7 +38,8 @@ STATES = ("waiting-runner", "active", "inhibited")
 STAGES = {"m0": {"throttle": (0.0,), "steering": (0.0, 0.1, -0.1, 0.5, -0.5, 1.0, -1.0)},
           "m1": {"throttle": (0.0, 0.002, 0.005, 0.01, 0.02), "steering": (0.0,)},
           "m2": {"throttle": (0.0, 0.01), "steering": (0.0,)},
-          "m3": {"throttle": (0.0, 0.005, 0.01, 0.02), "steering": (0.0,)}}
+          "m3": {"throttle": (0.0, 0.005, 0.01, 0.02), "steering": (0.0,)},
+          "m3b": {"throttle": (0.0, 0.03, 0.045, 0.06), "steering": (0.0,)}}
 
 
 @dataclass(frozen=True)

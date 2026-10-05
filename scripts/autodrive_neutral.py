@@ -116,7 +116,8 @@ SIM1_REPLY_FIELDS = {"RR Ping Mono", "RR Test Freeze", "RR Reply To", "RR Reply 
 MOTION_STAGES = {"m0": {"throttle": (0.0,), "steering": (0.0, 0.1, -0.1, 0.5, -0.5, 1.0, -1.0)},
                  "m1": {"throttle": (0.0, 0.002, 0.005, 0.01, 0.02), "steering": (0.0,)},
                  "m2": {"throttle": (0.0, 0.01), "steering": (0.0,)},
-                 "m3": {"throttle": (0.0, 0.005, 0.01, 0.02), "steering": (0.0,)}}
+                 "m3": {"throttle": (0.0, 0.005, 0.01, 0.02), "steering": (0.0,)},
+                 "m3b": {"throttle": (0.0, 0.03, 0.045, 0.06), "steering": (0.0,)}}
 # M1 hard containment in the bridge (fails closed): four pulses at the 0.5 m per-pulse cap.
 # The calibration source applies the finer protocol abort rules (speed, travel, yaw, lateral, clearance).
 M1_CONTAINMENT_M = 2.0
@@ -174,7 +175,7 @@ def motion_fields(data, stage=None):
             result["Steering Feedback"] = value
             continue
         # M1/M2: throttle feedback (reported to 3 decimals) must be one of the stage's values.
-        if key == "Throttle" and stage in ("m1", "m2", "m3") and math.isfinite(value) and \
+        if key == "Throttle" and stage in ("m1", "m2", "m3", "m3b") and math.isfinite(value) and \
                 any(abs(value - allowed) <= 0.0005 for allowed in MOTION_STAGES[stage]["throttle"]):
             result["Throttle Feedback"] = value
             continue
@@ -340,7 +341,7 @@ def bridge(args):
                 reference = motion
                 save(out / "first-raw-frame.json", data)
             changed = rejected_motion_fields(reference, motion, args.profile)
-            if args.motion_stage in ("m1", "m2", "m3"):
+            if args.motion_stage in ("m1", "m2", "m3", "m3b"):
                 # Motion is intended: only the hard containment bound stops the bridge here.
                 changed = ["Position"] if math.dist(reference["Position"], motion["Position"]) >= M1_CONTAINMENT_M else []
             displacement = math.dist(reference["Position"], motion["Position"])
@@ -612,7 +613,7 @@ def calibrate(args):
         return calibrate_m1(args)
     if args.motion_stage == "m2":
         return calibrate_m2(args)
-    if args.motion_stage == "m3":
+    if args.motion_stage in ("m3", "m3b"):
         return calibrate_m3(args)
     if args.motion_stage != "m0":
         raise SystemExit("Unknown motion stage")
@@ -1059,6 +1060,10 @@ M3_HOLDS = (0.005, 0.01, 0.02)
 M3_SPEED_END_MPS = 0.3      # hold ends at this encoder speed ...
 M3_HOLD_MAX_S = 2.0         # ... or after this long ...
 M3_HOLD_TRAVEL_M = 0.4      # ... or at this encoder travel (keeps travel incl. braking under 0.5 m)
+# M3b (proposal v0.2): up to ~0.3 m/s. A frame then covers ~6 cm and braking ~6 cm, so the
+# travel end is 0.35 m to keep each hold under the 0.5 m cap.
+M3B_HOLDS = (0.03, 0.045, 0.06)
+M3B_HOLD_TRAVEL_M = 0.35
 M3_REST_MIN_S = 1.5         # after the hold ends, before the next may start (stop window)
 WHEEL_RADIUS_M = 0.059      # WheelCollider radius; encoder angle (rad) x radius = distance (M1)
 
@@ -1066,9 +1071,14 @@ WHEEL_RADIUS_M = 0.059      # WheelCollider radius; encoder angle (rad) x radius
 def calibrate_m3(args):
     """S1-03 M3 identification (proposal v0.1, D8): open-loop throttle holds, steering 0.
     Frame-locked like M1; encoder speed (mean of both wheels, acquisition sim time) ends each
-    hold; zero throttle (hard brake) follows. Never exceeds the stage profile."""
+    hold; zero throttle (hard brake) follows. Never exceeds the stage profile. Stage m3b
+    (proposal v0.2) uses holds 0.03/0.045/0.06 and a 0.35 m travel end."""
     import queue
     from avlite.c60_apps.c63_plugins import import_plugin_modules
+
+    holds, hold_travel_end = ((M3B_HOLDS, M3B_HOLD_TRAVEL_M) if args.motion_stage == "m3b"
+                              else (M3_HOLDS, M3_HOLD_TRAVEL_M))
+    assert all(h in MOTION_STAGES[args.motion_stage]["throttle"] for h in holds)
 
     import_plugin_modules(str(args.plugin), pkg_name="roboracer")
     plugin = sys.modules["avlite.plugins.roboracer"]
@@ -1078,7 +1088,7 @@ def calibrate_m3(args):
     log = (args.results / "calibration-requests.jsonl").open("w", buffering=1)
     frames_log = (args.results / "calibration-frames.jsonl").open("w", buffering=1)
     arrivals = queue.Queue()
-    state = {"pid": os.getpid(), "stage": "m3", "phase": "wait-armed", "ready": False, "seq": 0, "sent": 0,
+    state = {"pid": os.getpid(), "stage": args.motion_stage, "holds_planned": list(holds), "phase": "wait-armed", "ready": False, "seq": 0, "sent": 0,
              "send_failures": 0, "holds": [], "abort": None, "precheck": None, "finish_reason": None}
     stop = []
     signal.signal(signal.SIGTERM, lambda *_: stop.append(True))
@@ -1179,7 +1189,7 @@ def calibrate_m3(args):
             elif phase == "ready":
                 done = state["holds"]
                 travelled = sum(h["travel_m"] for h in done)
-                reason = ("sequence complete" if len(done) >= len(M3_HOLDS) else
+                reason = ("sequence complete" if len(done) >= len(holds) else
                           "armed time" if now - armed_at + M3_HOLD_MAX_S + M3_REST_MIN_S + 1.0 > M1_ARMED_LIMIT_S else
                           "trial travel" if travelled + M1_TRAVEL_CAP_M > M1_TRIAL_TRAVEL_M else
                           "forward clearance before hold" if forward < 1.5 else
@@ -1188,7 +1198,7 @@ def calibrate_m3(args):
                     state.update(phase="finish", finish_reason=reason)
                     phase_start = now  # silent: the lease expires with zero output
                 elif still_frames >= 2:
-                    throttle = M3_HOLDS[len(done)]
+                    throttle = holds[len(done)]
                     hold = {"throttle": throttle, "start_angle": angle, "start_encoder_sim": encoder_sim,
                             "start_pose": [x, y, yaw], "start_telemetry_seq": snapshot.telemetry_seq,
                             "max_speed_mps": 0.0, "end_reason": None, "started_at": now}
@@ -1201,7 +1211,7 @@ def calibrate_m3(args):
                 travel = (angle - hold["start_angle"]) * WHEEL_RADIUS_M
                 hold_s = encoder_sim - hold["start_encoder_sim"]
                 end = ("speed" if speed >= M3_SPEED_END_MPS else "time" if hold_s >= M3_HOLD_MAX_S else
-                       "travel" if travel >= M3_HOLD_TRAVEL_M else None)
+                       "travel" if travel >= hold_travel_end else None)
                 if end:
                     hold.update(end_reason=end, end_speed_mps=speed, end_encoder_sim=encoder_sim,
                                 end_travel_m=travel, end_telemetry_seq=snapshot.telemetry_seq)

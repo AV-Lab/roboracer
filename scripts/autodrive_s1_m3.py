@@ -23,6 +23,7 @@ from pathlib import Path
 MOTOR_TORQUE_NM, BRAKE_NM, FIXED_STEP_S, LIFE_S = 85.6, 85.5999984741211, 0.001, 0.5
 SPEED_CAP, TRAVEL_CAP, STOP_SPEED, STOP_WINDOW_S, STOP_TRAVEL_M = 0.5, 0.5, 0.02, 1.5, 0.15
 WHEEL_RADIUS_M = 0.059
+M3_GAIN = 4.90  # m/s per unit throttle, measured in M3 (20261005T123651Z-m3)
 
 
 def rows(path):
@@ -152,6 +153,12 @@ def analyze(directory: Path) -> dict:
         holds.append(row)
 
     gains = [h["steady_gain_mps_per_unit_throttle"] for h in holds if h["steady_gain_mps_per_unit_throttle"]]
+    if status.get("stage") == "m3b":
+        # Proposal v0.2, M3b: the M3 gain (4.90) must hold within +/-10 % at every level.
+        off = [h["throttle"] for h in holds if not h["steady_gain_mps_per_unit_throttle"]
+               or abs(h["steady_gain_mps_per_unit_throttle"] / M3_GAIN - 1) > 0.10]
+        if off or len(holds) != 3:
+            failures.append(f"M3b gain outside 4.90 +/- 10 % (or not reached) at throttle {off}; holds {len(holds)}")
     settles = [h["settle_within_s"] for h in holds if h["settle_within_s"] is not None]
     return {"run": str(directory), "holds": holds,
             "steady_gain_mps_per_unit_throttle": sorted(gains)[len(gains) // 2] if gains else None,

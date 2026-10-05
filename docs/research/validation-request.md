@@ -1,10 +1,10 @@
-# Optional minimal AVLite validation
+# Authorized minimal AVLite validation
 
-Date: 2026-09-28. Stage: research. Status: **prepared; awaiting explicit authorization**.
+Date: 2026-09-28. Stage: research follow-up. Status: **authorized by user decision Q06; executed once; results reviewed**.
 
-The plugin guide and checked-out source disagree about settings persistence, available bridge methods, sensor fields, and localization requirements. The following bounded probe will resolve these questions without implementing a RoboRacer feature.
+The plugin guide and checked-out source disagree about settings persistence, available bridge methods, sensor fields, and localization requirements. The following bounded probe inspected these specific contracts without implementing a RoboRacer feature. See the [results and limitations](decision-follow-up.md).
 
-Command (not yet executed):
+Executed command (retained for reproduction; not rerun for documentation checks):
 
 ```sh
 /home/a2rl/avlite/.venv/bin/python -B /home/a2rl/Workspace/roboracer/docs/research/evidence/avlite_contract_probe.py
@@ -22,4 +22,4 @@ Checks:
 
 No dependency installation, simulator launch, ROS node, port listener, device access, GUI, source modification, or change to existing user profiles is involved. This verifies only the listed API behavior; it cannot establish plugin loading, simulator connectivity, closed-loop operation, or race performance.
 
-Disposition: retain the script as reproducible research evidence through planning. After approved implementation provides equivalent contract coverage, migrate useful checks into the project's tests or remove the probe explicitly. It is not a runtime or experiment-runner dependency. Its syntax was parsed successfully; none of its checks has been executed.
+Disposition: retain the script as reproducible research evidence through planning. After approved implementation provides equivalent contract coverage, migrate useful checks into the project's tests or remove the probe explicitly. It is not a runtime or experiment-runner dependency. The unchanged script executed at 2026-09-28T09:52:28Z and exited 0. Each observation was reviewed; this is not a general compatibility pass. Evidence: [run metadata](evidence/avlite-contract-probe.run.json), [observations](evidence/avlite-contract-probe.stdout.json), [stderr](evidence/avlite-contract-probe.stderr.txt).

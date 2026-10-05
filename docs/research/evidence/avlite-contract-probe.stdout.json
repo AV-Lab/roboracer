@@ -1,0 +1,49 @@
+{
+  "source": "/home/a2rl/Workspace/avlite/avlite/__init__.py",
+  "python": "/home/a2rl/avlite/.venv/bin/python",
+  "runtime_version": "0.6.1",
+  "installed_metadata_version": "0.6.1",
+  "sensor_frame_fields": [
+    "cameras",
+    "lidars",
+    "primary_camera_name",
+    "primary_lidar_name",
+    "imu",
+    "gnss",
+    "wheel_odometry",
+    "stamp",
+    "frame_id"
+  ],
+  "lidar_fields": [
+    "sensor_name",
+    "sensor_id",
+    "stamp",
+    "base_to_sensor",
+    "points"
+  ],
+  "ackermann_fields": [
+    "timestamp",
+    "stack_event",
+    "steer",
+    "acceleration"
+  ],
+  "world_bridge_has_control_type": false,
+  "settings_section": [
+    "plugins",
+    "roboracer_research_probe"
+  ],
+  "profile_document": {
+    "plugins": {
+      "roboracer_research_probe": {
+        "probe_value": 7
+      }
+    }
+  },
+  "separate_plugin_file_exists": false,
+  "settings_loaded": true,
+  "round_trip_value": 7,
+  "actuation_without_localization": false,
+  "actuation_with_localization": true,
+  "control_entry_after_unregister": false,
+  "localization_entry_after_unregister": true
+}

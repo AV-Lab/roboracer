@@ -1,0 +1,16 @@
+{
+  "authorized_by": "User decision Q06: approved",
+  "started_utc": "2026-09-28T09:52:28.695418+00:00",
+  "command": [
+    "/home/a2rl/avlite/.venv/bin/python",
+    "-B",
+    "/home/a2rl/Workspace/roboracer/docs/research/evidence/avlite_contract_probe.py"
+  ],
+  "cwd": "/home/a2rl/Workspace/roboracer",
+  "script_sha256": "72566ce4e12ff7a0a7aa6f609b142d110df9f9ed413f742db3ff77929c6ed346",
+  "exit_code": 0,
+  "elapsed_seconds": 0.6310259340098128,
+  "stdout": "avlite-contract-probe.stdout.json",
+  "stderr": "avlite-contract-probe.stderr.txt",
+  "scope": "Existing interpreter; target source; disposable profile; no simulator, ROS node, GUI, network listener, device access or dependency installation."
+}

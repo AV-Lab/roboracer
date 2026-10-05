@@ -1,0 +1,86 @@
+{
+  "recorded_utc": "2026-09-28T09:54:05.801803+00:00",
+  "purpose": "Read-only post-probe planning baseline",
+  "repositories": {
+    "workspace": {
+      "path": "/home/a2rl/Workspace/roboracer",
+      "head": "0bf647f8be823c9d6cfa00954297c7a8202f0e26",
+      "branch": "main",
+      "status": [
+        "?? docs/research/evidence/avlite-contract-probe.run.json",
+        "?? docs/research/evidence/avlite-contract-probe.stderr.txt",
+        "?? docs/research/evidence/avlite-contract-probe.stdout.json"
+      ],
+      "remotes": []
+    },
+    "avlite_target": {
+      "path": "/home/a2rl/Workspace/avlite",
+      "head": "50dcd0043db0cc17efbe82bda81cd0e8875810a0",
+      "branch": "dev",
+      "status": [],
+      "remotes": [
+        "origin\thttps://github.com/AV-Lab/avlite.git (fetch)",
+        "origin\thttps://github.com/AV-Lab/avlite.git (push)"
+      ]
+    },
+    "avlite_reference": {
+      "path": "/home/a2rl/avlite",
+      "head": "f1fac2c24c7b97943ca6dcbed6ae9604439ad8e3",
+      "branch": "dev",
+      "status": [
+        "?? .codex",
+        "?? .venv/",
+        "?? community_plugins/"
+      ],
+      "remotes": [
+        "fork\thttps://github.com/longlinht/avlite.git (fetch)",
+        "fork\thttps://github.com/longlinht/avlite.git (push)",
+        "origin\thttps://github.com/AV-Lab/avlite.git (fetch)",
+        "origin\thttps://github.com/AV-Lab/avlite.git (push)"
+      ]
+    },
+    "a2rl_reference": {
+      "path": "/home/a2rl/avlite/community_plugins/a2rl",
+      "head": "ae5436d80d909bd04808107f0bafe58956da817b",
+      "branch": "dev",
+      "status": [
+        " M README.md",
+        " M activation.py",
+        " M core/settings.py",
+        " M docs/a2rl_lap_time_optimization_todo.md",
+        " M docs/gui_launch.md",
+        " M execution/launch_bridge.py",
+        " M execution/launch_presets.py",
+        " M integration/autoverse_bridge.py",
+        " M run_headless_autoverse_can_lap.sh",
+        " M scripts/README.md",
+        " M scripts/launch.py",
+        " M scripts/ops/check_autoverse_can_static_profile.sh",
+        " M scripts/verify_autoverse_limit_probe_live.py",
+        " M test/test_a2rl_extension.py",
+        " M test/test_launch.py",
+        " M test/test_launch_presets.py",
+        " M test/test_script_layout.py",
+        "?? data/experimental_p4_74_seam.json",
+        "?? docs/p4_72_60s_target.md",
+        "?? planning/seam_profile.py",
+        "?? scripts/analyze_autoverse_powertrain_model.py",
+        "?? scripts/analyze_autoverse_ros_backlog.py",
+        "?? scripts/verify_autoverse_launch_damping.py",
+        "?? scripts/verify_autoverse_launch_ros_queue.py",
+        "?? test/test_launch_damping_verification.py",
+        "?? test/test_launch_ros_queue_verification.py",
+        "?? test/test_native_ros_queue.py",
+        "?? test/test_powertrain_model_audit.py",
+        "?? test/test_ros_backlog_audit.py",
+        "?? test/test_seam_profile.py"
+      ],
+      "remotes": [
+        "origin\thttps://github.com/AV-Lab/a2rl.git (fetch)",
+        "origin\thttps://github.com/AV-Lab/a2rl.git (push)"
+      ]
+    }
+  },
+  "probe_script_sha256": "72566ce4e12ff7a0a7aa6f609b142d110df9f9ed413f742db3ff77929c6ed346",
+  "probe_scratch_directories_remaining": []
+}

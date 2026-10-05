@@ -1,0 +1,113 @@
+{
+  "status": "approved_for_SIM0_qualification_copy",
+  "source_commit": "635dbb6d86ec98e25ea845a97188f7bbe85a09e8",
+  "target_scene": "Assets/Scenes/F1TENTH.unity",
+  "dependency_count": 276,
+  "dependency_report_sha256": "8791cbe631392673240925df5d7c4dbce13d786744e5ad27051bd66c5c6517e8",
+  "candidates": [
+    {
+      "path": "Assets/ML Resources/Results/CrossJunctionNavigation/models/AutoDRIVE/CrossJunctionNavigation/model-899917.ckpt.index",
+      "reason": "Training checkpoint extension conflicts with Unity SearchDatabase importer",
+      "files": [
+        {
+          "path": "Assets/ML Resources/Results/CrossJunctionNavigation/models/AutoDRIVE/CrossJunctionNavigation/model-899917.ckpt.index",
+          "bytes": 2077,
+          "sha256": "4db7373821493f5d9d982b9a6c13165ccdf3a0536f1b8c7c922bb7e14ce0203c"
+        },
+        {
+          "path": "Assets/ML Resources/Results/CrossJunctionNavigation/models/AutoDRIVE/CrossJunctionNavigation/model-899917.ckpt.index.meta",
+          "bytes": 155,
+          "sha256": "75f06fc8879e9fabeb2faca12088a3892b4c8ef270d89ea42b99e52aea4ab7eb"
+        }
+      ]
+    },
+    {
+      "path": "Assets/ML Resources/Results/CrossJunctionNavigation/models/AutoDRIVE/CrossJunctionNavigation/model-849980.ckpt.index",
+      "reason": "Training checkpoint extension conflicts with Unity SearchDatabase importer",
+      "files": [
+        {
+          "path": "Assets/ML Resources/Results/CrossJunctionNavigation/models/AutoDRIVE/CrossJunctionNavigation/model-849980.ckpt.index",
+          "bytes": 2077,
+          "sha256": "9b473954e2bd0c5587fb95582cc0b89148d978ae9fb1422755d603ff8b6e2d1b"
+        },
+        {
+          "path": "Assets/ML Resources/Results/CrossJunctionNavigation/models/AutoDRIVE/CrossJunctionNavigation/model-849980.ckpt.index.meta",
+          "bytes": 155,
+          "sha256": "1a9518b7d5fd119601488f96ac60c8f44e1e8ef27eddc27568d10dcd808e5d68"
+        }
+      ]
+    },
+    {
+      "path": "Assets/ML Resources/Results/CrossJunctionNavigation/models/AutoDRIVE/CrossJunctionNavigation/model-999999.ckpt.index",
+      "reason": "Training checkpoint extension conflicts with Unity SearchDatabase importer",
+      "files": [
+        {
+          "path": "Assets/ML Resources/Results/CrossJunctionNavigation/models/AutoDRIVE/CrossJunctionNavigation/model-999999.ckpt.index",
+          "bytes": 2077,
+          "sha256": "edec4707fefe7731f7bf346d0a6656ddb37f2a95e9c0f15db0364d123097580a"
+        },
+        {
+          "path": "Assets/ML Resources/Results/CrossJunctionNavigation/models/AutoDRIVE/CrossJunctionNavigation/model-999999.ckpt.index.meta",
+          "bytes": 155,
+          "sha256": "05e7e4c73187935dbe66aec11aef386e8a63dda7da65110bf74e96d748e9ab26"
+        }
+      ]
+    },
+    {
+      "path": "Assets/ML Resources/Results/CrossJunctionNavigation/models/AutoDRIVE/CrossJunctionNavigation/model-1000127.ckpt.index",
+      "reason": "Training checkpoint extension conflicts with Unity SearchDatabase importer",
+      "files": [
+        {
+          "path": "Assets/ML Resources/Results/CrossJunctionNavigation/models/AutoDRIVE/CrossJunctionNavigation/model-1000127.ckpt.index",
+          "bytes": 2077,
+          "sha256": "fe6631787ea841da36933aff6004f69ed720ff217e4318aaaad6779d0d1a6eda"
+        },
+        {
+          "path": "Assets/ML Resources/Results/CrossJunctionNavigation/models/AutoDRIVE/CrossJunctionNavigation/model-1000127.ckpt.index.meta",
+          "bytes": 155,
+          "sha256": "fead02284a471d2d2d32d27ec58e233427f138273fa4107cac11662ee8a86d23"
+        }
+      ]
+    },
+    {
+      "path": "Assets/ML Resources/Results/CrossJunctionNavigation/models/AutoDRIVE/CrossJunctionNavigation/model-949973.ckpt.index",
+      "reason": "Training checkpoint extension conflicts with Unity SearchDatabase importer",
+      "files": [
+        {
+          "path": "Assets/ML Resources/Results/CrossJunctionNavigation/models/AutoDRIVE/CrossJunctionNavigation/model-949973.ckpt.index",
+          "bytes": 2077,
+          "sha256": "d992f3ef1d27a7249a7ef5b0c6c1f0dafc8275f94bf10d26b87d50e7e4b85507"
+        },
+        {
+          "path": "Assets/ML Resources/Results/CrossJunctionNavigation/models/AutoDRIVE/CrossJunctionNavigation/model-949973.ckpt.index.meta",
+          "bytes": 155,
+          "sha256": "cc22aadd60b2b20114280ea9a8bc1c27d799d2cbb5e59292025d8ace3e085eda"
+        }
+      ]
+    },
+    {
+      "path": "Assets/Plugins/Windridge City/Windridge City Assets/StaticObjects/Models/Foliage/Broadleaf/Broadleaf_Mobile.spm",
+      "reason": "HDRP SpeedTree material postprocessor throws during initial import",
+      "files": [
+        {
+          "path": "Assets/Plugins/Windridge City/Windridge City Assets/StaticObjects/Models/Foliage/Broadleaf/Broadleaf_Mobile.spm",
+          "bytes": 429130,
+          "sha256": "528754529c828aa3fd571a7c0bb56cdc9beb24da6288c5d8de5349b01fbfbf33"
+        },
+        {
+          "path": "Assets/Plugins/Windridge City/Windridge City Assets/StaticObjects/Models/Foliage/Broadleaf/Broadleaf_Mobile.spm.meta",
+          "bytes": 1147,
+          "sha256": "5b2efc5a1b1b61fd86186fb4525a92cf4433057b15d5d0a8ec7d5a8fb6f7e306"
+        }
+      ]
+    }
+  ],
+  "preservation": "Keep the complete original checkout and archive every excluded asset/meta without altering its bytes; apply only to a separate derived build copy",
+  "acceptance": "Repeat a clean import/build, compare Unity dependency sets and required asset hashes, then retain the original two 60-second neutral trials. New missing references or altered F1TENTH dependencies block acceptance.",
+  "remaining_uncertainty": "Unity serialized dependency inspection does not prove all possible dynamic loading. Other unused asset references may require review; no broad pruning or runtime/package/physics changes are authorized by this proposal.",
+  "approval": {
+    "date": "2026-09-29",
+    "user_reply": "confirmed",
+    "scope": "Six named assets and their metadata only; preserve originals; requalify import, dependency closure, build and neutral sensing."
+  }
+}

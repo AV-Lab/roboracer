@@ -1,0 +1,133 @@
+# AutoDRIVE Source Build — Full-PRE-First Route
+
+Version: **1.1-A, selected route; scoped SIM0 continuation**, 2026-09-29. Applies to [approved plan v1.0](development-plan.md). Basis: [option A feasibility report](../stages/PRE-option-A-feasibility.md) / [中文报告](../stages/PRE-option-A-feasibility.zh-CN.md).
+
+**Decision, 2026-09-29:** after considering [S1a/deferral](installed-binary-first-amendment.md), the user explicitly instructed continuation of the original plan, with complete PRE before S1. The dependency exception is not adopted. In context, continue this previously presented full-PRE-first route with scoped SIM0; do not request the same sequence decision again. SIM1 retains the stage-entry confirmation after the SIM0 report.
+
+**Current boundary, 2026-10-01:** full PRE-first continuation remains confirmed. **SIM0-01/02 and LNX-01/02/03 pass.** The latest approved read-only source/trace review narrowed the pose-update hypothesis but did not prove a cause or repair. [English](../stages/SIM0-pose-review.md) / [中文](../stages/SIM0-pose-review.zh-CN.md). **SIM0-B06 remains unresolved**, P0 unchanged. A single proposed statement-level tracing experiment (one build, at most two 10-second neutral windows) awaits separate approval; SIM1 retains its entry gate.
+
+## 1. Result and scope of the change
+
+Qualify a separately named AutoDRIVE backend built from commit `635dbb6d86ec98e25ea845a97188f7bbe85a09e8` with Unity **2021.3.9f1 / ad3870b89536**. First demonstrate that the uninstrumented source can be built and can produce usable sensors. Then add the minimum source timing, receiver guard and independent scoring interfaces needed to finish PRE and support S1.
+
+The supplied installation remains the historical observation baseline. The new source build receives its own source, patch, package, scene and binary fingerprints. Source-to-installed-binary equivalence is not assumed. Existing acceptance is retained: no substitution of receipt time for acquisition time, process termination for braking, GUI counters for qualified scoring, or perfect global pose for later sensor-only localization.
+
+No AVLite core change, ROS migration, dynamics retuning, new estimator, new simulator or new race-rule assumption is included. Keep Humble, known-map ICP extension, Pure Pursuit, target-speed/steering and independent process supervision. Camera optimization, physics improvements and general-purpose scene editing are later candidates; baseline workloads stay explicit and comparable.
+
+## 2. Stages and feature acceptance
+
+### SIM0 — Reproducible, sensor-producing baseline source build
+
+**Goal:** one identified source/toolchain/environment combination produces a Linux player that starts, supplies neutral telemetry and shuts down under owned-process control.
+
+**Prerequisites:** full-PRE-first/SIM0 continuation confirmed; user-managed login/license readiness and fresh empty-project batch startup now verified for the pinned Editor with a private libssl1.1 dependency. The exact Editor/module are installed in isolated scratch. Ubuntu 22.04 is outside the editor's documented Linux host list, so native execution remains a qualification experiment, not a general support claim.
+
+**Scope:** complete the pinned source/asset checkout; acquire the exact editor and Linux IL2CPP module; qualify package resolution; permit the Linux-host toolchain 2.0.4 adaptation if required, with an explicit manifest/lock diff and no unrelated package upgrades; build the enabled F1TENTH scene. Preserve physics, vehicle dimensions, sensor workload and scene activation. Retain third-party notices and record all import-induced diffs.
+
+**Deliverables:** source/patch/dependency manifest, build log and separate player; a reproducible build invocation; neutral comparison report against the prior installed-player data, including any differing scene/geometry/defaults.
+
+**Non-goals:** instrumentation, driving, performance certification, byte-identical rebuilding, Unity migration, headless sensing or full asset redistribution.
+
+**Acceptance P0:** one clean initial import/build followed by **two fresh-process neutral runs**, each requesting **60 seconds of observation after the first complete frame**, using a recorded unchanged display/sensor configuration. Disable automatic actuation, keep all replies zero, record actual mode/feedback and measured displacement, and retain early termination as incomplete. Each run must deliver parseable required scan, motion and image fields through the already qualified isolated Humble/AVLite environments, then reap owned processes and release the endpoint. Do not claim a stop response from these stationary trials. Compilation alone does not pass SIM0. Unexpected movement ends the attempt for investigation; it is not used as an opportunistic driving test.
+
+Record field types, scan length/order, image dimensions, frame/geometry metadata, unique identity where available, receipt rates/gaps, CPU/RSS, startup/shutdown and build times. The stock baseline still lacks source acquisition identity; do not fabricate it. Compare with the prior 1081-range/1280×720 observations and short neutral receipt measurements as descriptive references, not throughput thresholds. Run durations/counts are proposed coverage, not performance targets. No minimum Hz or maximum build time is invented as a passing performance criterion.
+
+- [x] SIM0-01 — Resolve the build/activation route and acquire the pinned source closure/editor/module in isolated paths. Record download origins, local hashes, actual versions, available disk and retained notices; no credentials in manifests. **Passed:** source/toolchain acquisition plus corrected Hub registration, authenticated private native dependency and a fresh empty-project batch compile/exit-0 check. See the [recovery evidence](../stages/SIM0-startup-recovery.md). This does not pass the later source build or neutral runs.
+- [x] SIM0-02 — Produce a clean F1TENTH Linux IL2CPP build with reviewed dependency/settings diff and repeatable invocation. **Passed, 2026-09-30:** independent initial import/generation, exact scene/source review, final 698.08-second build and strict player comparison. No missing references, blocking compiler/build errors or unapproved physics/scene/package changes. Earlier rejected players remain preserved. [Final review](../../artifacts/simulator-build/20260929T122535Z/player-inspection-authoring/final-static-review.json).
+- [ ] SIM0-03 — Complete P0’s two neutral live runs and required transport/content/cleanup review; retain all failures. **Depends on:** SIM0-02. **Blocked: SIM0-B06**, position-change guard stopped the original P0 run; the later approved diagnostic windows do not satisfy P0. Full-precision studies confirm body drift. The revised Floor treatment subsequently removed the selected contacts without resolving drift. Resolve the cause and review any repair before a subsequent acceptance decision. No nonzero commands permitted.
+- [ ] SIM0-04 — Publish the demonstrable baseline, commands, measured costs, material differences and evidence manifest; obtain stage review before SIM1. **Depends on:** SIM0-03. A build failure produces a blocker report, not a completion mark.
+
+Stop after the SIM0 report. If the exact engine cannot operate on this host, propose a separate authorized build host or an engine migration with cost/impact; no automatic environment substitution.
+
+### SIM1 — Instrumented backend with observable freshness and guarded actuation
+
+**Goal:** a versioned backend exposes genuine acquisition provenance, rejects expired/invalid commands at the physics application boundary, and provides the independently validated scene/truth information needed to finish PRE-03/04.
+
+**Prerequisites:** accepted SIM0 and confirmed SIM1 entry. Implement/disarmed-test the guard first; prepare the numerical motion protocol from that evidence. Any moving-stop experiment remains blocked until that protocol is explicitly approved.
+
+**Scope:** versioned protocol extension on the existing local Socket.IO/Devkit path; sensor acquisition hooks; independent telemetry scheduling; receiver command guard; episode identities; minimum C0 truth/geometry/contact/progress export; a narrow Devkit overlay preserving the established NumPy environment separation. Keep the separate OS-process supervisor. Any inability to bound the stock transport queue must be resolved inside the qualified transport boundary or escalated as a concrete alternative; do not silently replace ROS/Socket.IO.
+
+**Deliverables:** reviewable patch series and source-build manifest; simulator/Devkit protocol document and recorded fixtures; contract/fault tests; disarmed live evidence; numerical motion protocol; subsequently, bounded qualified command/stop and C0 scorer evidence.
+
+**Non-goals:** first AVLite driving feature, high-speed performance, autonomous global recovery, multi-car support, general map editing or completing S2–S4 algorithms. The existing S1 remains the first AVLite–plugin closed loop.
+
+**Acceptance P1a, disarmed:** test each listed contract/fault case independently **three times**, using recorded inputs where suitable and live source freezes/reconnections where required. Test sample reuse, source freeze despite continued publication, malformed/nonfinite/out-of-range input, duplicate/out-of-order requests, expired original requests inside new forwarding envelopes, clock uncertainty/discontinuity, supervisor loss, Devkit loss, reconnect, reset and stale queued commands. Require explicit accept/reject/state/epoch traces and no invalid drive torque reaching the application hook. Disarmed fixtures verify enforcement, not moving braking. Run two fresh-process 60-second live observation windows to measure source-versus-publication cadence, sample skew, queue/drop behavior and instrumentation overhead against SIM0; performance thresholds follow measured baseline and confirmation.
+
+**Acceptance P1b, motion and scoring:** first freeze the numerical protocol's speed, steering, slew, duration, clearance, source/request age, clock-error allowance, expiry deadline, stop speed/distance/observation window and process containment bounds. Execute its approved actuator/stop/fault cases **three times each**, retaining exceptions and incomplete episodes. Validate the physical coordinate/sign/geometry conversions with analytical fixtures and bounded observations; qualify a minimum C0 progress reference, full-footprint off-track checks and contact classification independently of the GUI lap counter. Fixture tolerances follow frozen numeric representation/geometry resolution; live tolerances are proposed before the corresponding acceptance runs. No numerical motion or performance threshold is fabricated in this amendment.
+
+- [ ] SIM1-01 — Deliver versioned handshake, source/episode identity, per-sensor acquisition stamps and immutable bounded observations through the isolated Devkit. Preserve old sample identity on retransmission; demonstrate P1a source-freeze/queue cases. **Depends on:** accepted SIM0 and SIM1 entry.
+- [ ] SIM1-02 — Deliver receiver validation/lease enforcement immediately before physics actuation, with explicit applied-command/status acknowledgements and disabled legacy/manual bypass in qualified autonomous test mode. Demonstrate the disarmed P1a command/clock/failure cases; keep the independent supervisor contract. **Depends on:** SIM1-01.
+- [ ] SIM1-03 — Deliver disarm/reset/epoch/rearm behavior and a verified single C0 start, with stale command/sample rejection across reconnect/reset. GUI reset must enter the same guard. Demonstrate P1a reset/replay cases. **Depends on:** SIM1-02.
+- [ ] SIM1-04 — Deliver evaluator-only truth, contact and geometry inputs plus validated C0 frame/footprint/progress fixtures; document allowed driving observations separately. Do not use GUI lap count as authority. **Depends on:** SIM1-01/03.
+- [ ] SIM1-05 — Submit the concrete numerical motion protocol, then execute approved P1b cases and the original PRE-03/04 checks. Qualify normalized actuator conversion, raw encoder-based speed and observed stopping; record simulator-hang containment separately. **Blocked:** protocol approval and SIM1-02/03/04 evidence.
+- [ ] SIM1-06 — Publish the qualified backend and PRE completion/blocker report, update only justified original todos, and stop for the required stage review before the S1 feature work. **Depends on:** all preceding SIM1 checks. No failed required case may be waived by relabelling containment as stopping.
+
+## 3. Proposed protocol and implementation ownership
+
+The names below specify **required data semantics**, not an existing API or implemented class. Final wire names follow a versioned schema committed with the patch and conformance fixtures.
+
+| Boundary | Required semantics / owner |
+| --- | --- |
+| Handshake | Schema/build/config identities, advertised capabilities, process/episode identity and clock information. Missing required capabilities prevent arming. Bind only the owned local endpoint; never take over a pre-existing listener. |
+| Observations | Each sensor has its own source instance, episode, acquisition sequence, simulation time, acquisition monotonic time and frame/unit description. Identify instantaneous raycast scan semantics; do not invent per-beam rolling timestamps. Snapshot assembly retains constituent identities and a qualified skew rule. Camera capture time is separate from scan time. |
+| Time conversion | Simulator progress and wall-time liveness are separate. Measure cross-process clock offset bounds using exchanges; enforce uncertainty and expiry conservatively. Never assume C# and Python monotonic clocks share an epoch. Restart, scene reset or invalid clock bounds disarm the session. |
+| Command origin | Original algorithm request identity/generation/deadline and input sample identities survive supervisor/backend forwarding. Transport sequence alone is insufficient. Repeated envelopes cannot extend an original request's lifetime. The supervisor owns target speed m/s, steering radians, bounds and allowed-observation freshness. |
+| Receiver lease | Validate original age/deadline with the qualified clock bound and impose a receiver-local maximum lease. Check again immediately before `Steer`/`Drive` in `FixedUpdate`; execution-order assumptions between unrelated components are insufficient. Clear accepted state on expiry/disconnect/reset. Report accepted, applied and rejected identities separately. |
+| Actuation | AVLite retains target speed/steering. The backend owns measured-speed conversion to the simulator's normalized throttle/steering. Receiver stop requests use the inspected zero-torque/brake path only after its application is verified; moving stopping performance requires P1b. No unchecked inspector-only range limits. |
+| State | Disarmed → ready → running; stopped/fault requires explicit rearm. Qualified automation mode must prevent old Bridge events, manual input or GUI mode/reset actions from bypassing the guard. Startup defaults to disarmed. |
+| Hang | A surviving receiver can expire after supervisor/Devkit loss. A frozen simulator cannot execute a brake instruction; fail/contain the episode, and reject expired authorization before resumed physics. Record these as distinct outcomes. |
+| Truth/scoring | Export full-precision reference pose/velocity, verified transforms/collider geometry and contact identifiers to evaluator-only consumers. Classify support-floor contacts separately; deduplicate sustained contacts. Score full/swept footprint and ordered progress to reject tunnelling/finish-line oscillation where supported; unsupported coverage remains unverified. |
+| Lifecycle | Disarm before reset/restart, invalidate old epochs/queued messages, restore/check geometry/start and wait for newly acquired samples. Healthy batch setup is distinct from terminal localization-loss/manual recovery. |
+
+Keep raw timestamped encoder counts and actual sensor parameters. The source's hardcoded wheel-speed convenience factors are not accepted calibration. Derive velocity with qualified radius/resolution/sign and finite-difference interval, and report slip limitations. Evaluator-only rigidbody speed may validate this conversion but must not populate the sensor-only ICP driving state. Any newly required fusion/dynamics algorithm still needs an explicit proposal.
+
+**File/module ownership:** the main agent owns the simulator patch set and integration. Source acquisition hooks belong beside `LIDAR.cs`, `WheelEncoder.cs`, `IMU.cs` and `IPS.cs`; message/version/scheduling changes belong at `Socket.cs`; the final guard belongs directly in the `VehicleController.cs` actuation path; lifecycle hooks cover `SceneReset.cs` and relevant mode controls. New reusable instrumentation components can live under `Assets/Scripts/RoboRacer/` in the separate simulator checkout. Keep vendor edits narrowly justified by a reproduced queue/threading issue, not wholesale refactoring. No concurrent edits to these files are delegated.
+
+The AVLite plugin retains the official [community structure](/home/a2rl/Workspace/avlite/docs/plugin-development.md). Proposed simulator provenance/patch material lives under `integration/autodrive/` in the plugin workspace; reusable command/build/evaluation tooling under `scripts/`; protocol/test fixtures under `tests/`; experimental configurations under the plan's existing experiment layout. These paths are proposals, not created production modules. Tool modules must be import-safe because AVLite scans non-test Python modules recursively. The full third-party simulator tree, Unity editor, `Library`, packages and binaries live in ignored scratch/artifact directories rather than the plugin source. One parameterized build/evaluation entrypoint selects baseline/instrumented profiles; do not create a new script per trial.
+
+## 4. Effects on existing stages
+
+| Existing item | Effect of amendment |
+| --- | --- |
+| PRE-01/02 | Remain accepted for their recorded installed-player/disarmed environment scope. Requalify the new backend delta under SIM0/SIM1; do not relabel old evidence as new-build evidence. |
+| PRE-03/04 | Stay unchecked until P1b and original contract/scorer requirements pass. The original numerical motion gate remains. |
+| S1 | Same first-loop feature, GT-labelled A and M1/F1 acceptance. Consumes the qualified named source build instead of assuming the supplied binary can meet missing contracts. |
+| S2 | Implement and qualify the unattended client/reset/start transaction in the unified runner; add required simulator reset/init hooks only within that stage's confirmed entry. No silent ICP-loss recovery. |
+| S3 | Qualify five configured initial poses on C0 and sensor-only ICP/motion state. Existing 100 A/B episodes and truth isolation remain. |
+| S4 | Add deterministic static fixture placement/manifest controls needed for left/right/blocked cases, initially using bounded simple colliders on the correct sensed layer. Validate geometry and reset removal; no arbitrary scene editor. Existing 30 episodes remain. |
+| S5 | Include source patch/toolchain/backend fingerprints and reconstruction in the existing fresh-environment/release evidence. No automatic upload of third-party project assets. |
+
+There are **10 amendment todos: SIM0-01/02 accepted and eight unchecked**, separate from the **34 approved original todos (2 accepted)**. No performance threshold or original acceptance requirement is reduced. Future stage hooks are scheduled scope, not permission to implement S2–S5 now.
+
+## 5. Permissions and concrete execution scope
+
+| Resource | Purpose and proposed check | Boundary |
+| --- | --- | --- |
+| Workspace and scratch | Reports, patch manifests, fixtures and owned source/toolchain/build paths; inspect `git status`, available disk and hashes before/after. | Existing writable workspace and `/tmp/roboracer-work/`; no edits to either AVLite checkout, A2RL reference or supplied player. |
+| Official source Git endpoint | Materialize pinned project/asset closure, record commit/tree and notices. | `https://github.com/Tinker-Twins/AutoDRIVE.git`; no new remote/push or unpinned branch checkout. Stop/report missing inaccessible assets. |
+| Unity archives | Exact editor and Linux IL2CPP module. | The two verified URLs in the [download record](../../artifacts/preflight/20260929T051932Z/unity-release-download-links.json); no optional platform modules by default. Record actual local SHA-256 and publisher digest verification if available; do not treat ETag as a cryptographic authenticity check. |
+| Unity packages | Resolve required pinned dependencies and native Linux toolchain; record lock and caches. | `packages.unity.com` / official package download URLs. A new host denial requires its actual scoped approval; no blanket allowlist claim. |
+| Hub/account | User activates an applicable entitlement; user-scoped Hub installation if needed. | User performs login/license choice. No password, license file or key in chat/logs; no purchase, agent-controlled account login or global package changes. Activation may write outside scratch; identify those user-profile paths before execution. |
+| GPU/display | Bounded owned editor/player on the existing qualified display. | No global `xhost` change, user-session termination or display-free sensing assumption. Compiler batch `-nographics` does not qualify a null-renderer player. |
+| Local IPC/processes | Existing owned loopback endpoint 4567 if free; prior qualified Humble domain 87/local configuration if still available. | Inspect listeners first, isolate process groups/logs, use bounded startup/runtime/cleanup. Port/domain changes for collisions are recorded, not permission to stop unrelated users. |
+
+**Proposed build command shape, not an already runnable artifact:** after acquisition/activation, resolve these task-specific paths to verified executables/directories and record the exact invocation:
+
+```bash
+RR_UNITY=/tmp/roboracer-work/toolchains/2021.3.9f1/Editor/Unity
+RR_PROJECT=/tmp/roboracer-work/autodrive-635dbb6d-baseline
+RR_BUILD=/tmp/roboracer-work/autodrive-builds/baseline
+RR_BUILD_LOG="/home/a2rl/Workspace/roboracer/artifacts/simulator-build/REPLACE_WITH_RUN_ID/build.log"
+"$RR_UNITY" -batchmode -quit -projectPath "$RR_PROJECT" \
+  -buildLinux64Player "$RR_BUILD/AutoDRIVE.x86_64" -logFile "$RR_BUILD_LOG"
+```
+
+`REPLACE_WITH_RUN_ID` is a placeholder that must be replaced; prepare owned directories before running. Supervise the process, capture exit status and full build diagnostics, and check the actual output; exit 0 alone is insufficient. The [2021.3 editor CLI](https://docs.unity3d.com/2021.3/Documentation/Manual/EditorCommandLineArguments.html) supports this baseline route. Instrumented test/build tooling will use the pinned package's verified test-runner interface and parse its result files; it does not exist yet. No credentials belong in CLI arguments.
+
+## 6. Evidence, risks and approval boundary
+
+All new runs go under `artifacts/simulator-build/<run-id>/` with source/patch/editor/module/package/config/scene hashes, host/GPU/display details, invocation, owned PID lifecycle, metrics, raw bounded failures and test results. Large dependencies, caches and binaries remain ignored. The existing PRE artifacts remain immutable evidence. Report cold import/build, incremental rebuild, startup, sensing, shutdown and total edit-to-result time separately; only then propose optimization targets.
+
+Main triggers are old-editor host incompatibility, license/asset/package unavailability, unbounded stock transport queues, ambiguous acquisition/callback ordering, encoder/geometry mismatch, instrumentation overhead and source/binary behavior differences. Each blocks its affected acceptance, with evidence and alternatives. Narrow tooling-only dependency adaptation is allowed by the proposed scope; engine upgrades, physics changes, transport replacement, estimator changes or reduced acceptance return for review.
+
+**Continuation recorded:** the user's instruction to retain the presented full-PRE-first plan closes the sequencing review; proceed with scoped **SIM0** once its activation/build-environment prerequisite is resolved. Ordinary source/dependency operations already authorized remain authorized, subject to actual sandbox approvals. SIM1, any numerical motion protocol and each later stage retain their explicit gates. If SIM0 fails, publish its blocker report and preserve progress. No unchecked todo is converted to a pass by this decision.

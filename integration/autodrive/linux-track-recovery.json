@@ -1,0 +1,52 @@
+{
+  "source_commit": "635dbb6d86ec98e25ea845a97188f7bbe85a09e8",
+  "approval": {
+    "date": "2026-09-29",
+    "user_reply": "confirmed",
+    "scope_document": "docs/planning/linux-asset-recovery.md"
+  },
+  "additional_exclusions": [
+    {
+      "path": "Assets/Prefabs/OpenCAV/OpenCAV.prefab",
+      "bytes": 322512,
+      "sha256": "33e98baedeb5212d8ab92e580db04469c6ac2680c34c4c429a4c53afb61e65d4"
+    },
+    {
+      "path": "Assets/Prefabs/OpenCAV/OpenCAV.prefab.meta",
+      "bytes": 154,
+      "sha256": "32696757a0c016215c4797e0ea5974e7973f11eee838cd6a1c420488ee07c4ff"
+    },
+    {
+      "path": "Assets/Scenes/OpenCAV.unity",
+      "bytes": 15267697,
+      "sha256": "7c20215b2d3518f78cb88e22654ac69ff8957ee9eac4e4d3a70524755d4a264a"
+    },
+    {
+      "path": "Assets/Scenes/OpenCAV.unity.meta",
+      "bytes": 155,
+      "sha256": "db032402a5ce88c33dc58993b54e6e093d6e3df040be1b2982851baf1254c9a2"
+    }
+  ],
+  "original_scene_sha256": "f0db7879aedf763252da9fbb45924b0978cba8b2e91dc3b1e6b8c875da08eb4d",
+  "original_build_settings_sha256": "dcbd362f0a97e1550ae5b1a8d8283a80d2cc1a4629adb0ddc89f10c7af3479ca",
+  "disabled_scene_entry": "  - enabled: 0\n    path: Assets/Scenes/OpenCAV.unity\n    guid: 3aaff73a5b9959c47a2050c8fc5b43ca\n",
+  "native_asset_directory": "Assets/RoboRacerQualification/Tracks",
+  "tracks": [
+    {
+      "name": "Proto Track",
+      "source_guid": "f7d3b8150a4b25a4dabd5ef77eb0bc1b",
+      "source_mesh_id": "-6898062887461957196",
+      "source_gameobject_id": "919132149155446097",
+      "source_transform_id": "-8679921383154817045",
+      "reference_count": 16
+    },
+    {
+      "name": "Berlin Track",
+      "source_guid": "8bd786b8e80d1ef4189093ab32a71d64",
+      "source_mesh_id": "-697199718019097144",
+      "source_gameobject_id": "919132149155446097",
+      "source_transform_id": "-8679921383154817045",
+      "reference_count": 20
+    }
+  ]
+}

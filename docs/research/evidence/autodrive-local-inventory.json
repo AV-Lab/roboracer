@@ -1,0 +1,105 @@
+{
+  "recorded_utc": "2026-09-28T10:08:21.398893+00:00",
+  "user_report": "Existing AutoDRIVE Simulator installation at the supplied path",
+  "scope": "Read-only static inspection; no executable or library loaded, no startup, API call, ROS node, permission change or installation",
+  "path": "/home/a2rl/Workspace/AutoDRIVE Simulator [Linux]",
+  "resolved_path": "/home/a2rl/Workspace/AutoDRIVE Simulator [Linux]",
+  "files": {
+    "README.md": {
+      "size_bytes": 341,
+      "mode": "0o664",
+      "sha256": "9852a62896d2a9a920b72e57529d596068370d6bd51dc46afccdfa03f37339b1",
+      "text": "If you face an error saying \"Could Not Display AutoDRIVE Simulator.x86_64\" on Ubuntu:\n\nSet the executable flag on the process for `AutoDRIVE Simulator.x86_64` by running `chmod` on the executable file (won't hurt if it's already set)\n\n```bash\n$ cd <path/to/AutoDRIVE Simulator.x86_64>\n$ sudo chmod +x AutoDRIVE\\ Simulator.x86_64\n```\n"
+    },
+    "AutoDRIVE Simulator.x86_64": {
+      "size_bytes": 14720,
+      "mode": "0o775",
+      "sha256": "d31b1f585786efb1269aee25b13fb1558a625616e04b22f2e1f722e799b5e279"
+    },
+    "UnityPlayer.so": {
+      "size_bytes": 34277224,
+      "mode": "0o664",
+      "sha256": "d0fed68d76f9e98806aa2a605d2517deae6928565da2df96ddadb7c2e19299ce"
+    },
+    "GameAssembly.so": {
+      "size_bytes": 66398064,
+      "mode": "0o664",
+      "sha256": "d7d095dec5419cd99a2ae7ea2b16debbe6980b0f8a0827b98dfa5b2bcb1fa1dc"
+    },
+    "Data/app.info": {
+      "size_bytes": 39,
+      "mode": "0o664",
+      "sha256": "c8280aa5fd30a3c48548df848af10ad5bdae17e136639d31af5808440a7d21d8",
+      "text": "AutoDRIVE Ecosystem\nAutoDRIVE Simulator"
+    },
+    "Data/boot.config": {
+      "size_bytes": 69,
+      "mode": "0o664",
+      "sha256": "25202c8f0caa8139d220c1db829ac0445de52047059b03c920c7d145ddfeb4ba",
+      "text": "wait-for-native-debugger=0\nhdr-display-enabled=0\ngc-max-time-slice=3\n"
+    },
+    "Data/globalgamemanagers": {
+      "size_bytes": 251816,
+      "mode": "0o664",
+      "sha256": "85992aef16b07894a6ca7b5370af261c041592866a318472bd8ac2e56b0f3ebe",
+      "observed_markers": [
+        {
+          "literal": "2021.3.9f1",
+          "offset": 48
+        },
+        {
+          "literal": "Assets/Scenes/F1TENTH.unity",
+          "offset": 171448
+        },
+        {
+          "literal": "AutoDRIVE Ecosystem",
+          "offset": 4136
+        },
+        {
+          "literal": "AutoDRIVE Simulator",
+          "offset": 4160
+        }
+      ]
+    },
+    "Data/level0": {
+      "size_bytes": 388616,
+      "mode": "0o664",
+      "sha256": "86cdda03f3f54872948f863ef028fa5d2785be04e2a1af3ea47b6cdde5d3fd0f",
+      "observed_markers": [
+        {
+          "literal": "F1TENTH",
+          "offset": 80732
+        },
+        {
+          "literal": "SocketIO",
+          "offset": 120796
+        },
+        {
+          "literal": "ToggleSocketConnection",
+          "offset": 369104
+        }
+      ]
+    },
+    "Data/il2cpp_data/Metadata/global-metadata.dat": {
+      "size_bytes": 13184656,
+      "mode": "0o664",
+      "sha256": "b43d5f8ad0317b65054a1253d127a13c318378b8dc6602fbf590c959e4106b89"
+    }
+  },
+  "runtime_validation": "not performed",
+  "autodrive_release": "unidentified",
+  "matching_devkit_release": "unidentified",
+  "plugin_filenames": [
+    "libRobotecGPULidar.so",
+    "lib_burst_generated.so",
+    "libgrpc_csharp_ext.x64.so"
+  ],
+  "executable_bit_set": true,
+  "file_identification": "/home/a2rl/Workspace/AutoDRIVE Simulator [Linux]/AutoDRIVE Simulator.x86_64: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 3.10.0, BuildID[xxHash]=1faea48b64e9731a, stripped",
+  "interpretation": {
+    "unity_version_marker": "2021.3.9f1; engine marker, not an AutoDRIVE release identifier",
+    "vehicle_scene": "F1TENTH scene marker; active behavior and complete supported vehicle set not verified",
+    "socket_markers": "Static integration clues only; payload, port and matching ROS API not established",
+    "gpu_lidar_plugin": "libRobotecGPULidar.so present; runtime GPU need and headless behavior not established"
+  }
+}

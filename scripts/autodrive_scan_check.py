@@ -6,7 +6,7 @@ export   Read the built player's serialized colliders (UnityPy, read-only) and w
          the static sensor transforms, to a fresh .npz. Third-party geometry: keep the
          output in ignored evidence, never in Git.
 compare  Ray-cast the vendor scan model from a recorded telemetry pose (IPS position,
-         IMU yaw) against layer-0 triangles and compare with that frame's measured ranges
+         IMU yaw) against static layer-0 triangles (vehicle colliders excluded) and compare with that frame's measured ranges
          under competing hypotheses for beam order and LiDAR mount. Writes fresh JSON.
 
 ROS world basis = (Unity z, -Unity x, Unity y); x forward/y left/z up for the vehicle.
@@ -135,7 +135,11 @@ def compare(args):
     data = np.load(args.geometry)
     meta = json.loads(args.geometry.with_suffix(".json").read_text())
     frame = json.loads(args.frame.read_text())
-    tri = data["triangles"][data["layers"] == 0]
+    # The vehicle's own colliders are serialized at the scene pose and enclose the LiDAR head; Unity's
+    # Physics.Raycast never reports a collider its origin starts inside, so ray-cast static scenery only.
+    vehicle = np.array([c["path"].startswith("F1TENTH/") for c in meta["colliders"]])
+    keep = (data["layers"] == 0) & ~vehicle[data["owners"]]
+    tri = data["triangles"][keep]
     sensors = {k: np.asarray(v) for k, v in meta["sensors_world_unity"].items()}
     ips = np.array([float(v) for v in frame["V1 Position"].split()])
     yaw = float(frame["V1 Orientation Euler Angles"].split()[2])
@@ -178,7 +182,8 @@ def compare(args):
                                        results[k]["abs_error_m_p50_p95_max"][1] if results[k]["abs_error_m_p50_p95_max"] else 1e9))
     report = {"frame": str(args.frame), "geometry": str(args.geometry), "geometry_npz_sha256": meta["npz_sha256"],
               "ips_position": ips.tolist(), "imu_yaw_rad": yaw, "scene_yaw_rad": scene_yaw,
-              "mount_from_scene_m": mount.tolist(), "layer0_triangles": int(len(tri)),
+              "mount_from_scene_m": mount.tolist(), "layer0_static_triangles": int(len(tri)),
+              "excluded_vehicle_triangles": int(((data["layers"] == 0) & vehicle[data["owners"]]).sum()),
               "hypotheses": results, "best": best,
               "convention_passes": best == "convention: ccw from -135 deg, mount from scene"}
     if args.output.exists():

@@ -452,3 +452,21 @@
   - M4 closed-loop speed steps (0.1/0.2/0.3 m/s);
   - M5 A on the segment (≤ 6 m / 40 s).
 - **Status.** Nothing executed; awaiting confirmation. `max_target_speed_mps` stays 0.
+
+## 2026-10-05 — M3 approved; blocked by a locked desktop (no motion)
+
+- **Approval.** The user replied "approve D4 A, D5, D6, D7; run M3 only". The approval record now lists M3 and D4–D7; M4/M5 are not authorized.
+- **Added.**
+  - Stage `m3`: throttle {0, 0.005, 0.01, 0.02}, steering 0.
+  - An encoder-speed M3 calibration source. Holds end at 0.3 m/s, 2 s or 0.4 m of encoder travel, then a hard brake; each starts from rest; §3 aborts apply.
+  - Analysis `autodrive_s1_m3.py` (plant gain, plateau, braking, stop qualification, encoder vs IPS).
+  - A bounded Connect retry in the runner.
+  - 93 script tests and 26 plugin tests pass.
+- **Trials 1–3: Connect lost, retained.**
+  - Each trial had a visual pre-Connect review of the player window, which looked normal.
+  - The player made no handshake request at all (0 transport requests). Click targeting was identical to the successful M2 runs.
+  - Trial 3 retried the click twice, with the same result.
+  - All children exited 0, and the port was released. No command reached the vehicle, and nothing moved.
+- **Cause.** The GNOME session on display :1 is **locked** (`display-root-locked.png`). The lock screen swallows synthetic input, while the window-level capture still shows the player's own content.
+- **Unblocking.** Needs the user to unlock the desktop, and preferably to keep auto-lock off for unattended runs. 3 of the 6 M3 trials are counted conservatively.
+- **Evidence.** `artifacts/s1/20261005T123651Z-m3/`.

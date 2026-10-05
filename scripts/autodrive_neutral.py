@@ -438,13 +438,30 @@ def plugin_observe(args):
     import numpy as np
     from avlite.c60_apps.c63_plugins import import_plugin_modules
 
-    import_plugin_modules(str(args.plugin), pkg_name="roboracer")
-    plugin = sys.modules["avlite.plugins.roboracer"]
-    bridge = plugin.AutoDriveBridge()
+    executer = None
+    if args.supervisor:
+        # S1 stack mode: AVLite's own factory and SyncExecuter run HoldController through the
+        # bridge; requests go to the separate supervisor process (exact zero only).
+        from avlite.c60_apps.c62_factory import executor_factory
+        from avlite.c60_apps.c69_settings import AppSettings
+        AppSettings.c62_default_plugins = []
+        AppSettings.c62_community_plugins = {"roboracer": str(args.plugin)}
+        executer = executor_factory(
+            executer_type="SyncExecuter", bridge="AutoDriveBridge", perception_strategy_name="",
+            localization_strategy_name="", mapping_strategy_name="", global_planner_strategy_name="",
+            local_planner_strategy_name="", controller_strategy_name="HoldController", execution_task_names=[],
+            default_global_trajectory_file="", map_file="", load_plugins=True)
+        plugin = sys.modules["avlite.plugins.roboracer"]
+        bridge = executer.world
+    else:
+        import_plugin_modules(str(args.plugin), pkg_name="roboracer")
+        plugin = sys.modules["avlite.plugins.roboracer"]
+        bridge = plugin.AutoDriveBridge()
     trace = (args.results / "plugin-snapshots.jsonl").open("w", buffering=1)
     state = {"pid": os.getpid(), "plugin": str(args.plugin), "plugin_file": plugin.__file__,
              "stack_capabilities": sorted(c.name for c in bridge.stack_capabilities),
-             "max_target_speed_mps": plugin.PluginSettings.max_target_speed_mps, "ready": False, "snapshots": 0}
+             "max_target_speed_mps": plugin.PluginSettings.max_target_speed_mps, "ready": False, "snapshots": 0,
+             "stack": bool(executer), "supervisor": args.supervisor, "ticks": 0, "tick_overruns": 0}
     stop = []
 
     def checkpoint():
@@ -468,18 +485,44 @@ def plugin_observe(args):
 
     signal.signal(signal.SIGTERM, lambda *_: stop.append(True))
     bridge.snapshot_listener = record
-    bridge.connect()
+    bridge.connect(supervisor=args.supervisor)
     state["ready"] = True
     checkpoint()
+    ticks = (args.results / "plugin-ticks.jsonl").open("w", buffering=1) if executer else None
     try:
+        period, next_tick, next_checkpoint = 0.1, time.monotonic(), time.monotonic()
         while not stop:
-            time.sleep(0.2)
-            checkpoint()
+            if executer is None:
+                time.sleep(0.2)
+                checkpoint()
+                continue
+            started = time.monotonic_ns()
+            # Stage periods slightly below the tick so AVLite's float time sum never skips control.
+            stage = period * 0.99
+            executer.step(sim_dt=period, control_dt=stage, replan_dt=stage, perception_dt=stage,
+                          localization_dt=stage)
+            tick = bridge._tick_snapshot
+            ticks.write(json.dumps({"start_ns": started, "end_ns": time.monotonic_ns(),
+                                    "telemetry_seq": tick.telemetry_seq if tick else None,
+                                    "request_seq": bridge._request_seq}) + "\n")
+            state["ticks"] += 1
+            next_tick += period
+            delay = next_tick - time.monotonic()
+            if delay < 0:
+                state["tick_overruns"] += 1
+                next_tick = time.monotonic()
+            else:
+                time.sleep(delay)
+            if time.monotonic() >= next_checkpoint:
+                checkpoint()
+                next_checkpoint = time.monotonic() + 0.2
     finally:
         bridge.close()
         state["completed"] = True
         checkpoint()
         trace.close()
+        if ticks is not None:
+            ticks.close()
 
 
 def endpoint_free():
@@ -669,7 +712,11 @@ def trial(args, context, out):
               "source_acquisition_identity_available": args.provenance, "completed_observation": False,
               "provenance": args.provenance, "freeze_test": args.freeze_test,
               "freeze_window_seconds_after_first_frame": args.freeze_window if args.freeze_test else None,
-              "guard": args.guard, "guard_actions": [], "plugin_observer": args.plugin_observer}
+              "guard": args.guard, "guard_actions": [], "plugin_observer": args.plugin_observer,
+              "plugin_stack": args.plugin_stack}
+    heartbeat = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    heartbeat.setblocking(False)
+    heartbeat_seq = 0
 
     def checkpoint():
         save(out / "run.json", record)
@@ -702,7 +749,37 @@ def trial(args, context, out):
                          "--reply-delay", str(args.reply_delay), "--profile", args.profile, *sim1], bridge_environment)
         supervisors = []
 
+        supervisor_name = f"roboracer-supervisor-{os.getpid()}"
+        plugin_environment = None
+        if args.plugin_observer or args.plugin_stack:
+            isolated = out / "plugin-avlite"
+            plugin_environment = dict(environment, PYTHONNOUSERSITE="1", MPLCONFIGDIR=str(isolated / "mpl"),
+                                      **{name: str(isolated / name.lower()) for name in (
+                                          "AVLITE_CONFIG_DIR", "AVLITE_PLUGINS_DIR", "AVLITE_DATA_DIR",
+                                          "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME")})
+
         def spawn_supervisor():
+            if args.plugin_stack:
+                # S1: the real supervisor (its own process) owns the command path; the AVLite
+                # stack (another process) sends its requests there.
+                spawn("supervisor-1", [context["avlite_python"], "-B", "-m", "roboracer.runtime.supervisor_process",
+                    "--name", supervisor_name, "--target", read(out / "bridge-status.json")["guard_socket"],
+                    "--origin", "sup-1", "--status", str(out / "supervisor-1-status.json"),
+                    "--trace", str(out / "supervisor-trace.jsonl")],
+                    dict(plugin_environment, PYTHONPATH=str(PLUGIN_DIRECTORY.parent)))
+                deadline = time.monotonic() + 30
+                while not read(out / "supervisor-1-status.json").get("ready"):
+                    if any(p.poll() is not None for p, _, _ in children) or time.monotonic() > deadline:
+                        raise RuntimeError("Supervisor startup failed")
+                    time.sleep(0.1)
+                spawn("plugin-stack", [context["avlite_python"], "-B", own_script, "plugin-observe",
+                                       "--results", str(out), "--plugin", str(PLUGIN_DIRECTORY),
+                                       "--supervisor", supervisor_name], plugin_environment)
+                while not read(out / "plugin-observer-status.json").get("ready"):
+                    if any(p.poll() is not None for p, _, _ in children) or time.monotonic() > deadline:
+                        raise RuntimeError("AVLite stack startup failed")
+                    time.sleep(0.1)
+                return
             # The request source is its own OS process, separate from the bridge and this runner.
             index = len(supervisors) + 1
             supervisors.append(spawn(f"supervisor-{index}", [sys.executable, "-B",
@@ -713,11 +790,6 @@ def trial(args, context, out):
                            *(["--provenance"] if args.provenance else [])], environment)
         ready_files = ["bridge-status.json", "observer-status.json"]
         if args.plugin_observer:
-            isolated = out / "plugin-avlite"
-            plugin_environment = dict(environment, PYTHONNOUSERSITE="1", MPLCONFIGDIR=str(isolated / "mpl"),
-                                      **{name: str(isolated / name.lower()) for name in (
-                                          "AVLITE_CONFIG_DIR", "AVLITE_PLUGINS_DIR", "AVLITE_DATA_DIR",
-                                          "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME")})
             spawn("plugin-observer", [context["avlite_python"], "-B", own_script, "plugin-observe",
                                       "--results", str(out), "--plugin", str(PLUGIN_DIRECTORY)], plugin_environment)
             ready_files.append("plugin-observer-status.json")
@@ -1043,6 +1115,15 @@ def trial(args, context, out):
                         if sample:
                             metrics.write(json.dumps(dict(label=entry["label"], **sample)) + "\n")
                     sample_at = time.monotonic() + 1
+                if args.plugin_stack and connected:
+                    # Runner liveness for the supervisor's lease, from this loop only (after the
+                    # Connect sequence, whose ~1 s of input handling would otherwise trip it).
+                    heartbeat_seq += 1
+                    try:
+                        heartbeat.sendto(json.dumps({"kind": "heartbeat", "seq": heartbeat_seq}).encode(),
+                                         "\0" + supervisor_name)
+                    except (BlockingIOError, ConnectionRefusedError, FileNotFoundError):
+                        record["heartbeat_failures"] = record.get("heartbeat_failures", 0) + 1
                 time.sleep(0.1)
         if not (record["completed_observation"] or record["completed_diagnostic_window"]):
             raise TimeoutError("Stationary observation did not complete in its execution bound")
@@ -1053,6 +1134,7 @@ def trial(args, context, out):
         cleanup_started = time.monotonic()
         if connection is not None:
             connection.close()
+        heartbeat.close()
         for process, log, entry in reversed(children):
             if process.poll() is None:
                 os.killpg(process.pid, signal.SIGTERM)
@@ -1117,7 +1199,11 @@ def main():
                              "observe forwards zero requests for --duration, scenario runs the disarmed P1a cases")
     parser.add_argument("--plugin-observer", action="store_true",
                         help="S1-02: also run the RoboRacer plugin's AutoDriveBridge as a read-only subscriber")
+    parser.add_argument("--plugin-stack", action="store_true",
+                        help="S1: run AVLite (HoldController) through the plugin bridge and the real supervisor "
+                             "instead of the stand-in; exact-zero requests, interlocked guard")
     parser.add_argument("--plugin", type=Path, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--supervisor", default=None, help=argparse.SUPPRESS)
     parser.add_argument("--guard-timeout", type=float, default=420,
                         help="Execution bound for a guard trial after startup")
     parser.add_argument("--disconnect-wait", type=float, default=30,
@@ -1150,6 +1236,8 @@ def main():
     if args.freeze_test and not (len(args.freeze_window) == 2 and 0 < args.freeze_window[0] < args.freeze_window[1]
                                  and args.freeze_window[1] + 5 <= args.duration):
         parser.error("Freeze window must be ordered and end at least 5 s before the observation ends")
+    if args.plugin_stack and (args.guard != "observe" or args.plugin_observer):
+        parser.error("The plugin stack runs only with --guard observe and replaces --plugin-observer")
     if args.plugin_observer and not args.provenance:
         parser.error("The plugin observer needs the provenance topic (--provenance)")
     if args.contact_target and not args.contact_mode:

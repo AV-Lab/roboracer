@@ -60,12 +60,18 @@ class SpeedLoopTests(unittest.TestCase):
         self.assertAlmostEqual(0.01, info["trim"])
         self.assertAlmostEqual(min(0.07, 0.3 / 5.02 + 0.01), u, places=5)
 
+    def test_v03_measured_worst_feedback_age_still_controls(self):
+        # M4 trial 3: feedback reached 564 ms at request time; v0.3 keeps that in control.
+        loop = self.loop()
+        loop.feedback(0.1, NOW - 564 * MS, 1, 0.2)
+        self.assertEqual("control", loop.command(0.2, NOW)[1]["rule"])
+
     def test_stale_lost_zero_and_overspeed(self):
         loop = self.loop()
         self.assertEqual((0.0, "no-feedback-yet"), (loop.command(0.2, NOW)[0], loop.command(0.2, NOW)[1]["rule"]))
-        loop.feedback(0.1, NOW - 450 * MS, 1, 0.2)
+        loop.feedback(0.1, NOW - 650 * MS, 1, 0.2)
         self.assertEqual((0.0, "stale-feedback"), (loop.command(0.2, NOW)[0], loop.command(0.2, NOW)[1]["rule"]))
-        loop.feedback(0.1, NOW - 650 * MS, 2, 0.2)
+        loop.feedback(0.1, NOW - 950 * MS, 2, 0.2)
         self.assertEqual("feedback-lost", loop.command(0.2, NOW)[1]["rule"])
         loop.feedback(0.36, NOW - 50 * MS, 3, 0.2)
         self.assertEqual((0.0, "overspeed"), (loop.command(0.2, NOW)[0], loop.command(0.2, NOW)[1]["rule"]))
@@ -110,7 +116,7 @@ class AVLiteStageTests(unittest.TestCase):
     def test_feedback_lost_inhibits(self):
         s = core.SupervisorCore(origin="sup-1", stage="m4")
         s.heartbeat(1, NOW - 100 * MS)
-        s.feedback(0.1, NOW - 700 * MS, 1, 0.2)
+        s.feedback(0.1, NOW - 950 * MS, 1, 0.2)
         self.assertEqual("feedback-lost", s.submit(request(1), NOW).reason)
         self.assertEqual(("inhibited", "feedback-lost"), (s.state, s.reason))
         self.assertEqual("inhibited", s.submit(request(2), NOW).reason)

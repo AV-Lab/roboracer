@@ -9,7 +9,7 @@ plugin-observer-status.json.
 
 M4 criteria (proposal v0.2, D8): per speed step, mean speed over the last 1 s within
 +-0.05 m/s of v*, overshoot <= 0.1 m/s, at most 2 brake events (throttle -> 0 while v* > 0);
-stop from 0.3 m/s within 1.5 s; stale feedback -> throttle 0 within 0.4 s plus one frame
+stop from 0.3 m/s within 1.5 s; stale feedback -> throttle 0 within 0.6 s (v0.3) plus one frame
 (0.2 s), then inhibition. M5: completes (6 m or 40 s) without abort; final stop within 1.5 s.
 Both: no guard fault or rejection, exactly one final lease expiry, output within the stage
 profile, latency chain (D7) reported per clock. Fresh JSON output; nonzero exit on failure.
@@ -139,7 +139,7 @@ def analyze(directory: Path) -> dict:
             "inhibited_after_s": (lost["t"] - blackout["t"]) / 1e9 if lost and blackout else None,
             "forwarded_after_inhibition": sum(1 for r in requests if lost and r["t"] > lost["t"] and r["decision"] == "forwarded")}
         sf = result["stale_feedback"]
-        if sf["zero_throttle_after_s"] is None or sf["zero_throttle_after_s"] > 0.6 or sf["inhibited_after_s"] is None \
+        if sf["zero_throttle_after_s"] is None or sf["zero_throttle_after_s"] > 0.8 or sf["inhibited_after_s"] is None \
                 or sf["forwarded_after_inhibition"]:
             failures.append(f"stale feedback: {sf}")
     else:

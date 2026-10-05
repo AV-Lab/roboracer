@@ -57,8 +57,10 @@ class SpeedLoopParams:
     rise_per_s: float = 0.10        # 0.02 per 0.2 s frame
     overspeed_margin_mps: float = 0.15
     overspeed_abs_mps: float = 0.5
-    stale_ns: int = 400_000_000     # older feedback -> zero throttle (hard brake)
-    lost_ns: int = 600_000_000      # older feedback -> inhibit (sticky)
+    # v0.3 (confirmed "yes rerun M4"): measured feedback age reaches 0.56 s at request time
+    # (frame period p95 284 ms + ~155 ms delivery), so 0.4/0.6 s braked routinely.
+    stale_ns: int = 600_000_000     # older feedback -> zero throttle (hard brake)
+    lost_ns: int = 900_000_000      # older feedback -> inhibit (sticky)
 
 
 class SpeedLoop:

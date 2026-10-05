@@ -4,7 +4,7 @@ Version: **0.2 — D5 revised after M3; awaiting confirmation of the changes.**
 - **v0.1:** confirmed on 2026-10-05 with "approve D4 A, D5, D6, D7; run M3 only". M3 passed ([report](../stages/S1-M3-identification.md)).
 - **What M3 changed:** the plant is a static gain (v ≈ 4.9 m/s × throttle, settled within one frame), not an accelerator. The v0.1 D5 gains and u_max = 0.03 therefore no longer fit. **D5 below is revised and needs your confirmation**, and **M3b** is added to D8.
 - **Unchanged:** D4, D6 and D7 are as confirmed.
-- **v0.3 change request (2026-10-05, after M4 trial 3; awaiting confirmation):** raise D5's stale-feedback thresholds from **0.4 s → 0.6 s** (zero throttle) and from **0.6 s → 0.9 s** (inhibit). Everything else is unchanged; see §7.
+- **v0.3 confirmed (2026-10-05, "yes rerun M4"; M4's stale criterion becomes 0.6 s + one frame):** raise D5's stale-feedback thresholds from **0.4 s → 0.6 s** (zero throttle) and from **0.6 s → 0.9 s** (inhibit). Everything else is unchanged; see §7.
 - **v0.2 confirmed** on 2026-10-05 ("comfirm"). **M3b passed** ([report](../stages/S1-M3b-identification.md)): linear over 0.025–0.30 m/s with **K = 5.02**. M3's 4.90 was an analysis-window bias, now corrected. Under the confirmed ±10 % rule, D5 uses K = 5.02; u_max = 0.07 is then about 0.35 m/s. M4 and M5 are not yet authorized.
 
 Date: 2026-10-05. [Chinese version](s1-03-controller-proposal.zh-CN.md). This follows [motion protocol v0.1](s1-motion-protocol.md) §4 "After M0–M2". Evidence: [M0](../stages/S1-M0-steering.md), [M1](../stages/S1-M1-throttle.md), [M2](../stages/S1-M2-stops.md).

@@ -18,6 +18,9 @@
      "decisions": {"D5": "revised v0.2 confirmed"}},
     {"stage": "M4", "date": "2026-10-05", "user_reply": "yes run M4 and M5",
      "proposal": "docs/planning/s1-03-controller-proposal.md", "proposal_version": "0.2"},
+    {"stage": "M4", "date": "2026-10-05", "user_reply": "yes rerun M4",
+     "context": "reply to: approve v0.3 (stale 0.6 s / loss 0.9 s) and rerun M4, then M5 if M4 passes",
+     "proposal": "docs/planning/s1-03-controller-proposal.md", "proposal_version": "0.3"},
     {"stage": "M5", "date": "2026-10-05", "user_reply": "yes run M4 and M5",
      "proposal": "docs/planning/s1-03-controller-proposal.md", "proposal_version": "0.2",
      "note": "run only after M4 passes"}

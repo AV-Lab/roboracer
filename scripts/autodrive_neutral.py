@@ -788,10 +788,14 @@ def calibrate_m1(args):
     previous = pulse = None
     armed_at = phase_start = stopped_at = None
     try:
-        while not stop and state["phase"] not in ("done", "aborted-done"):
+        while not stop:  # after done, idle until the runner's SIGTERM (an exiting child fails the trial)
             try:
                 snapshot = arrivals.get(timeout=M1_FRAME_GAP_S)
+                if state["phase"] in ("done", "aborted-done"):
+                    continue
             except queue.Empty:
+                if state["phase"] in ("done", "aborted-done"):
+                    continue
                 if state["phase"] in ("pulse", "rest", "ready") and state["abort"] is None:
                     state.update(phase="aborted", abort=f"no new observation for {M1_FRAME_GAP_S} s")
                     phase_start = time.monotonic()

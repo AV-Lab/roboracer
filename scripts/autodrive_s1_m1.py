@@ -51,7 +51,7 @@ def analyze(directory: Path) -> dict:
     accepts = {}
     for _, text in texts:
         parts = text.split()
-        if len(parts) >= 7 and parts[0] == "accept":
+        if len(parts) >= 6 and parts[0] == "accept":  # accept <seq> <expiryInNs> <throttle> <steering> <inputs>
             accepts[int(parts[1])] = {"remaining_s": int(parts[2]) / 1e9, "throttle": float(parts[3])}
 
     # Guard step index -> IPS simulation time (both from the same fixed-step clock).

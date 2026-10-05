@@ -367,3 +367,27 @@
   - **Decisions:** D1, the front-motor-torque clearing patch (a pre-motion blocker); D2, a calibration request source; D3, freshness via earlier provenance publication.
   - **Stages:** M0 steering only, M1 minimal throttle pulses (0.002–0.01, 0.25 s, caps 0.5 m/s and 0.5 m), M2 expiry/runner-loss stops. Common abort and stop-qualification rules.
 - **Stopped for confirmation.** No command that can move the vehicle has been sent. Acceptance count unchanged (3/34).
+
+## 2026-10-05 — Motion protocol v0.1: D1 A, D2, D3 applied; M0 (steering only) passes
+
+- **Approval.** The user replied "approve D1 A, D2, D3; run M0 only", recorded in `planning/s1-motion-approval.json`. M1, M2 and AVLite target-speed motion remain unauthorized.
+- **D1 A.** `vendor-sim1-03.patch` (+2 lines) makes the zero-throttle branch also clear the front motor torques. The SIM1-03 player was built from a fresh verified derived copy (273 s, exit 0). The strict serialized comparison against the SIM1 reference is equal.
+- **D2.** Added a scripted calibration source (`autodrive_neutral.py calibrate`) and supervisor stage `m0`: throttle 0, steering in {0, ±0.1, ±0.5, ±1}, opened only with the approval record. AVLite motion is still closed in code. The runner passes `-roboracerMotionAuthorized` only for an approved stage, on a player whose build record includes 03 and whose `GameAssembly.so` hash matches. Outbound guard requests are checked against the stage profile.
+- **Guard driver.** Added a `calibration` mode and fixed a defect found by its simulation: the driver re-forwarded older skipped requests once the source went silent.
+- **D3.** Provenance is now published before the paced reply, and pacing cut to 50 ms. Observation age at the supervisor went from 326/443/489 to 206/304/318 ms.
+- **M0 trials.** Every motion trial got a visual pre-Connect review. Four attempts, all retained:
+  - 0: not launched (my wrapper's `set -u` broke ROS sourcing).
+  - 1: failed closed at full lock, because my feedback bound didn't allow 3-decimal rounding (0.524). The source aborted to zero, with no translation.
+  - 2: all criteria met, but the runner's completion check ignored calibration mode, so I stopped it with SIGTERM (clean). Its 5 mm whole-run displacement was passive creep in the 150 s idle tail; it was 1 mm in the M0 window.
+  - 3: **pass**, unassisted, in 54 s.
+- **M0 results.**
+  - +1 = 30° **left**, confirmed by angle sign and by the Ackermann inner wheel.
+  - Wheel angles equal the vendor geometry (wheelbase 324, track 236) to within 0.0001°.
+  - Outward slew is 183.2–184.6°/s in simulation time. Return to zero is instantaneous, which is vendor behaviour.
+  - Expiry case: `lease-expired` while +0.5 was held, and steering was back at 0 within 0.09 ms.
+  - 1 mm displacement, encoders unchanged, and motor torque/throttle exactly 0 on all 44,848 steps.
+  - All 169 requests were forwarded, with no rejection or fault. All 604 player files were unchanged, and all children exited 0.
+- **Analysis fix.** Slew must be measured in fixed steps, because wall-clock stamps are bunched by Unity's per-frame physics catch-up.
+- **Tests.** 89 script tests and 26 plugin tests pass.
+- **Records.** Evidence `artifacts/s1/20261005T113714Z-m0/` (92 files). Bilingual [report](stages/S1-M0-steering.md).
+- **Next.** The user's decision on M1. Acceptance count unchanged (3/34).

@@ -1,6 +1,6 @@
 # S1 数值运动协议 — 待确认草案
 
-版本：**0.1 — 草案，未确认。** 日期：2026-10-05。[英文版](s1-motion-protocol.md)。按[修订 1.2](s1-first-amendment.md) 的要求，在发送任何可能使车辆运动的命令之前必须确认本协议。证据：[SIM1-02 守卫](../stages/SIM1-guard.md)、[S1-02 观测](../stages/S1-observation.md)、[S1 监督器](../stages/S1-supervisor.md)。
+版本：**0.1 — 已部分确认**（2026-10-05：“approve D1 A, D2, D3; run M0 only”，[记录](s1-motion-approval.json)）。**M0 已通过**（[报告](../stages/S1-M0-steering.zh-CN.md)）。M1、M2 未获授权。日期：2026-10-05。[英文版](s1-motion-protocol.md)。按[修订 1.2](s1-first-amendment.md) 的要求，在发送任何可能使车辆运动的命令之前必须确认本协议。证据：[SIM1-02 守卫](../stages/SIM1-guard.md)、[S1-02 观测](../stages/S1-observation.md)、[S1 监督器](../stages/S1-supervisor.md)。
 
 **在你确认本文（或修改后的版本）之前，本文内容一律不执行。** 守卫的零输出互锁保持开启，不传 `-roboracerMotionAuthorized`，监督器的运动闸门在代码中保持关闭。
 

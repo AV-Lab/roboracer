@@ -81,7 +81,10 @@ class SpeedLoop:
         p = self.p
         age = (now_ns - self.stamp_ns) if self.stamp_ns is not None else None
         info = {"target": target_mps, "speed": self.speed, "feedback_age_ns": age, "feedback_seq": self.seq}
-        if age is None or age > p.lost_ns:
+        if age is None:
+            # Before the first sample (speed needs two snapshots): zero throttle, not a loss.
+            u, info["rule"] = 0.0, "no-feedback-yet"
+        elif age > p.lost_ns:
             u, info["rule"] = 0.0, "feedback-lost"
         elif age > p.stale_ns:
             u, info["rule"] = 0.0, "stale-feedback"

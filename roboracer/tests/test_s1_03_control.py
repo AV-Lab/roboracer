@@ -62,7 +62,7 @@ class SpeedLoopTests(unittest.TestCase):
 
     def test_stale_lost_zero_and_overspeed(self):
         loop = self.loop()
-        self.assertEqual("feedback-lost", loop.command(0.2, NOW)[1]["rule"])
+        self.assertEqual((0.0, "no-feedback-yet"), (loop.command(0.2, NOW)[0], loop.command(0.2, NOW)[1]["rule"]))
         loop.feedback(0.1, NOW - 450 * MS, 1, 0.2)
         self.assertEqual((0.0, "stale-feedback"), (loop.command(0.2, NOW)[0], loop.command(0.2, NOW)[1]["rule"]))
         loop.feedback(0.1, NOW - 650 * MS, 2, 0.2)
@@ -98,9 +98,19 @@ class AVLiteStageTests(unittest.TestCase):
         self.assertEqual(("0", repr(round(0.35 / 0.5235987755982988, 6))), (d.forward["throttle"], d.forward["steering"]))
         self.assertEqual("stage-limit", s.submit(request(2, steer=-0.36), NOW).reason)
 
+    def test_no_feedback_yet_forwards_zero_and_stays_active(self):
+        # Found live (M4 attempt 2): the first request precedes the first speed sample.
+        s = core.SupervisorCore(origin="sup-1", stage="m4")
+        s.heartbeat(1, NOW - 100 * MS)
+        d = s.submit(request(1, speed=0.0), NOW)
+        self.assertEqual((True, "0", "no-feedback-yet"), (d.accepted, d.forward["throttle"], d.control["rule"]))
+        d = s.submit(request(2, speed=0.2), NOW)
+        self.assertEqual((True, "0", "no-feedback-yet", "active"), (d.accepted, d.forward["throttle"], d.control["rule"], s.state))
+
     def test_feedback_lost_inhibits(self):
         s = core.SupervisorCore(origin="sup-1", stage="m4")
         s.heartbeat(1, NOW - 100 * MS)
+        s.feedback(0.1, NOW - 700 * MS, 1, 0.2)
         self.assertEqual("feedback-lost", s.submit(request(1), NOW).reason)
         self.assertEqual(("inhibited", "feedback-lost"), (s.state, s.reason))
         self.assertEqual("inhibited", s.submit(request(2), NOW).reason)

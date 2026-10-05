@@ -4,9 +4,12 @@ Importing this package only defines classes: it never starts a simulator, socket
 node, thread or process.
 """
 
+from .control.gap_follow import GapFollowController
 from .control.hold import HoldController
+from .control.speed_step import SpeedStepController
 from .integration.autodrive_bridge import AutoDriveBridge
 from .runtime.commands import TargetSpeedSteeringCommand
 from .settings import PluginSettings
 
-__all__ = ["AutoDriveBridge", "HoldController", "TargetSpeedSteeringCommand", "PluginSettings"]
+__all__ = ["AutoDriveBridge", "GapFollowController", "HoldController", "SpeedStepController",
+           "TargetSpeedSteeringCommand", "PluginSettings"]

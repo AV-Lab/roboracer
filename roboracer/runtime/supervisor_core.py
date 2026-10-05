@@ -40,6 +40,71 @@ STAGES = {"m0": {"throttle": (0.0,), "steering": (0.0, 0.1, -0.1, 0.5, -0.5, 1.0
           "m2": {"throttle": (0.0, 0.01), "steering": (0.0,)},
           "m3": {"throttle": (0.0, 0.005, 0.01, 0.02), "steering": (0.0,)},
           "m3b": {"throttle": (0.0, 0.03, 0.045, 0.06), "steering": (0.0,)}}
+# Confirmed S1-03 stages where AVLite target-speed requests drive the vehicle through the
+# speed loop (s1-03-controller-proposal.md v0.2, D5/D8; approved "yes run M4 and M5").
+AVLITE_STAGES = {"m4": {"max_speed_mps": 0.3, "max_steer_rad": 0.0},
+                 "m5": {"max_speed_mps": 0.3, "max_steer_rad": 0.35}}
+STEER_LIMIT_RAD = 0.5235987755982988  # normalized steering 1.0 (M0)
+
+
+@dataclass(frozen=True)
+class SpeedLoopParams:
+    """D5 (v0.2) with K measured in M3/M3b. All per unit normalized throttle."""
+    gain_mps: float = 5.02          # steady speed per unit throttle (M3b, M3 corrected)
+    ki: float = 0.10                # integral trim per (m/s * s)
+    trim: float = 0.01              # |integral trim| bound (about 0.05 m/s)
+    u_max: float = 0.07             # about 0.35 m/s
+    rise_per_s: float = 0.10        # 0.02 per 0.2 s frame
+    overspeed_margin_mps: float = 0.15
+    overspeed_abs_mps: float = 0.5
+    stale_ns: int = 400_000_000     # older feedback -> zero throttle (hard brake)
+    lost_ns: int = 600_000_000      # older feedback -> inhibit (sticky)
+
+
+class SpeedLoop:
+    """Target speed -> normalized throttle: static inverse feedforward plus bounded integral
+    trim, rise limit, overspeed and stale-feedback rules. Zero throttle is a hard brake."""
+
+    def __init__(self, params: SpeedLoopParams = SpeedLoopParams()):
+        self.p = params
+        self.trim = 0.0
+        self.last_u = 0.0
+        self.last_ns: int | None = None
+        self.speed = self.stamp_ns = self.seq = self.dt_s = None
+        self.integrated_seq = None
+
+    def feedback(self, speed_mps: float, stamp_ns: int, seq: int, dt_s: float) -> None:
+        if math.isfinite(speed_mps) and dt_s > 0:
+            self.speed, self.stamp_ns, self.seq, self.dt_s = speed_mps, stamp_ns, seq, dt_s
+
+    def command(self, target_mps: float, now_ns: int) -> tuple[float, dict]:
+        p = self.p
+        age = (now_ns - self.stamp_ns) if self.stamp_ns is not None else None
+        info = {"target": target_mps, "speed": self.speed, "feedback_age_ns": age, "feedback_seq": self.seq}
+        if age is None or age > p.lost_ns:
+            u, info["rule"] = 0.0, "feedback-lost"
+        elif age > p.stale_ns:
+            u, info["rule"] = 0.0, "stale-feedback"
+        elif target_mps == 0:
+            self.trim, u, info["rule"] = 0.0, 0.0, "target-zero"
+        else:
+            error = target_mps - self.speed
+            saturated = (self.last_u >= p.u_max and error > 0) or (self.last_u <= 0 and error < 0)
+            if self.seq != self.integrated_seq and not saturated:
+                self.trim = max(-p.trim, min(p.trim, self.trim + p.ki * error * self.dt_s))
+            self.integrated_seq = self.seq
+            if self.speed > target_mps + p.overspeed_margin_mps or self.speed > p.overspeed_abs_mps:
+                u, info["rule"] = 0.0, "overspeed"
+            else:
+                u = max(0.0, min(p.u_max, target_mps / p.gain_mps + self.trim))
+                # The first command counts as one request period (0.1 s) after a zero command.
+                elapsed_s = (now_ns - self.last_ns) / 1e9 if self.last_ns is not None else 0.1
+                u = min(u, self.last_u + p.rise_per_s * elapsed_s)
+                info["rule"] = "control"
+        u = round(max(0.0, u), 5)
+        self.last_u, self.last_ns = u, now_ns
+        info.update(u=u, trim=self.trim)
+        return u, info
 
 
 @dataclass(frozen=True)
@@ -64,6 +129,7 @@ class Decision:
     accepted: bool
     reason: str
     forward: dict | None = None
+    control: dict | None = None
 
 
 def _number(value) -> bool:
@@ -83,12 +149,20 @@ class SupervisorCore:
     request_seq: int = 0
     out_seq: int = 0
     counters: dict = field(default_factory=dict)
+    speed_loop: SpeedLoop | None = None
 
     def __post_init__(self):
         if not TOKEN.match(self.origin):
             raise ValueError("origin must be a guard token")
-        if self.stage is not None and self.stage not in STAGES:
+        if self.stage is not None and self.stage not in STAGES and self.stage not in AVLITE_STAGES:
             raise ValueError(f"unknown stage {self.stage!r}")
+        if self.stage in AVLITE_STAGES and self.speed_loop is None:
+            self.speed_loop = SpeedLoop()
+
+    def feedback(self, speed_mps: float, stamp_ns: int, seq: int, dt_s: float) -> None:
+        """Supervisor-owned encoder speed (D4 A); only used by the AVLite speed loop."""
+        if self.speed_loop is not None:
+            self.speed_loop.feedback(speed_mps, stamp_ns, seq, dt_s)
 
     def _count(self, key):
         self.counters[key] = self.counters.get(key, 0) + 1
@@ -154,13 +228,24 @@ class SupervisorCore:
             return self._reject("stale-observation")
         if stamp - now_ns > self.limits.future_tolerance_ns:
             return self._reject("future-observation")
+        control = None
         if kind == "calibration":
-            if self.stage is None:
+            if self.stage is None or self.stage not in STAGES:
                 return self._reject("no-stage")
             profile = STAGES[self.stage]
             if float(first) not in profile["throttle"] or float(second) not in profile["steering"]:
                 return self._reject("stage-limit")
             throttle, steering = _text(float(first)), _text(float(second))
+        elif self.stage in AVLITE_STAGES:
+            profile = AVLITE_STAGES[self.stage]
+            speed, steer = float(first), float(second)
+            if speed < 0 or speed > profile["max_speed_mps"] or abs(steer) > profile["max_steer_rad"]:
+                return self._reject("stage-limit")
+            u, control = self.speed_loop.command(speed, now_ns)
+            if control["rule"] == "feedback-lost":
+                self.state, self.reason = "inhibited", "feedback-lost"
+                return self._reject("feedback-lost")
+            throttle, steering = _text(u), _text(round(steer / STEER_LIMIT_RAD, 6))
         else:
             speed, steer = first, second
             if speed < 0 or speed > self.limits.max_target_speed_mps or abs(steer) > self.limits.max_steer_rad:
@@ -173,7 +258,7 @@ class SupervisorCore:
         forward = {"origin": self.origin, "seq": self.out_seq, "gen_ns": gen,
                    "deadline_ns": gen + self.limits.request_life_ns, "throttle": throttle, "steering": steering,
                    "inputs": f"{origin}.{seq}.t{telemetry}"}
-        return Decision(True, "forwarded", forward)
+        return Decision(True, "forwarded", forward, control)
 
     def status(self) -> dict:
         return {"protocol": PROTOCOL, "origin": self.origin, "stage": self.stage, "state": self.state,

@@ -39,14 +39,33 @@ class RunnerStageTests(unittest.TestCase):
     def test_stage_tables_agree_and_approval_names_only_m0(self):
         self.assertEqual(core.STAGES, MOTION_STAGES)
         approval = json.loads(MOTION_APPROVAL.read_text())
-        self.assertEqual(("0.1", ["M0", "M1", "M2", "M3", "M3B"], "A"), (approval["version"], approval["stages"],
-                                                                         approval["decisions"]["D1"]))
+        self.assertEqual(("0.1", ["M0", "M1", "M2", "M3", "M3B", "M4", "M5"], "A"),
+                         (approval["version"], approval["stages"], approval["decisions"]["D1"]))
         for throttle in (0.03, 0.045, 0.06):
             check_guard_request(f"1 sup-1 3 10 20 {throttle} 0 cal.3.t9", "m3b")
         with self.assertRaises(ValueError):
             check_guard_request("1 sup-1 3 10 20 0.07 0 cal.3.t9", "m3b")
-        for stage in ("M4", "M5", "AVLite target-speed motion", "steering while moving"):
-            self.assertIn(stage, approval["not_authorized"])
+        for item in ("AVLite motion outside M4/M5", "speeds above 0.3 m/s", "steering while moving outside M5"):
+            self.assertIn(item, approval["not_authorized"])
+
+    def test_m4_m5_ranges_match_supervisor(self):
+        from autodrive_neutral import AVLITE_MOTION_STAGES
+        self.assertEqual(set(core.AVLITE_STAGES), set(AVLITE_MOTION_STAGES))
+        for stage, limits in AVLITE_MOTION_STAGES.items():
+            self.assertEqual(core.SpeedLoopParams().u_max, limits["throttle_max"])
+            self.assertAlmostEqual(core.AVLITE_STAGES[stage]["max_steer_rad"] / core.STEER_LIMIT_RAD,
+                                   limits["steering_max"], places=6)
+        check_guard_request("1 sup-1 3 10 20 0.0612 0 avlite.3.t9", "m4")
+        check_guard_request("1 sup-1 3 10 20 0.03 -0.668451 avlite.3.t9", "m5")
+        for text, stage in (("1 sup-1 3 10 20 0.0701 0 avlite.3.t9", "m4"), ("1 sup-1 3 10 20 0.03 0.1 avlite.3.t9", "m4"),
+                            ("1 sup-1 3 10 20 0.03 0.67 avlite.3.t9", "m5"), ("1 sup-1 3 10 20 -0.01 0 avlite.3.t9", "m5")):
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                check_guard_request(text, stage)
+        self.assertEqual(0.061, motion_fields(frame(throttle="0.061"), "m4")["Throttle Feedback"])
+        self.assertEqual(0.35, motion_fields(frame(steering="0.350"), "m5")["Steering Feedback"])
+        for args in ((frame(steering="0.010"), "m4"), (frame(throttle="0.080"), "m5"), (frame(steering="0.400"), "m5")):
+            with self.subTest(args=args[1:]), self.assertRaises(ValueError):
+                motion_fields(*args)
 
     def test_m3_bounds(self):
         for throttle in (0, 0.005, 0.01, 0.02):

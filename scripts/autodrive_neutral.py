@@ -118,6 +118,12 @@ MOTION_STAGES = {"m0": {"throttle": (0.0,), "steering": (0.0, 0.1, -0.1, 0.5, -0
                  "m2": {"throttle": (0.0, 0.01), "steering": (0.0,)},
                  "m3": {"throttle": (0.0, 0.005, 0.01, 0.02), "steering": (0.0,)},
                  "m3b": {"throttle": (0.0, 0.03, 0.045, 0.06), "steering": (0.0,)}}
+# S1-03 AVLite motion stages (proposal v0.2; mirrors supervisor_core.AVLITE_STAGES and
+# SpeedLoopParams.u_max): continuous normalized ranges instead of discrete values.
+AVLITE_MOTION_STAGES = {"m4": {"throttle_max": 0.07, "steering_max": 0.0, "steer_feedback_rad": 0.0,
+                               "containment_m": 3.0},
+                        "m5": {"throttle_max": 0.07, "steering_max": round(0.35 / 0.5235987755982988, 6),
+                               "steer_feedback_rad": 0.3505, "containment_m": 7.0}}
 # M1 hard containment in the bridge (fails closed): four pulses at the 0.5 m per-pulse cap.
 # The calibration source applies the finer protocol abort rules (speed, travel, yaw, lateral, clearance).
 M1_CONTAINMENT_M = 2.0
@@ -133,6 +139,12 @@ def check_guard_request(text, stage):
     if len(fields) != 8:
         raise ValueError("Malformed guard request in a motion stage")
     throttle, steering = float(fields[5]), float(fields[6])
+    if stage in AVLITE_MOTION_STAGES:
+        limits = AVLITE_MOTION_STAGES[stage]
+        if not (math.isfinite(throttle) and math.isfinite(steering) and 0 <= throttle <= limits["throttle_max"]
+                and abs(steering) <= limits["steering_max"]):
+            raise ValueError(f"Guard request outside confirmed stage {stage}: {throttle} {steering}")
+        return
     profile = MOTION_STAGES[stage]
     if throttle not in profile["throttle"] or steering not in profile["steering"]:
         raise ValueError(f"Guard request outside confirmed stage {stage}: {throttle} {steering}")
@@ -174,6 +186,14 @@ def motion_fields(data, stage=None):
         if key == "Steering" and stage == "m0" and math.isfinite(value) and abs(value) <= STEERING_FEEDBACK_LIMIT_RAD:
             result["Steering Feedback"] = value
             continue
+        if stage in AVLITE_MOTION_STAGES and math.isfinite(value):
+            limits = AVLITE_MOTION_STAGES[stage]
+            if key == "Throttle" and -0.0005 <= value <= limits["throttle_max"] + 0.0005:
+                result["Throttle Feedback"] = value
+                continue
+            if key == "Steering" and abs(value) <= limits["steer_feedback_rad"]:
+                result["Steering Feedback"] = value
+                continue
         # M1/M2: throttle feedback (reported to 3 decimals) must be one of the stage's values.
         if key == "Throttle" and stage in ("m1", "m2", "m3", "m3b") and math.isfinite(value) and \
                 any(abs(value - allowed) <= 0.0005 for allowed in MOTION_STAGES[stage]["throttle"]):
@@ -341,9 +361,10 @@ def bridge(args):
                 reference = motion
                 save(out / "first-raw-frame.json", data)
             changed = rejected_motion_fields(reference, motion, args.profile)
-            if args.motion_stage in ("m1", "m2", "m3", "m3b"):
+            if args.motion_stage in ("m1", "m2", "m3", "m3b") or args.motion_stage in AVLITE_MOTION_STAGES:
                 # Motion is intended: only the hard containment bound stops the bridge here.
-                changed = ["Position"] if math.dist(reference["Position"], motion["Position"]) >= M1_CONTAINMENT_M else []
+                bound = AVLITE_MOTION_STAGES.get(args.motion_stage, {}).get("containment_m", M1_CONTAINMENT_M)
+                changed = ["Position"] if math.dist(reference["Position"], motion["Position"]) >= bound else []
             displacement = math.dist(reference["Position"], motion["Position"])
             row = {"index": state["processed"], "received_monotonic_ns": received,
                    "motion": motion, "position_displacement_m": displacement,
@@ -506,13 +527,18 @@ def plugin_observe(args):
         from avlite.c60_apps.c69_settings import AppSettings
         AppSettings.c62_default_plugins = []
         AppSettings.c62_community_plugins = {"roboracer": str(args.plugin)}
+        controller_name = {"m4": "SpeedStepController", "m5": "GapFollowController"}.get(args.stack_profile,
+                                                                                          "HoldController")
         executer = executor_factory(
             executer_type="SyncExecuter", bridge="AutoDriveBridge", perception_strategy_name="",
             localization_strategy_name="", mapping_strategy_name="", global_planner_strategy_name="",
-            local_planner_strategy_name="", controller_strategy_name="HoldController", execution_task_names=[],
+            local_planner_strategy_name="", controller_strategy_name=controller_name, execution_task_names=[],
             default_global_trajectory_file="", map_file="", load_plugins=True)
         plugin = sys.modules["avlite.plugins.roboracer"]
         bridge = executer.world
+        if args.stack_profile:
+            # Proposal v0.2 §4: 0.3 m/s for M4/M5, in this process only (the shipped default stays 0).
+            plugin.PluginSettings.max_target_speed_mps = 0.3
     else:
         import_plugin_modules(str(args.plugin), pkg_name="roboracer")
         plugin = sys.modules["avlite.plugins.roboracer"]
@@ -521,7 +547,9 @@ def plugin_observe(args):
     state = {"pid": os.getpid(), "plugin": str(args.plugin), "plugin_file": plugin.__file__,
              "stack_capabilities": sorted(c.name for c in bridge.stack_capabilities),
              "max_target_speed_mps": plugin.PluginSettings.max_target_speed_mps, "ready": False, "snapshots": 0,
-             "stack": bool(executer), "supervisor": args.supervisor, "ticks": 0, "tick_overruns": 0}
+             "stack": bool(executer), "supervisor": args.supervisor, "ticks": 0, "tick_overruns": 0,
+             "stack_profile": args.stack_profile}
+    stage = StackStage(args, executer, bridge, state) if args.stack_profile else None
     stop = []
 
     def checkpoint():
@@ -557,14 +585,18 @@ def plugin_observe(args):
                 checkpoint()
                 continue
             started = time.monotonic_ns()
-            # Stage periods slightly below the tick so AVLite's float time sum never skips control.
-            stage = period * 0.99
-            executer.step(sim_dt=period, control_dt=stage, replan_dt=stage, perception_dt=stage,
-                          localization_dt=stage)
+            step = stage.before_tick() if stage else True
+            if step:
+                # Stage periods slightly below the tick so AVLite's float time sum never skips control.
+                stage_dt = period * 0.99
+                executer.step(sim_dt=period, control_dt=stage_dt, replan_dt=stage_dt, perception_dt=stage_dt,
+                              localization_dt=stage_dt)
             tick = bridge._tick_snapshot
-            ticks.write(json.dumps({"start_ns": started, "end_ns": time.monotonic_ns(),
-                                    "telemetry_seq": tick.telemetry_seq if tick else None,
-                                    "request_seq": bridge._request_seq}) + "\n")
+            row = {"start_ns": started, "end_ns": time.monotonic_ns(), "stepped": step,
+                   "telemetry_seq": tick.telemetry_seq if tick else None, "request_seq": bridge._request_seq}
+            if stage:
+                row.update(stage.tick_record())
+            ticks.write(json.dumps(row) + "\n")
             state["ticks"] += 1
             next_tick += period
             delay = next_tick - time.monotonic()
@@ -1244,6 +1276,158 @@ def calibrate_m3(args):
         frames_log.close()
 
 
+# S1-03 proposal v0.2, D8: M4 closed-loop speed (straight, steering 0) and M5 reactive A.
+M4_SCHEDULE = ((0.0, 3.0, 0.1), (3.0, 6.0, 0.2), (6.0, 9.0, 0.3), (9.0, 11.0, 0.0), (11.0, 13.0, 0.2))
+M4_BLACKOUT_AT_S = 12.0     # stale-feedback case: inside the last 0.2 m/s step
+M4_TRAVEL_ABORT_M = 2.5
+M5_DISTANCE_M, M5_TIME_S = 6.0, 40.0
+STOP_HOLD_S = 1.5           # zero requests before going silent (lease then expires at zero)
+
+
+class StackStage:
+    """Runs a confirmed AVLite motion stage inside the stack child: waits for arming, settles,
+    checks the workspace, drives the test controller and applies the stage's abort rules.
+    Aborting or finishing requests zero, then stops stepping, so the guard lease expires with
+    zero output. GT pose is used only for these labelled monitors, never by the controller."""
+
+    def __init__(self, args, executer, bridge, state):
+        self.args, self.executer, self.bridge, self.state = args, executer, bridge, state
+        self.profile = args.stack_profile
+        self.controller = executer.controller
+        self.phase, self.phase_start = "wait-armed", time.monotonic()
+        self.start_pose = self.last_pose = None
+        self.path_m = 0.0
+        self.last_seq, self.last_new = None, time.monotonic()
+        self.blackout_written = False
+        self.info = {}
+        state.update(stage_phase=self.phase, abort=None, finish_reason=None, precheck=None)
+        self._request(0.0)
+
+    def _request(self, speed):
+        if self.profile == "m4":
+            self.controller.target_speed = speed
+        else:
+            self.controller.enabled = speed != 0.0  # GapFollow chooses its own speed when enabled
+
+    def _set(self, phase, **extra):
+        self.phase, self.phase_start = phase, time.monotonic()
+        self.state.update(stage_phase=phase, **extra)
+
+    def before_tick(self):
+        now = time.monotonic()
+        snap = self.bridge.latest()
+        guard_state = read(self.args.results / "bridge-status.json").get("guard", {}).get("state")
+        if snap is not None and snap.telemetry_seq != self.last_seq:
+            self.last_seq, self.last_new = snap.telemetry_seq, now
+            pose = (snap.pose.x, snap.pose.y)
+            if self.last_pose is not None and self.phase in ("run", "stopping"):
+                self.path_m += math.dist(pose, self.last_pose)
+            self.last_pose = pose
+        speed = self.bridge._encoder_speed.get(snap.telemetry_seq) if snap is not None else None
+        ranges = snap.scan_ranges if snap is not None else None
+        self.info = {"phase": self.phase, "guard": guard_state, "encoder_speed": speed, "path_m": self.path_m}
+        if snap is not None:
+            self.info.update(front10=sector_min(ranges, -10, 10), front15=sector_min(ranges, -15, 15),
+                             left=sector_min(ranges, 80, 100), right=sector_min(ranges, -100, -80),
+                             pose=[snap.pose.x, snap.pose.y, snap.pose.yaw])
+        elapsed = now - self.phase_start
+        if self.phase == "wait-armed":
+            if guard_state == "armed":
+                self._set("settle")
+            return True
+        if self.phase == "settle":
+            if elapsed >= M0_SETTLE_S and snap is not None:
+                check = {"spawn_offset_m": math.dist((snap.pose.x, snap.pose.y), M0_SPAWN_XY),
+                         "forward_min_m": self.info["front15"], "left_min_m": self.info["left"],
+                         "right_min_m": self.info["right"]}
+                check["passed"] = (check["spawn_offset_m"] <= 0.020 and check["forward_min_m"] >= 1.5
+                                   and min(check["left_min_m"], check["right_min_m"]) >= 0.4)
+                self.state["precheck"] = check
+                if check["passed"]:
+                    self.start_pose = (snap.pose.x, snap.pose.y, snap.pose.yaw)
+                    self._set("run")
+                else:
+                    self._set("stopping", abort="workspace precheck")
+            return True
+        if self.phase == "run":
+            reason = self._abort_reason(now, snap, speed, guard_state)
+            if reason:
+                self._request(0.0)
+                self._set("stopping", abort=reason)
+                return True
+            if self.profile == "m4":
+                current = [v for start, end, v in M4_SCHEDULE if start <= elapsed < end]
+                if not current:
+                    self._request(0.0)
+                    self._set("stopping", finish_reason="schedule complete")
+                    return True
+                self._request(current[0])
+                if elapsed >= M4_BLACKOUT_AT_S and not self.blackout_written:
+                    save(self.args.results / "supervisor-feedback-blackout.json", {"requested_ns": time.monotonic_ns()})
+                    self.blackout_written = True
+                    self.state["blackout_written_ns"] = time.monotonic_ns()
+            else:
+                if self.path_m >= M5_DISTANCE_M or elapsed >= M5_TIME_S:
+                    self._request(0.0)
+                    self._set("stopping", finish_reason="distance" if self.path_m >= M5_DISTANCE_M else "time")
+                    return True
+                self._request(1.0)
+            return True
+        if self.phase == "stopping":
+            self._request(0.0)
+            if elapsed >= STOP_HOLD_S:
+                self._set("finished")
+                return False
+            return True
+        return False  # finished: no further requests; the guard lease expires
+
+    def _abort_reason(self, now, snap, speed, guard_state):
+        if guard_state == "fault":
+            return "guard fault"
+        gap = 0.6 if self.profile == "m4" else 0.5
+        if now - self.last_new > gap:
+            return "no new observation for %.2f s" % (now - self.last_new)
+        if speed is not None and speed > 0.5:
+            return "speed %.3f m/s" % speed
+        if self.requested_steer() > 0.35:
+            return "requested steer %.3f rad" % self.requested_steer()
+        if snap is None or self.start_pose is None:
+            return None
+        dx, dy = snap.pose.x - self.start_pose[0], snap.pose.y - self.start_pose[1]
+        heading = self.start_pose[2]
+        if self.profile == "m4":
+            lateral = abs(-math.sin(heading) * dx + math.cos(heading) * dy)
+            yaw = abs(math.degrees(math.remainder(snap.pose.yaw - heading, math.tau)))
+            if self.path_m > M4_TRAVEL_ABORT_M:
+                return "travel %.2f m" % self.path_m
+            if yaw > 10:
+                return "yaw change %.1f deg" % yaw
+            if lateral > 0.15:
+                return "lateral deviation %.3f m" % lateral
+            if self.info["front15"] < 1.0:
+                return "forward clearance %.2f m" % self.info["front15"]
+            if min(self.info["left"], self.info["right"]) < 0.25:
+                return "side clearance %.2f m" % min(self.info["left"], self.info["right"])
+        else:
+            if min(self.info["left"], self.info["right"]) < 0.15:
+                return "side clearance %.2f m" % min(self.info["left"], self.info["right"])
+            if self.info["front10"] < 0.5:
+                return "forward clearance %.2f m" % self.info["front10"]
+        return None
+
+    def requested_steer(self):
+        last = getattr(self.controller, "last", None) or {}
+        return abs(last.get("steer", 0.0))
+
+    def tick_record(self):
+        record = dict(self.info)
+        if self.profile == "m4":
+            record["target_speed"] = self.controller.target_speed
+        else:
+            record["controller"] = getattr(self.controller, "last", None)
+        return record
+
+
 def endpoint_free():
     try:
         with socket.socket() as connection:
@@ -1485,6 +1669,11 @@ def trial(args, context, out):
                 # stack or, in a confirmed motion stage, the calibration source (another process)
                 # sends its requests there.
                 stage = ["--stage", args.motion_stage, "--confirmation", str(MOTION_APPROVAL)] if args.motion_stage else []
+                if args.motion_stage in AVLITE_MOTION_STAGES:
+                    # D4 A: the supervisor reads encoder speed itself; M4 also gets the stale-feedback hook.
+                    stage += ["--feedback"]
+                    if args.motion_stage == "m4":
+                        stage += ["--blackout-file", str(out / "supervisor-feedback-blackout.json")]
                 spawn("supervisor-1", [context["avlite_python"], "-B", "-m", "roboracer.runtime.supervisor_process",
                     "--name", supervisor_name, "--target", read(out / "bridge-status.json")["guard_socket"],
                     "--origin", "sup-1", "--status", str(out / "supervisor-1-status.json"),
@@ -1495,7 +1684,13 @@ def trial(args, context, out):
                     if any(p.poll() is not None for p, _, _ in children) or time.monotonic() > deadline:
                         raise RuntimeError("Supervisor startup failed")
                     time.sleep(0.1)
-                if args.motion_stage:
+                if args.motion_stage in AVLITE_MOTION_STAGES:
+                    spawn("plugin-stack", [context["avlite_python"], "-B", own_script, "plugin-observe",
+                                           "--results", str(out), "--plugin", str(PLUGIN_DIRECTORY),
+                                           "--supervisor", supervisor_name, "--stack-profile", args.motion_stage],
+                          plugin_environment)
+                    status_name = "plugin-observer-status.json"
+                elif args.motion_stage:
                     spawn("calibration", [context["avlite_python"], "-B", own_script, "calibrate",
                                           "--results", str(out), "--plugin", str(PLUGIN_DIRECTORY),
                                           "--supervisor", supervisor_name, "--motion-stage", args.motion_stage,
@@ -1950,7 +2145,8 @@ def main():
                         help="SIM1-02: launch the guarded interlocked player with a supervisor stand-in; "
                              "observe forwards zero requests for --duration, scenario runs the disarmed P1a cases; "
                              "calibration forwards a confirmed motion stage's requests (requires --motion-stage)")
-    parser.add_argument("--motion-stage", choices=sorted(MOTION_STAGES),
+    parser.add_argument("--stack-profile", choices=sorted(AVLITE_MOTION_STAGES), default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--motion-stage", choices=sorted(MOTION_STAGES) + sorted(AVLITE_MOTION_STAGES),
                         help="Confirmed motion-protocol stage (v0.1: m0 only, steering with throttle 0). Passes "
                              "-roboracerMotionAuthorized; requires the approval record and a SIM1-03 build record")
     parser.add_argument("--m2-case", choices=("a", "b"),

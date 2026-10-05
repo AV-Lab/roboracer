@@ -39,6 +39,7 @@ from .autodrive_observation import (IMU_MOUNT_M, LIDAR_MOUNT_M, HEADER_SOURCES, 
 log = logging.getLogger(__name__)
 
 NAMESPACE = "/autodrive/f1tenth_1/"
+WHEEL_RADIUS_M = 0.059  # WheelCollider radius; encoder angle (rad) x radius = distance (M1)
 
 
 class AutoDriveBridge(WorldBridge):
@@ -57,7 +58,10 @@ class AutoDriveBridge(WorldBridge):
         self._lock = threading.Lock()
         self._snapshot: Snapshot | None = None
         self._transport = None
-        self._tick_snapshot: Snapshot | None = None  # the snapshot this tick's sensor frame used
+        self._tick_snapshot: Snapshot | None = None
+        self._encoder_previous = None
+        self._encoder_speed: dict[int, float] = {}
+        self.velocity_source = "encoder"  # the snapshot this tick's sensor frame used
         self._supervisor = None  # (socket, abstract name) once connect(supervisor=...) is called
         self._request_seq = 0
         self._last_sent_gen: int | None = None
@@ -104,11 +108,25 @@ class AutoDriveBridge(WorldBridge):
             else:
                 snapshots = self.assembler.offer(topic, message, now)
             if snapshots:
+                for snapshot in snapshots:
+                    self._record_encoder_speed(snapshot)
                 self._snapshot = snapshots[-1]
                 self.connected = True
                 if self.snapshot_listener is not None:
                     for snapshot in snapshots:
                         self.snapshot_listener(snapshot)
+
+    def _record_encoder_speed(self, snapshot: Snapshot) -> None:
+        """Encoder speed (D6): mean wheel-angle change x 0.059 m over encoder acquisition sim
+        time, between consecutive committed snapshots; kept per telemetry sequence."""
+        angle = sum(snapshot.encoder_angles_rad) / 2
+        sim = snapshot.sources["left_encoder"]["sim_time"]
+        previous = self._encoder_previous
+        if previous is not None and sim > previous[1] and snapshot.episode == previous[2]:
+            self._encoder_speed[snapshot.telemetry_seq] = (angle - previous[0]) * WHEEL_RADIUS_M / (sim - previous[1])
+            while len(self._encoder_speed) > 32:
+                self._encoder_speed.pop(next(iter(self._encoder_speed)))
+        self._encoder_previous = (angle, sim, snapshot.episode)
 
     def latest(self) -> Snapshot | None:
         with self._lock:
@@ -157,11 +175,16 @@ class AutoDriveBridge(WorldBridge):
     def get_ego_state(self) -> EgoState:
         """Ground-truth pose (unchanged before the first snapshot). Within a tick it comes from
         the snapshot ``get_sensor_frame()`` used, so pose and sensors never mix frames. Velocity
-        is not observed by this bridge and is left unchanged."""
+        is the encoder speed of that same snapshot (``velocity_source = "encoder"``), left
+        unchanged when not yet available."""
         snapshot = self._tick_snapshot or self.latest()
         if snapshot is not None:
             self.ego_state.x, self.ego_state.y, self.ego_state.z = snapshot.pose.x, snapshot.pose.y, snapshot.pose.z
             self.ego_state.theta = snapshot.pose.yaw
+            with self._lock:
+                speed = self._encoder_speed.get(snapshot.telemetry_seq)
+            if speed is not None:
+                self.ego_state.velocity = speed
         return self.ego_state
 
     # -- command validation (no actuation) ---------------------------------------------------

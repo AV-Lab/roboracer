@@ -22,7 +22,7 @@ import signal
 import socket
 import time
 
-from .supervisor_core import STAGES, Limits, SupervisorCore
+from .supervisor_core import AVLITE_STAGES, STAGES, Limits, SupervisorCore
 
 TRACE_LIMIT_BYTES = 64 * 1024 * 1024
 
@@ -32,6 +32,43 @@ def _write_status(path, value):
     with open(temporary, "w") as stream:
         json.dump(value, stream)
     os.replace(temporary, path)
+
+
+class _Feedback:
+    """Encoder speed from the supervisor's own subscription (D4 A): the plugin bridge in this
+    process, private rclpy context. Speed = mean wheel-angle change x 0.059 m over encoder
+    acquisition simulation time; stamp = encoder acquisition on CLOCK_MONOTONIC."""
+
+    WHEEL_RADIUS_M = 0.059
+
+    def __init__(self):
+        import queue
+        from ..integration.autodrive_bridge import AutoDriveBridge
+
+        self.samples = queue.Queue()
+        self.previous = None
+        self.bridge = AutoDriveBridge()
+        self.bridge.snapshot_listener = self._on_snapshot
+        self.bridge.connect()
+
+    def _on_snapshot(self, snapshot):
+        angle = sum(snapshot.encoder_angles_rad) / 2
+        sim = snapshot.sources["left_encoder"]["sim_time"]
+        stamp_ns = int(round(snapshot.sources["left_encoder"]["stamp"] * 1e9))
+        if self.previous is not None and sim > self.previous[1]:
+            dt = sim - self.previous[1]
+            self.samples.put(((angle - self.previous[0]) * self.WHEEL_RADIUS_M / dt, stamp_ns,
+                              snapshot.telemetry_seq, dt))
+        self.previous = (angle, sim)
+
+    def drain(self):
+        out = []
+        while not self.samples.empty():
+            out.append(self.samples.get_nowait())
+        return out
+
+    def close(self):
+        self.bridge.close()
 
 
 def check_confirmation(path, stage):
@@ -59,9 +96,13 @@ def main(argv=None) -> int:
     parser.add_argument("--request-life-ms", type=float, default=500.0)
     parser.add_argument("--max-observation-age-ms", type=float, default=500.0)
     parser.add_argument("--runner-lease-ms", type=float, default=500.0)
-    parser.add_argument("--stage", choices=sorted(STAGES), default=None,
+    parser.add_argument("--stage", choices=sorted(STAGES) + sorted(AVLITE_STAGES), default=None,
                         help="Confirmed motion-protocol stage for calibration requests (requires --confirmation)")
     parser.add_argument("--confirmation", default=None, help="Committed approval record naming the stage")
+    parser.add_argument("--feedback", action="store_true",
+                        help="Subscribe to the Devkit topics itself and run the speed loop on encoder speed (D4 A)")
+    parser.add_argument("--blackout-file", default=None,
+                        help="Test hook (M4): once this file exists, ignore all feedback (stale-feedback case)")
     args = parser.parse_args(argv)
     confirmation = None
     if args.stage is not None:
@@ -72,6 +113,9 @@ def main(argv=None) -> int:
                     max_observation_age_ns=int(args.max_observation_age_ms * 1e6),
                     runner_lease_ns=int(args.runner_lease_ms * 1e6))
     core = SupervisorCore(origin=args.origin, limits=limits, stage=args.stage)
+    if (core.speed_loop is not None) != args.feedback:
+        parser.error("--feedback is required for, and only for, AVLite motion stages")
+    feedback = _Feedback() if args.feedback else None
     inbox = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
     inbox.bind("\0" + args.name)
     inbox.setblocking(False)
@@ -98,9 +142,19 @@ def main(argv=None) -> int:
 
     status()
     next_status = time.monotonic()
+    blackout = False
     try:
         while not stop:
             readable, _, _ = select.select([inbox], [], [], 0.02)
+            if feedback is not None:
+                if not blackout and args.blackout_file and os.path.exists(args.blackout_file):
+                    blackout = True
+                    record({"t": time.monotonic_ns(), "event": "feedback-blackout"})
+                for sample in feedback.drain():
+                    if not blackout:
+                        core.feedback(*sample)
+                    io["feedback_samples"] = io.get("feedback_samples", 0) + 1
+                    io["feedback_ignored"] = io.get("feedback_ignored", 0) + int(blackout)
             now = time.monotonic_ns()
             changed = core.tick(now)
             if changed:
@@ -144,6 +198,8 @@ def main(argv=None) -> int:
                         except BlockingIOError:
                             io["dropped"] += 1
                             row["send"] = "dropped"
+                    if decision.control is not None:
+                        row["control"] = decision.control
                     record(row)
             if time.monotonic() >= next_status:
                 status()
@@ -152,6 +208,8 @@ def main(argv=None) -> int:
         status()
         trace.close()
         inbox.close()
+        if feedback is not None:
+            feedback.close()
         outbox.close()
     return 0
 

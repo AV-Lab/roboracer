@@ -4,10 +4,11 @@
   "approved_date": "2026-10-05",
   "user_reply": "approve D1 A, D2, D3; run M0 only",
   "decisions": {"D1": "A", "D2": "approved", "D3": "approved"},
-  "stages": ["M0", "M1"],
+  "stages": ["M0", "M1", "M2"],
   "stage_approvals": [
     {"stage": "M0", "date": "2026-10-05", "user_reply": "approve D1 A, D2, D3; run M0 only"},
-    {"stage": "M1", "date": "2026-10-05", "user_reply": "approve M1 as drafted"}
+    {"stage": "M1", "date": "2026-10-05", "user_reply": "approve M1 as drafted"},
+    {"stage": "M2", "date": "2026-10-05", "user_reply": "yes run M2"}
   ],
-  "not_authorized": ["M2", "AVLite target-speed motion", "reverse", "laps", "steering while moving"]
+  "not_authorized": ["AVLite target-speed motion", "reverse", "laps", "steering while moving"]
 }

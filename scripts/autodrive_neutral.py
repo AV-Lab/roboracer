@@ -114,7 +114,8 @@ SIM1_REPLY_FIELDS = {"RR Ping Mono", "RR Test Freeze", "RR Reply To", "RR Reply 
 # Confirmed motion-protocol stages (s1-motion-protocol.md v0.1); mirrors
 # roboracer.runtime.supervisor_core.STAGES (a test checks they are equal).
 MOTION_STAGES = {"m0": {"throttle": (0.0,), "steering": (0.0, 0.1, -0.1, 0.5, -0.5, 1.0, -1.0)},
-                 "m1": {"throttle": (0.0, 0.002, 0.005, 0.01, 0.02), "steering": (0.0,)}}
+                 "m1": {"throttle": (0.0, 0.002, 0.005, 0.01, 0.02), "steering": (0.0,)},
+                 "m2": {"throttle": (0.0, 0.01), "steering": (0.0,)}}
 # M1 hard containment in the bridge (fails closed): four pulses at the 0.5 m per-pulse cap.
 # The calibration source applies the finer protocol abort rules (speed, travel, yaw, lateral, clearance).
 M1_CONTAINMENT_M = 2.0
@@ -171,9 +172,9 @@ def motion_fields(data, stage=None):
         if key == "Steering" and stage == "m0" and math.isfinite(value) and abs(value) <= STEERING_FEEDBACK_LIMIT_RAD:
             result["Steering Feedback"] = value
             continue
-        # M1: throttle feedback (reported to 3 decimals) must be one of the stage's values.
-        if key == "Throttle" and stage == "m1" and math.isfinite(value) and \
-                any(abs(value - allowed) <= 0.0005 for allowed in MOTION_STAGES["m1"]["throttle"]):
+        # M1/M2: throttle feedback (reported to 3 decimals) must be one of the stage's values.
+        if key == "Throttle" and stage in ("m1", "m2") and math.isfinite(value) and \
+                any(abs(value - allowed) <= 0.0005 for allowed in MOTION_STAGES[stage]["throttle"]):
             result["Throttle Feedback"] = value
             continue
         if value != 0.0:
@@ -338,7 +339,7 @@ def bridge(args):
                 reference = motion
                 save(out / "first-raw-frame.json", data)
             changed = rejected_motion_fields(reference, motion, args.profile)
-            if args.motion_stage == "m1":
+            if args.motion_stage in ("m1", "m2"):
                 # Motion is intended: only the hard containment bound stops the bridge here.
                 changed = ["Position"] if math.dist(reference["Position"], motion["Position"]) >= M1_CONTAINMENT_M else []
             displacement = math.dist(reference["Position"], motion["Position"])
@@ -608,6 +609,8 @@ def calibrate(args):
 
     if args.motion_stage == "m1":
         return calibrate_m1(args)
+    if args.motion_stage == "m2":
+        return calibrate_m2(args)
     if args.motion_stage != "m0":
         raise SystemExit("Unknown motion stage")
     import_plugin_modules(str(args.plugin), pkg_name="roboracer")
@@ -916,6 +919,139 @@ def calibrate_m1(args):
         frames_log.close()
 
 
+M2_THROTTLE = 0.01
+M2_INSIST_S = 3.0     # case b: keep requesting while the supervisor must inhibit itself
+M2_OBSERVE_S = 6.0    # after the last request: watch the stop
+
+
+def calibrate_m2(args):
+    """M2 stop cases under motion (0.01, steering 0). Case a, algorithm hang: one request on a
+    frame, then silence; the guard lease must expire with throttle applied. Case b, runner loss:
+    the runner stops heartbeating while 0.01 is requested every frame; the supervisor must
+    inhibit itself and the guard lease must then expire. The source never sends a zero to stop
+    the vehicle: stopping is the mechanism under test. It only falls silent early on an abort."""
+    import queue
+    from avlite.c60_apps.c63_plugins import import_plugin_modules
+
+    import_plugin_modules(str(args.plugin), pkg_name="roboracer")
+    plugin = sys.modules["avlite.plugins.roboracer"]
+    bridge = plugin.AutoDriveBridge()
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    sock.setblocking(False)
+    log = (args.results / "calibration-requests.jsonl").open("w", buffering=1)
+    frames_log = (args.results / "calibration-frames.jsonl").open("w", buffering=1)
+    arrivals = queue.Queue()
+    state = {"pid": os.getpid(), "stage": "m2", "case": args.m2_case, "phase": "wait-armed", "ready": False,
+             "seq": 0, "sent": 0, "send_failures": 0, "abort": None, "precheck": None, "pulse": None}
+    stop = []
+    signal.signal(signal.SIGTERM, lambda *_: stop.append(True))
+
+    def checkpoint():
+        save(args.results / "calibration-status.json", state)
+
+    def send(snapshot, throttle):
+        state["seq"] += 1
+        message = {"kind": "calibration", "origin": "cal", "seq": state["seq"], "gen_ns": time.monotonic_ns(),
+                   "throttle": throttle, "steering": 0.0,
+                   "observation": {"telemetry_seq": snapshot.telemetry_seq,
+                                   "stamp_ns": int(round(snapshot.pose.stamp * 1e9))}}
+        try:
+            sock.sendto(json.dumps(message).encode(), "\0" + args.supervisor)
+            state["sent"] += 1
+        except (BlockingIOError, ConnectionRefusedError, FileNotFoundError):
+            state["send_failures"] += 1
+        log.write(json.dumps(dict(message, phase=state["phase"])) + "\n")
+
+    bridge.snapshot_listener = arrivals.put
+    bridge.connect()
+    state["ready"] = True
+    checkpoint()
+    previous = start = None
+    phase_start = None
+    try:
+        while not stop:
+            try:
+                snapshot = arrivals.get(timeout=M1_FRAME_GAP_S)
+            except queue.Empty:
+                continue
+            now = time.monotonic()
+            sim = snapshot.sources["ips"]["sim_time"]
+            x, y, yaw = snapshot.pose.x, snapshot.pose.y, snapshot.pose.yaw
+            speed = (math.dist((x, y), previous[:2]) / (sim - previous[2])) if previous and sim > previous[2] else 0.0
+            previous = (x, y, sim)
+            ranges = snapshot.scan_ranges
+            forward, left, right = sector_min(ranges, -15, 15), sector_min(ranges, 80, 100), sector_min(ranges, -100, -80)
+            guard_state = read(args.results / "bridge-status.json").get("guard", {}).get("state")
+            phase = state["phase"]
+            frames_log.write(json.dumps({"t": time.monotonic_ns(), "telemetry_seq": snapshot.telemetry_seq,
+                                         "ips_sim_time": sim, "pose": [x, y, yaw], "speed_mps": speed,
+                                         "forward_m": forward, "left_m": left, "right_m": right,
+                                         "guard": guard_state, "phase": phase}) + "\n")
+            if phase in ("done", "aborted-done"):
+                continue
+            if start is not None and state["abort"] is None:
+                dx, dy = x - start[0], y - start[1]
+                lateral = abs(-math.sin(start[2]) * dx + math.cos(start[2]) * dy)
+                travel = math.cos(start[2]) * dx + math.sin(start[2]) * dy
+                yaw_change = abs(math.degrees(math.remainder(yaw - start[2], math.tau)))
+                reason = ("speed %.3f m/s" % speed if speed > M1_SPEED_CAP_MPS else
+                          "travel %.3f m" % travel if travel > M1_TRAVEL_CAP_M else
+                          "yaw change %.1f deg" % yaw_change if yaw_change > 10 else
+                          "lateral deviation %.3f m" % lateral if lateral > 0.15 else
+                          "forward clearance %.2f m" % forward if forward < 1.0 else
+                          "side clearance %.2f m" % min(left, right) if min(left, right) < 0.25 else
+                          "guard fault" if guard_state == "fault" else None)
+                if reason:  # silence is the only stop action the source has; it is the mechanism under test
+                    state["abort"] = reason
+                    if state["phase"] == "insist":
+                        state["phase"], phase_start = "observe", now
+            phase = state["phase"]
+            if phase == "wait-armed":
+                send(snapshot, 0.0)
+                if guard_state == "armed":
+                    state["phase"], phase_start = "settle", now
+            elif phase == "settle":
+                send(snapshot, 0.0)
+                if now - phase_start >= M0_SETTLE_S:
+                    check = {"spawn_offset_m": math.dist((x, y), M0_SPAWN_XY), "forward_min_m": forward,
+                             "left_min_m": left, "right_min_m": right, "telemetry_seq": snapshot.telemetry_seq}
+                    check["passed"] = check["spawn_offset_m"] <= 0.020 and forward >= 1.5 and min(left, right) >= 0.4 \
+                        and speed < M1_STOP_SPEED_MPS
+                    state["precheck"] = check
+                    if not check["passed"]:
+                        state.update(phase="aborted-done", abort="workspace precheck")  # silent: lease expires at rest
+                    else:
+                        start = (x, y, yaw)
+                        state["pulse"] = {"start": [x, y, yaw], "start_sim": sim,
+                                          "start_telemetry_seq": snapshot.telemetry_seq}
+                        if args.m2_case == "b":
+                            save(args.results / "runner-heartbeat-pause.json", {"requested_ns": time.monotonic_ns()})
+                            state["phase"] = "insist"
+                        else:
+                            state["phase"] = "hang"
+                        phase_start = now
+                        send(snapshot, M2_THROTTLE)
+                        if args.m2_case == "a":
+                            state["pulse"]["last_request_seq"] = state["seq"]
+            elif phase == "insist":
+                if now - phase_start < M2_INSIST_S:
+                    send(snapshot, M2_THROTTLE)
+                    state["pulse"]["last_request_seq"] = state["seq"]
+                else:
+                    state["phase"], phase_start = "observe", now
+            elif phase in ("hang", "observe"):
+                if now - phase_start >= M2_OBSERVE_S:
+                    state["phase"] = "done"
+            checkpoint()
+    finally:
+        bridge.close()
+        sock.close()
+        state["completed"] = True
+        checkpoint()
+        log.close()
+        frames_log.close()
+
+
 def endpoint_free():
     try:
         with socket.socket() as connection:
@@ -1170,7 +1306,8 @@ def trial(args, context, out):
                 if args.motion_stage:
                     spawn("calibration", [context["avlite_python"], "-B", own_script, "calibrate",
                                           "--results", str(out), "--plugin", str(PLUGIN_DIRECTORY),
-                                          "--supervisor", supervisor_name, "--motion-stage", args.motion_stage],
+                                          "--supervisor", supervisor_name, "--motion-stage", args.motion_stage,
+                                          *(["--m2-case", args.m2_case] if args.m2_case else [])],
                           plugin_environment)
                     status_name = "calibration-status.json"
                 else:
@@ -1523,7 +1660,13 @@ def trial(args, context, out):
                         if sample:
                             metrics.write(json.dumps(dict(label=entry["label"], **sample)) + "\n")
                     sample_at = time.monotonic() + 1
-                if (args.plugin_stack or args.motion_stage) and connected:
+                if args.motion_stage == "m2" and "heartbeat_paused_ns" not in record and \
+                        (out / "runner-heartbeat-pause.json").exists():
+                    # M2 case b: the calibration source asks the runner to stop heartbeating; the
+                    # supervisor must inhibit itself within its runner lease. Never resumed.
+                    record["heartbeat_paused_ns"] = time.monotonic_ns()
+                    checkpoint()
+                if (args.plugin_stack or args.motion_stage) and connected and "heartbeat_paused_ns" not in record:
                     # Runner liveness for the supervisor's lease, from this loop only (after the
                     # Connect sequence, whose ~1 s of input handling would otherwise trip it).
                     heartbeat_seq += 1
@@ -1609,6 +1752,9 @@ def main():
     parser.add_argument("--motion-stage", choices=sorted(MOTION_STAGES),
                         help="Confirmed motion-protocol stage (v0.1: m0 only, steering with throttle 0). Passes "
                              "-roboracerMotionAuthorized; requires the approval record and a SIM1-03 build record")
+    parser.add_argument("--m2-case", choices=("a", "b"),
+                        help="M2 stop case: a = algorithm hang (source silent after one 0.01 request), "
+                             "b = runner loss (heartbeats stop while 0.01 is requested)")
     parser.add_argument("--build-record", type=Path,
                         help="build-result.json of the player (motion stages: must include vendor-sim1-03)")
     parser.add_argument("--plugin-observer", action="store_true",
@@ -1654,6 +1800,8 @@ def main():
         parser.error("The plugin stack runs only with --guard observe and replaces --plugin-observer")
     if args.plugin_observer and not args.provenance:
         parser.error("The plugin observer needs the provenance topic (--provenance)")
+    if (args.motion_stage == "m2") != bool(args.m2_case) and args.mode in ("run", "calibrate"):
+        parser.error("--m2-case is required for, and only for, stage m2")
     if (args.guard == "calibration") != bool(args.motion_stage) and args.mode == "run":
         parser.error("--guard calibration and --motion-stage go together")
     if args.motion_stage and args.mode == "run":

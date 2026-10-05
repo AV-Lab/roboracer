@@ -113,7 +113,11 @@ SIM1_REPLY_FIELDS = {"RR Ping Mono", "RR Test Freeze", "RR Reply To", "RR Reply 
 
 # Confirmed motion-protocol stages (s1-motion-protocol.md v0.1); mirrors
 # roboracer.runtime.supervisor_core.STAGES (a test checks they are equal).
-MOTION_STAGES = {"m0": {"throttle": (0.0,), "steering": (0.0, 0.1, -0.1, 0.5, -0.5, 1.0, -1.0)}}
+MOTION_STAGES = {"m0": {"throttle": (0.0,), "steering": (0.0, 0.1, -0.1, 0.5, -0.5, 1.0, -1.0)},
+                 "m1": {"throttle": (0.0, 0.002, 0.005, 0.01, 0.02), "steering": (0.0,)}}
+# M1 hard containment in the bridge (fails closed): four pulses at the 0.5 m per-pulse cap.
+# The calibration source applies the finer protocol abort rules (speed, travel, yaw, lateral, clearance).
+M1_CONTAINMENT_M = 2.0
 # 30 degrees (the controller's SteeringLimit, 0.5235988 rad) as telemetry reports it: rounded to
 # 3 decimals, so full lock arrives as 0.524 (found in the first M0 attempt).
 STEERING_FEEDBACK_LIMIT_RAD = 0.5245
@@ -166,6 +170,11 @@ def motion_fields(data, stage=None):
         value = float(data["V1 " + key])
         if key == "Steering" and stage == "m0" and math.isfinite(value) and abs(value) <= STEERING_FEEDBACK_LIMIT_RAD:
             result["Steering Feedback"] = value
+            continue
+        # M1: throttle feedback (reported to 3 decimals) must be one of the stage's values.
+        if key == "Throttle" and stage == "m1" and math.isfinite(value) and \
+                any(abs(value - allowed) <= 0.0005 for allowed in MOTION_STAGES["m1"]["throttle"]):
+            result["Throttle Feedback"] = value
             continue
         if value != 0.0:
             raise ValueError("Nonzero/nonfinite actuator feedback: " + key)
@@ -329,6 +338,9 @@ def bridge(args):
                 reference = motion
                 save(out / "first-raw-frame.json", data)
             changed = rejected_motion_fields(reference, motion, args.profile)
+            if args.motion_stage == "m1":
+                # Motion is intended: only the hard containment bound stops the bridge here.
+                changed = ["Position"] if math.dist(reference["Position"], motion["Position"]) >= M1_CONTAINMENT_M else []
             displacement = math.dist(reference["Position"], motion["Position"])
             row = {"index": state["processed"], "received_monotonic_ns": received,
                    "motion": motion, "position_displacement_m": displacement,
@@ -594,8 +606,10 @@ def calibrate(args):
     import numpy as np
     from avlite.c60_apps.c63_plugins import import_plugin_modules
 
+    if args.motion_stage == "m1":
+        return calibrate_m1(args)
     if args.motion_stage != "m0":
-        raise SystemExit("Only stage m0 is confirmed")
+        raise SystemExit("Unknown motion stage")
     import_plugin_modules(str(args.plugin), pkg_name="roboracer")
     plugin = sys.modules["avlite.plugins.roboracer"]
     bridge = plugin.AutoDriveBridge()
@@ -698,6 +712,204 @@ def calibrate(args):
         state["completed"] = True
         checkpoint()
         log.close()
+
+
+M1_PULSES = (0.002, 0.005, 0.01, 0.02)  # 0.02 only if 0.01 stays under the caps
+M1_SPEED_CAP_MPS, M1_TRAVEL_CAP_M = 0.5, 0.5
+M1_REST_S = 3.0             # from pulse start; covers the 1.5 s stop window with margin
+M1_STOP_SPEED_MPS = 0.02
+M1_ARMED_LIMIT_S = 18.0     # protocol: at most 20 s armed per trial
+M1_TRIAL_TRAVEL_M = 3.0
+M1_FRAME_GAP_S = 0.6
+
+
+def sector_min(ranges, low_deg, high_deg):
+    """Minimum finite range in [low, high] degrees of the 1081-beam scan (CCW from -135)."""
+    import numpy as np
+    start, end = int((low_deg + 135) / 0.25), int((high_deg + 135) / 0.25)
+    values = np.asarray(ranges[start:end + 1], dtype=float)
+    values = values[np.isfinite(values)]
+    return float(values.min()) if len(values) else math.inf
+
+
+def m1_next_pulse(done):
+    """Next throttle of the ascending sequence, or None. A step is taken only if every earlier
+    pulse stayed under both caps and the previous peak, scaled linearly by throttle, is under
+    the speed cap (a conservative addition that can only skip motion)."""
+    if any(p["peak_speed_mps"] > M1_SPEED_CAP_MPS or p["travel_m"] > M1_TRAVEL_CAP_M for p in done):
+        return None
+    if len(done) >= len(M1_PULSES):
+        return None
+    candidate = M1_PULSES[len(done)]
+    if done and done[-1]["peak_speed_mps"] * candidate / done[-1]["throttle"] > M1_SPEED_CAP_MPS:
+        return None
+    return candidate
+
+
+def calibrate_m1(args):
+    """M1: forward throttle pulses from rest, steering exactly 0. Event-driven on committed
+    snapshots so each nonzero request is forwarded in exactly one reply (one frame interval)."""
+    import queue
+    from avlite.c60_apps.c63_plugins import import_plugin_modules
+
+    import_plugin_modules(str(args.plugin), pkg_name="roboracer")
+    plugin = sys.modules["avlite.plugins.roboracer"]
+    bridge = plugin.AutoDriveBridge()
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    sock.setblocking(False)
+    log = (args.results / "calibration-requests.jsonl").open("w", buffering=1)
+    frames_log = (args.results / "calibration-frames.jsonl").open("w", buffering=1)
+    arrivals = queue.Queue()
+    state = {"pid": os.getpid(), "stage": "m1", "phase": "wait-armed", "ready": False, "seq": 0, "sent": 0,
+             "send_failures": 0, "pulses": [], "abort": None, "precheck": None, "finish_reason": None}
+    stop = []
+    signal.signal(signal.SIGTERM, lambda *_: stop.append(True))
+
+    def checkpoint():
+        save(args.results / "calibration-status.json", state)
+
+    def send(snapshot, throttle):
+        state["seq"] += 1
+        message = {"kind": "calibration", "origin": "cal", "seq": state["seq"], "gen_ns": time.monotonic_ns(),
+                   "throttle": throttle, "steering": 0.0,
+                   "observation": {"telemetry_seq": snapshot.telemetry_seq,
+                                   "stamp_ns": int(round(snapshot.pose.stamp * 1e9))}}
+        try:
+            sock.sendto(json.dumps(message).encode(), "\0" + args.supervisor)
+            state["sent"] += 1
+        except (BlockingIOError, ConnectionRefusedError, FileNotFoundError):
+            state["send_failures"] += 1
+        log.write(json.dumps(dict(message, phase=state["phase"])) + "\n")
+
+    bridge.snapshot_listener = arrivals.put  # transport thread; the queue hands snapshots over
+    bridge.connect()
+    state["ready"] = True
+    checkpoint()
+    previous = pulse = None
+    armed_at = phase_start = stopped_at = None
+    try:
+        while not stop and state["phase"] not in ("done", "aborted-done"):
+            try:
+                snapshot = arrivals.get(timeout=M1_FRAME_GAP_S)
+            except queue.Empty:
+                if state["phase"] in ("pulse", "rest", "ready") and state["abort"] is None:
+                    state.update(phase="aborted", abort=f"no new observation for {M1_FRAME_GAP_S} s")
+                    phase_start = time.monotonic()
+                elif state["phase"] in ("finish", "aborted") and time.monotonic() - phase_start >= 4.0:
+                    state["phase"] = "done" if state["phase"] == "finish" else "aborted-done"
+                checkpoint()
+                continue
+            now = time.monotonic()
+            sim = snapshot.sources["ips"]["sim_time"]
+            x, y, yaw = snapshot.pose.x, snapshot.pose.y, snapshot.pose.yaw
+            speed = (math.dist((x, y), previous[:2]) / (sim - previous[2])) if previous and sim > previous[2] else 0.0
+            previous = (x, y, sim)
+            ranges = snapshot.scan_ranges
+            forward, left, right = sector_min(ranges, -15, 15), sector_min(ranges, 80, 100), sector_min(ranges, -100, -80)
+            guard_state = read(args.results / "bridge-status.json").get("guard", {}).get("state")
+            phase = state["phase"]
+            frames_log.write(json.dumps({"t": time.monotonic_ns(), "telemetry_seq": snapshot.telemetry_seq,
+                                         "ips_sim_time": sim, "pose": [x, y, yaw], "speed_mps": speed,
+                                         "forward_m": forward, "left_m": left, "right_m": right,
+                                         "guard": guard_state, "phase": phase}) + "\n")
+
+            # Abort monitor (protocol §3) while anything may be moving.
+            if phase in ("pulse", "rest", "ready") and state["abort"] is None and pulse is not None:
+                dx, dy = x - pulse["start"][0], y - pulse["start"][1]
+                heading = pulse["start"][2]
+                lateral = abs(-math.sin(heading) * dx + math.cos(heading) * dy)
+                yaw_change = abs(math.degrees(math.remainder(yaw - heading, math.tau)))
+                reason = ("guard fault" if guard_state == "fault" else
+                          "yaw change %.1f deg" % yaw_change if yaw_change > 10 else
+                          "lateral deviation %.3f m" % lateral if lateral > 0.15 else
+                          "forward clearance %.2f m" % forward if forward < 1.0 else
+                          "side clearance %.2f m" % min(left, right) if min(left, right) < 0.25 else None)
+                if reason:
+                    state.update(phase="aborted", abort=reason)
+                    phase_start = now
+            phase = state["phase"]
+
+            if phase == "wait-armed":
+                send(snapshot, 0.0)
+                if guard_state == "armed":
+                    state["phase"], armed_at, phase_start = "settle", now, now
+            elif phase == "settle":
+                send(snapshot, 0.0)
+                if now - phase_start >= M0_SETTLE_S:
+                    check = {"spawn_offset_m": math.dist((x, y), M0_SPAWN_XY), "forward_min_m": forward,
+                             "left_min_m": left, "right_min_m": right, "telemetry_seq": snapshot.telemetry_seq}
+                    check["passed"] = check["spawn_offset_m"] <= 0.020 and forward >= 1.5 and min(left, right) >= 0.4
+                    state["precheck"] = check
+                    if check["passed"]:
+                        state["phase"] = "ready"
+                    else:
+                        state.update(phase="aborted", abort="workspace precheck")
+                        phase_start = now
+            elif phase == "ready":
+                travelled = sum(p["travel_m"] for p in state["pulses"])
+                candidate = m1_next_pulse(state["pulses"])
+                reason = ("sequence complete" if candidate is None else
+                          "armed time" if now - armed_at + M1_REST_S > M1_ARMED_LIMIT_S else
+                          "trial travel" if travelled + M1_TRAVEL_CAP_M > M1_TRIAL_TRAVEL_M else
+                          "forward clearance before pulse" if forward < 1.5 else
+                          "side clearance before pulse" if min(left, right) < 0.4 else None)
+                if reason:
+                    state.update(phase="finish", finish_reason=reason)
+                    phase_start = now  # stop sending: the lease expires with zero output
+                elif speed < M1_STOP_SPEED_MPS:
+                    pulse = {"throttle": candidate, "start": (x, y, yaw), "start_sim": sim,
+                             "start_telemetry_seq": snapshot.telemetry_seq, "peak_speed_mps": 0.0, "travel_m": 0.0,
+                             "max_lateral_m": 0.0, "stopped_after_s": None, "started_at": now}
+                    state["phase"] = "pulse"
+                    send(snapshot, candidate)  # forwarded in this frame's reply only
+                else:
+                    send(snapshot, 0.0)
+            elif phase == "pulse":
+                send(snapshot, 0.0)  # next frame: back to zero (brakes)
+                pulse["end_telemetry_seq"], pulse["end_sim"] = snapshot.telemetry_seq, sim
+                state["phase"], stopped_at = "rest", None
+            elif phase == "rest":
+                send(snapshot, 0.0)
+                dx, dy = x - pulse["start"][0], y - pulse["start"][1]
+                heading = pulse["start"][2]
+                pulse["travel_m"] = max(pulse["travel_m"], math.cos(heading) * dx + math.sin(heading) * dy)
+                pulse["max_lateral_m"] = max(pulse["max_lateral_m"], abs(-math.sin(heading) * dx + math.cos(heading) * dy))
+                pulse["peak_speed_mps"] = max(pulse["peak_speed_mps"], speed)
+                if speed > M1_SPEED_CAP_MPS or pulse["travel_m"] > M1_TRAVEL_CAP_M:
+                    pulse["final"] = [x, y, yaw]
+                    state["pulses"].append({k: v for k, v in pulse.items() if k != "started_at"})
+                    state.update(phase="aborted", abort="cap exceeded at throttle %s" % pulse["throttle"])
+                    phase_start = now
+                    checkpoint()
+                    continue
+                if speed < M1_STOP_SPEED_MPS and stopped_at is None:
+                    stopped_at = sim
+                    pulse["stopped_after_s"] = sim - pulse["end_sim"]
+                elif speed >= M1_STOP_SPEED_MPS:
+                    stopped_at = None
+                if now - pulse["started_at"] >= M1_REST_S and stopped_at is not None:
+                    pulse["final"] = [x, y, yaw]
+                    state["pulses"].append({k: v for k, v in pulse.items() if k != "started_at"})
+                    state["phase"] = "ready"
+                    if pulse["peak_speed_mps"] > M1_SPEED_CAP_MPS or pulse["travel_m"] > M1_TRAVEL_CAP_M:
+                        state.update(phase="aborted", abort="cap exceeded at throttle %s" % pulse["throttle"])
+                        phase_start = now
+            elif phase == "finish":
+                if now - phase_start >= 4.0:
+                    state["phase"] = "done"
+            elif phase == "aborted":
+                if now - phase_start < 1.0:
+                    send(snapshot, 0.0)
+                elif now - phase_start >= 5.0:
+                    state["phase"] = "aborted-done"
+            checkpoint()
+    finally:
+        bridge.close()
+        sock.close()
+        state["completed"] = True
+        checkpoint()
+        log.close()
+        frames_log.close()
 
 
 def endpoint_free():

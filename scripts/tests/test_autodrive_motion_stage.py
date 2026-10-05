@@ -11,7 +11,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 from autodrive_neutral import (MOTION_APPROVAL, MOTION_STAGES, check_guard_request, m0_schedule,  # noqa: E402
-                               motion_fields)
+                               m1_next_pulse, motion_fields)
 
 spec = importlib.util.spec_from_file_location("supervisor_core", ROOT / "roboracer/runtime/supervisor_core.py")
 core = importlib.util.module_from_spec(spec)
@@ -39,7 +39,34 @@ class RunnerStageTests(unittest.TestCase):
     def test_stage_tables_agree_and_approval_names_only_m0(self):
         self.assertEqual(core.STAGES, MOTION_STAGES)
         approval = json.loads(MOTION_APPROVAL.read_text())
-        self.assertEqual(("0.1", ["M0"], "A"), (approval["version"], approval["stages"], approval["decisions"]["D1"]))
+        self.assertEqual(("0.1", ["M0", "M1"], "A"), (approval["version"], approval["stages"], approval["decisions"]["D1"]))
+        self.assertIn("M2", approval["not_authorized"])
+
+    def test_m1_bounds(self):
+        for throttle in (0, 0.002, 0.005, 0.01, 0.02):
+            check_guard_request(f"1 sup-1 3 10 20 {throttle} 0 cal.3.t9", "m1")
+        for text in ("1 sup-1 3 10 20 0.03 0 cal.3.t9", "1 sup-1 3 10 20 -0.002 0 cal.3.t9",
+                     "1 sup-1 3 10 20 0.002 0.1 cal.3.t9"):
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                check_guard_request(text, "m1")
+        self.assertEqual(0.01, motion_fields(frame(throttle="0.010"), "m1")["Throttle Feedback"])
+        for args in ((frame(throttle="0.030"), "m1"), (frame(steering="0.052"), "m1"), (frame(throttle="0.002"), "m0")):
+            with self.subTest(args=args[1:]), self.assertRaises(ValueError):
+                motion_fields(*args)
+
+    def test_m1_escalation_only_under_caps(self):
+        def done(*peaks):
+            return [{"throttle": t, "peak_speed_mps": p, "travel_m": 0.01} for t, p in zip((0.002, 0.005, 0.01), peaks)]
+        self.assertEqual(0.002, m1_next_pulse([]))
+        self.assertEqual(0.005, m1_next_pulse(done(0.05)))
+        self.assertIsNone(m1_next_pulse(done(0.25)))           # 0.25 x 2.5 = 0.625 > 0.5: skip
+        self.assertEqual(0.02, m1_next_pulse(done(0.05, 0.1, 0.2)))
+        self.assertIsNone(m1_next_pulse(done(0.05, 0.1, 0.3)))  # 0.3 x 2 = 0.6 > 0.5
+        over = done(0.05)
+        over[0]["travel_m"] = 0.6
+        self.assertIsNone(m1_next_pulse(over))
+        self.assertIsNone(m1_next_pulse(done(0.01, 0.02, 0.04) + [{"throttle": 0.02, "peak_speed_mps": 0.08,
+                                                                   "travel_m": 0.01}]))
 
     def test_guard_request_bounds(self):
         for steering in (0, 0.1, -0.1, 0.5, -0.5, 1.0, -1.0):

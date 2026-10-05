@@ -12,8 +12,9 @@ AVLite requests: the motion gate is closed, so only exact zero (target speed 0, 
 forwarded, as normalized throttle/steering "0"/"0". Speed control comes with S1-03.
 
 Calibration requests (motion protocol v0.1, D2): normalized throttle/steering, bounded in code
-by the stage profile. Only stage ``m0`` exists (steering only, throttle exactly 0), and the
-process opens it only with the committed approval record (``s1-motion-approval.json``).
+by the stage profile: ``m0`` (steering only, throttle exactly 0) and ``m1`` (forward throttle
+pulses 0.002–0.02, steering exactly 0). The process opens a stage only with the committed
+approval record (``s1-motion-approval.json``) naming it.
 
 Validation order (the first failure is the reason):
   malformed, inhibited (runner lease lost) / no-runner, origin, duplicate, out-of-order,
@@ -32,7 +33,8 @@ PROTOCOL = "roboracer.supervisor/1"
 TOKEN = re.compile(r"^[A-Za-z0-9_.:-]{1,32}$")
 STATES = ("waiting-runner", "active", "inhibited")
 # Confirmed stage profiles (s1-motion-protocol.md v0.1 §4). Values are exact normalized commands.
-STAGES = {"m0": {"throttle": (0.0,), "steering": (0.0, 0.1, -0.1, 0.5, -0.5, 1.0, -1.0)}}
+STAGES = {"m0": {"throttle": (0.0,), "steering": (0.0, 0.1, -0.1, 0.5, -0.5, 1.0, -1.0)},
+          "m1": {"throttle": (0.0, 0.002, 0.005, 0.01, 0.02), "steering": (0.0,)}}
 
 
 @dataclass(frozen=True)

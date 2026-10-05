@@ -435,3 +435,20 @@
 - **Both trials.** Unassisted, all children exited 0, the port was released, all 604 player files were unchanged, and there was no guard fault or rejection.
 - **Records.** Evidence `artifacts/s1/20261005T122018Z-m2/` (68 files); bilingual [report](stages/S1-M2-stops.md). 92 script tests and 26 plugin tests pass.
 - **Next.** Draft the S1-03 target-speed controller proposal from the M1 response map and stop for confirmation. S1-02/S1-04 boxes await user review. Acceptance count unchanged (3/34).
+
+## 2026-10-05 — S1-03 controller proposal v0.1 drafted (no motion)
+
+- At the user's request ("yes draft the S1-03 controller"), wrote [planning/s1-03-controller-proposal.md](planning/s1-03-controller-proposal.md) (EN/ZH), grounded in the M0–M2 measurements.
+- **D4** feedback source: recommended supervisor-owned subscription (encoder speed), versus bridge-reported speed.
+- **D5** supervisor PI with feedforward:
+  - Kp ≈ 0.04, Ki ≈ 0.02, u_max 0.03, rise limit 0.005/frame;
+  - hard brake on target 0, on overspeed (v* + 0.15 or 0.5 m/s), and on feedback older than 0.4 s (disarm at 0.6 s);
+  - exact steering conversion;
+  - about 37° estimated phase margin with 0.45 s of delay.
+- **D6** reactive A: `GapFollowController`, follow-the-gap with disparity extension, |steer| ≤ 0.35 rad, v* ≤ 0.3 m/s from steer and front clearance, GT never used for control. `EgoState.velocity` comes from encoders.
+- **D7** latency chain on separate clocks; physics progress in simulator time.
+- **D8** stages:
+  - M3 open-loop identification holds (0.005/0.01/0.02 until 0.3 m/s, 2 s or 0.5 m);
+  - M4 closed-loop speed steps (0.1/0.2/0.3 m/s);
+  - M5 A on the segment (≤ 6 m / 40 s).
+- **Status.** Nothing executed; awaiting confirmation. `max_target_speed_mps` stays 0.

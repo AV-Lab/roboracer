@@ -1679,6 +1679,7 @@ def trial(args, context, out):
             return (cleared is not None and loss["observed_after_clear_s"] >= 2) or waited >= args.disconnect_wait
 
         reviewed, connected, observation_start = False, False, None
+        connect_retries = 0
         approval = {}
         sample_at = 0
         with (out / "resources.jsonl").open("w", buffering=1) as metrics:
@@ -1784,6 +1785,14 @@ def trial(args, context, out):
                         connected = True
                         record["actions"].append({"action": "Connect only", "xy": [x, y], "monotonic_ns": time.monotonic_ns()})
                         record["manual_mode_review"] = approval
+                        checkpoint()
+                    elif connected and not bridge_state.get("transport_requests") and connect_retries < 2 and \
+                            time.monotonic_ns() - record["actions"][-1]["monotonic_ns"] > 8_000_000_000:
+                        # Unity intermittently drops the synthetic click (no handshake at all). Click the
+                        # same reviewed window again through the same checks; at most twice.
+                        connect_retries += 1
+                        record["connect_retries"] = connect_retries
+                        connected = False
                         checkpoint()
                 if observation_start is None and bridge_state.get("first_complete_frame_ns") and observer_state.get("first_complete_observation_ns"):
                     observation_start = max(bridge_state["first_complete_frame_ns"], observer_state["first_complete_observation_ns"])

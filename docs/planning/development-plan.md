@@ -2,7 +2,7 @@
 
 Version: **1.0 — approved**, 2026-09-28. Status updated 2026-09-29: **the user reconfirmed complete PRE before S1; S1a/deferral is not adopted**. Continue the reviewed [source-build route](simulator-build-amendment.md) to close PRE capability gaps, starting with scoped SIM0 and retaining subsequent stage-entry gates. See the [PRE report](../stages/PRE.md). Original acceptance/dependencies remain in force; the concrete pre-motion protocol remains a separate confirmation gate.
 
-**Latest checkpoint, 2026-10-01:** the [approved pose review](../stages/SIM0-pose-review.md) is complete, with no new build/run or proven repair. SIM0-B06 still blocks full PRE. Original acceptance remains **2/34**; the single proposed statement-level tracing experiment requires a separate decision.
+**Latest checkpoint, 2026-10-05:** SIM0-03 passed under the user-approved amended P0 (inclusive 10 mm creep bound; SIM0-B06 closed as inherited simulator behavior). [SIM0 report](../stages/SIM0-completion.md). Original acceptance remains **2/34**; SIM0-04 stage review and SIM1 entry confirmation are the next gate.
 
 Quick review: [approval summary](approval-summary.md). This approved version incorporates both substantive planning reviews and all five R2 decisions, followed by the user's explicit final approval.
 

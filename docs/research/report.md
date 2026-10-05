@@ -2,7 +2,7 @@
 
 Chinese translation: [简体中文](report.zh-CN.md).
 
-Latest execution, 2026-10-01: full PRE before S1 remains confirmed. LNX-01/02/03 and SIM0-01/02 pass. The approved read-only pose review is complete: sampled Z-velocity integration accounts for **0.287–0.299%** of the retained displacement, and physical wheel-parent writes/synchronization are the leading hypothesis. The cause remains unproven; **SIM0-B06 is unresolved**, with no repair/P0 acceptance. [Current English report](../stages/SIM0-pose-review.md) / [中文](../stages/SIM0-pose-review.zh-CN.md). One bounded statement-level tracing experiment is proposed for separate confirmation; no new live work occurred in this review.
+Latest execution, 2026-10-05: full PRE before S1 remains confirmed. SIM0-01/02/03 and LNX-01–04 pass. SIM0-B06 (passive ~3 mm/min creep, also present in the installed vendor player) was closed by user decision with an amended 10 mm P0 bound; both 60-second neutral runs passed. See the [SIM0 report](../stages/SIM0-completion.md). Next gate: SIM0-04 stage review and SIM1 entry.
 
 Date: **2026-09-28**. Stage: **original research handoff**. Target platform: the AVLite checkout at `/home/a2rl/Workspace/avlite`. The body below preserves the findings and pending status at that handoff; it is not an approved development plan or an implementation-completion claim.
 

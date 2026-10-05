@@ -1,6 +1,6 @@
 # Development Plan v1.0 — Approval Summary
 
-**Execution update, 2026-10-01:** LNX-01/02/03 and SIM0-01/02 remain accepted. The user’s “approve” authorized the revised Floor-only A/B scope and immediate before/after inertia check. One build, two controls and two treatments completed; the revised gate passed and selected post-activation contacts disappeared. Drift remained **3.372 / 3.414 mm**, versus controls **3.431 / 3.413 mm**. [English](../stages/SIM0-floor-contacts.md) / [中文](../stages/SIM0-floor-contacts.zh-CN.md). **SIM0-B06 remains open**, P0 incomplete. No repair adopted or SIM1/S1 entry. The next proposed read-only source/trace review awaits confirmation.
+**Execution update, 2026-10-05:** the user approved option A: SIM0-B06 closed as inherited simulator creep and P0 amended to an inclusive 10 mm displacement bound (other guards unchanged). SIM0-01/02/03 and LNX-01–04 accepted; both amended-P0 runs passed. [SIM0 report](../stages/SIM0-completion.md). Next: SIM0-04 stage review and SIM1 entry confirmation.
 
 Date: **2026-09-28**. Status: **approved by the user's explicit response; PRE + S1 authorized**. The [full plan](development-plan.md) defines the contracts, 34 todos, measurements, evidence and stage gates. The [decision record](../research/decision-follow-up.md) distinguishes confirmed choices from runtime evidence. Numerical motion limits remain subject to the stated pre-motion gate.
 

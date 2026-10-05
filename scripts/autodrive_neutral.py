@@ -6,6 +6,9 @@ review file enables only the Connect click. Replies are guarded to exact zero;
 changed reported position or encoder values terminate an incomplete attempt.
 The explicitly selected drift-diagnostic profile instead stops position changes
 at 10 mm, keeps encoder/zero guards, and cannot complete a P0 observation.
+The p0-creep profile is the amended P0 contract (user-approved 2026-10-05):
+the same inclusive 10 mm bound for the inherited passive creep (SIM0-B06),
+unchanged encoder/zero guards, and normal P0 completion.
 No source acquisition timestamps, autonomous motion or stop response are claimed.
 """
 
@@ -26,15 +29,16 @@ import time
 
 
 TOPICS = ("throttle", "steering", "left_encoder", "right_encoder", "ips", "imu", "lidar", "front_camera")
-PROFILES = ("p0", "drift-diagnostic")
+PROFILES = ("p0", "p0-creep", "drift-diagnostic")
+CREEP_BOUNDED = ("p0-creep", "drift-diagnostic")
 
 
 def profile_record(profile):
     if profile not in PROFILES:
         raise ValueError("Unknown neutral profile")
     return {"name": profile, "diagnostic_only": profile == "drift-diagnostic",
-            "position_stop_m": 0.010 if profile == "drift-diagnostic" else 0.0,
-            "position_stop_comparison": ">= cap" if profile == "drift-diagnostic" else "any change",
+            "position_stop_m": 0.010 if profile in CREEP_BOUNDED else 0.0,
+            "position_stop_comparison": ">= cap" if profile in CREEP_BOUNDED else "any change",
             "encoder_stop": "any change", "commands": "exact zero only"}
 
 
@@ -42,7 +46,7 @@ def rejected_motion_fields(reference, motion, profile="p0"):
     profile_record(profile)  # Reject unknown profiles instead of relaxing a guard.
     changed = [key for key in ("Position", "Encoder Angles", "Encoder Ticks")
                if motion[key] != reference[key]]
-    if profile == "drift-diagnostic":
+    if profile in CREEP_BOUNDED:
         # Compare the decimal telemetry exactly: binary subtraction can otherwise
         # classify e.g. 0.060 - 0.050 just below the approved 0.010 boundary.
         squared = sum((Decimal(str(a)) - Decimal(str(b))) ** 2
@@ -657,7 +661,7 @@ def trial(args, context, out):
                     if window is not None:
                         capture(window, "ui-completed")
                     break  # End by wall time, including stalled streams; analyze their coverage separately.
-                if target and args.profile == "p0" and bridge_state.get("last_received_ns", 0) >= target and all(observer_state.get("last_received_ns", {}).get(t, 0) >= target for t in TOPICS):
+                if target and args.profile in ("p0", "p0-creep") and bridge_state.get("last_received_ns", 0) >= target and all(observer_state.get("last_received_ns", {}).get(t, 0) >= target for t in TOPICS):
                     if window is not None:
                         capture(window, "ui-completed")
                     record.update(completed_observation=True, observation_end_ns=time.monotonic_ns(),

@@ -1,6 +1,6 @@
 # PRE — Current Qualification Status
 
-Updated: **2026-10-01**. **Complete PRE before S1 remains confirmed.** PRE-01/02, SIM0-01/02 and LNX-01/02/03 remain accepted. The approved read-only pose review is complete: repeated physical wheel-parent writes and automatic synchronization are the leading hypothesis; sampled Z-velocity integration explains only **0.287–0.299%** of the retained body displacement. The cause is unproven and **SIM0-B06 remains open**. No new build/run or repair adoption; P0, PRE-03/04 and SIM1/S1 gates remain unchanged. [English](SIM0-pose-review.md) / [中文](SIM0-pose-review.zh-CN.md). The single proposed statement-level tracing experiment awaits confirmation.
+Updated: **2026-10-05**. **Complete PRE before S1 remains confirmed.** PRE-01/02, SIM0-01/02/03 and LNX-01–04 accepted. The user approved option A: SIM0-B06 closed as inherited simulator creep (also in the installed vendor player), P0 position rule amended to an inclusive 10 mm bound, unexecuted pose tracing superseded. Both amended-P0 60-second neutral runs passed (3 mm max, all guards and cleanup passed). [English](SIM0-completion.md) / [中文](SIM0-completion.zh-CN.md). SIM0-04 awaits stage review; PRE-03/04 still require SIM1, whose entry gate is unchanged.
 
 ## Reports and evidence
 

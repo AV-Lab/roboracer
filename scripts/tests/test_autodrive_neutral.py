@@ -96,6 +96,21 @@ class NeutralGuardTests(unittest.TestCase):
             after[key][1] = 0.001
             self.assertEqual([key], rejected_motion_fields(before, after, "drift-diagnostic"))
 
+    def test_amended_p0_creep_bound_matches_diagnostic_and_keeps_encoder_stop(self):
+        before = reference()
+        for position in ([0.059, 3.158, 0.059], [0.060, 3.158, 0.059], [0.056, 3.166, 0.059]):
+            after = copy.deepcopy(before)
+            after["Position"] = position
+            self.assertEqual(rejected_motion_fields(before, after, "drift-diagnostic"),
+                             rejected_motion_fields(before, after, "p0-creep"))
+        after = copy.deepcopy(before)
+        after["Position"][0] = 0.051
+        after["Encoder Ticks"][0] = 0.001
+        self.assertEqual(["Encoder Ticks"], rejected_motion_fields(before, after, "p0-creep"))
+        record = profile_record("p0-creep")
+        self.assertFalse(record["diagnostic_only"])
+        self.assertEqual((0.010, ">= cap"), (record["position_stop_m"], record["position_stop_comparison"]))
+
     def test_unknown_profile_fails_closed(self):
         with self.assertRaises(ValueError):
             rejected_motion_fields(reference(), reference(), "relaxed")

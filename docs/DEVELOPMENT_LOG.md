@@ -251,3 +251,16 @@
 - Published [English](stages/SIM0-pose-review.md) / [Chinese](stages/SIM0-pose-review.zh-CN.md) reports with a source-linked causal map, ranked hypotheses and one proposed statement-level tracing experiment. Recorded the separate front-motor-torque clearing concern for future pre-motion review; no repair adopted.
 - Analysis consistency/analytic checks and listed-file integrity pass, including all **188** prior frozen evidence files, current 9,404+7 source/605 player files and three reference repository states. Eight official Unity pages archived after a scoped network retry. Evidence: `artifacts/simulator-build/20261001T114229Z-pose-review/`. No Editor/simulator launch, new build or plugin implementation.
 - **SIM0-B06 remains open; acceptance stays 2/34, 2/10, 3/4.** No P0/SIM1/S1 acceptance. Stop pending a separate decision on the proposed one-build, at-most-two 10-second neutral tracing windows.
+
+## 2026-10-01/02 — SIM0: approved pose tracing prepared, interrupted before build (recorded 2026-10-05)
+
+- The user's “approve” authorized the single statement-level tracing experiment (one build, at most two 10-second windows). Setup completed in `artifacts/simulator-build/20261001T130821Z-pose-trace/`: fresh derived copy (tracked diff equal to the qualified baseline), `integration/autodrive/diagnostics/PoseTrace.cs`, a 42-line controller preview patch, `--pose-trace` runner/analysis support, 40 focused tests and a pinned-API compile. The host precheck passed on 2026-10-02.
+- The previous agent session ended before the instrumentation was installed in the copy; no tracing build or live run occurred, and this entry was not written at the time. The work was superseded on 2026-10-05 (below). All setup files are preserved.
+
+## 2026-10-05 — SIM0: B06 closed by decision; amended P0 runs pass
+
+- Assessed whether further B06 root-causing was necessary. The same ~3–4 mm/min passive creep occurs in the unmodified installed vendor player, so it is inherited simulator behavior, not a build regression. It is about five orders of magnitude below racing speeds, and a physics repair would make the rebuild diverge from the reference. The user selected option A: close the investigation, amend the P0 position rule to an inclusive 10 mm bound (exact-zero and any-encoder-change guards unchanged) and supersede the unexecuted tracing.
+- Added `--profile p0-creep` to `autodrive_neutral.py` (same bound semantics as `drift-diagnostic`, normal P0 completion); kept the strict `p0` profile for history. 41 focused tests pass.
+- Ran two fresh-process 60-second neutral observations on the qualified authoring player, with visual pre-Connect review of each run. Both completed: 237 messages on each of eight topics, ~3.9 Hz, maximum reported displacement 3 mm, all replies/encoders exactly zero, first scan/image equal to ROS content, all children exit 0, port released, 603/603 player files unchanged before and after.
+- **SIM0-03 and LNX-04 accepted.** Counts: original 2/34, source amendment 3/10, recovery 4/4. Published the bilingual [SIM0 report](stages/SIM0-completion.md) as the SIM0-04 baseline; evidence `artifacts/simulator-build/20261005T052025Z-p0/` (42-file manifest). Updated plan/recovery/PRE/report status lines.
+- Next gate: user SIM0 stage review (checks SIM0-04) and SIM1 entry confirmation. No nonzero command, SIM1 or S1 work.

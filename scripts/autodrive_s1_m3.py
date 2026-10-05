@@ -88,7 +88,8 @@ def analyze(directory: Path) -> dict:
         accept = accepts.get(seg[-1]["applied"])
         generation_sim = (accept["step"] * FIXED_STEP_S + offset + accept["remaining_s"] - LIFE_S) if accept else None
         window = [f for f in frames if start_sim - 0.25 <= f["encoder_sim_time"] <= min(end_sim + 2.5, next_sim - 0.01)]
-        during = [f for f in window if start_sim < f["encoder_sim_time"] <= end_sim + 0.05]
+        # Only frames acquired while throttle was applied (a frame after the end already shows braking).
+        during = [f for f in window if start_sim < f["encoder_sim_time"] <= end_sim]
         curve = [{"t_s": round(f["encoder_sim_time"] - start_sim, 4), "speed_mps": f["encoder_speed_mps"]} for f in window]
         accel = []
         for a, b in zip(during, during[1:]):
@@ -97,11 +98,13 @@ def analyze(directory: Path) -> dict:
                 accel.append({"speed_mps": (a["encoder_speed_mps"] + b["encoder_speed_mps"]) / 2,
                               "accel_mps2": (b["encoder_speed_mps"] - a["encoder_speed_mps"]) / dt})
         initial = during[0]["encoder_speed_mps"] / max(during[0]["encoder_sim_time"] - start_sim, 1e-3) if during else None
-        late = accel[-2:]
-        plateau = bool(late) and all(abs(a["accel_mps2"]) < 0.05 for a in late)
+        # Steady state: frames after the first (settling) frame agree within 5 % of their mean.
+        settled = during[1:]
+        steady_reference = (sum(f["encoder_speed_mps"] for f in settled) / len(settled)) if settled else None
+        plateau = bool(settled) and steady_reference > 0 and all(
+            abs(f["encoder_speed_mps"] - steady_reference) <= 0.05 * steady_reference for f in settled)
         # Settling: first frame within 10 % of the final steady speed (frames are ~0.2 s apart,
         # so this is an upper bound on the response time).
-        steady_reference = (sum(f["encoder_speed_mps"] for f in during[-3:]) / len(during[-3:])) if len(during) >= 3 else None
         settle_frame = next((f for f in during if steady_reference and abs(f["encoder_speed_mps"] - steady_reference)
                              <= 0.1 * steady_reference), None)
         settle_s = settle_frame["encoder_sim_time"] - start_sim if settle_frame else None

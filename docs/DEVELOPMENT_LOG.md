@@ -488,3 +488,18 @@
   - Awaiting confirmation; M4/M5 not authorized.
 - **Desktop note.** `idle-delay` is 0 but `lock-enabled` is still true. A future runner improvement: check the root screen for a lock screen before Connect.
 - **Records.** Evidence `artifacts/s1/20261005T123651Z-m3/` (114 files); bilingual [report](stages/S1-M3-identification.md). 93 script tests and 26 plugin tests pass.
+
+## 2026-10-05 — Desktop auto-lock disabled; proposal v0.2 confirmed; M3b passes; M3 gain corrected
+
+- **Desktop.** At the user's request ("please prevent desktop lock"), set `org.gnome.desktop.screensaver lock-enabled` and `ubuntu-lock-on-suspend` to false. `idle-delay` was already 0 and AC idle suspend already 'nothing'; manual Super+L is still possible. Saved a project memory about lock screens blocking Connect.
+- **Approval.** The user replied "comfirm" to "confirm or change revised D5 and whether to run M3b". Recorded as confirming proposal v0.2 (revised D5) and M3b; the approval record adds M3B. M4/M5 are not authorized.
+- **Added.** Stage `m3b` (throttle {0, 0.03, 0.045, 0.06}, steering 0), sharing the M3 source, with a 0.35 m travel end, a motion-reducing change to stay under the 0.5 m cap. The analysis checks K within ±10 % of 4.90.
+- **M3b trial 1: pass**, first click, 55 s.
+  - Steady speeds 0.150 / 0.225 / 0.295 m/s, giving K 5.02 / 5.01 / 4.92; the last has one settled frame, because the hold ended at 0.3 m/s.
+  - Settled within one frame; brake 0.19 s × speed.
+  - Stops 0.55–0.56 s after the last request's generation.
+  - Peak hold travel 0.43 m; lateral 0 mm, yaw 0.0°.
+  - 70/70 forwarded, one final lease expiry, all 604 player files unchanged.
+- **Analysis correction (retained).** The steady-speed window included the first post-hold, braking frame. Fixed, and **M3 was re-analysed: K = 5.02–5.03, not 4.90**. The M3 report carries the correction, and D5 uses K = 5.02 (within the confirmed ±10 % rule).
+- **Records.** Evidence `artifacts/s1/20261005T133323Z-m3b/` (40 files); bilingual [report](stages/S1-M3b-identification.md). 93 script tests and 26 plugin tests pass.
+- **Next.** M4/M5 await the user's go-ahead.

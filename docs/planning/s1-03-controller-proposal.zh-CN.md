@@ -4,6 +4,7 @@
 - **v0.1：** 已于 2026-10-05 以“approve D4 A, D5, D6, D7; run M3 only”确认。M3 已通过（[报告](../stages/S1-M3-identification.zh-CN.md)）。
 - **M3 带来的变化：** 对象是静态增益（v ≈ 4.9 m/s × 油门，一帧内稳定），而不是加速器。因此 v0.1 的 D5 增益和 u_max = 0.03 不再适用。**下面的 D5 已修订，需要你确认**，D8 中新增 **M3b**。
 - **不变：** D4、D6、D7 维持已确认的内容。
+- **v0.2 已于 2026-10-05 确认**（“comfirm”）。**M3b 已通过**（[报告](../stages/S1-M3b-identification.zh-CN.md)）：在 0.025–0.30 m/s 范围内线性，**K = 5.02**。M3 的 4.90 来自分析窗口偏差，现已修正。按已确认的 ±10 % 规则，D5 使用 K = 5.02；此时 u_max = 0.07 约对应 0.35 m/s。M4、M5 尚未获授权。
 
 日期：2026-10-05。[英文版](s1-03-controller-proposal.md)。本方案承接[运动协议 v0.1](s1-motion-protocol.zh-CN.md) §4 “M0–M2 之后”。证据：[M0](../stages/S1-M0-steering.zh-CN.md)、[M1](../stages/S1-M1-throttle.zh-CN.md)、[M2](../stages/S1-M2-stops.zh-CN.md)。
 

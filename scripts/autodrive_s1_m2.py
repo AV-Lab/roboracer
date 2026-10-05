@@ -137,8 +137,19 @@ def analyze(directory: Path) -> dict:
                   "forwarded_after_inhibition": sum(r["decision"] == "forwarded" for r in after),
                   "inhibited_rejections": sum(r["decision"] == "inhibited" for r in after),
                   "nonzero_requests": len(calibration), "nonzero_forwarded": len(nonzero)}
-        if detail["inhibited_after_pause_s"] is None or not 0.5 <= detail["inhibited_after_pause_s"] <= 0.7 or \
-                detail["forwarded_after_inhibition"] or not detail["inhibited_rejections"]:
+        # The lease runs from the last heartbeat *received*; the runner notices the pause file one
+        # loop later. So inhibition must come no later than 0.5 s (+ the supervisor's 20 ms tick)
+        # after the notice, and no earlier than 0.5 s minus 1.5 heartbeat intervals.
+        status_sup = json.loads((directory / "supervisor-1-status.json").read_text())
+        heartbeats = [r for r in supervisor if r["event"] == "heartbeat"]
+        interval = ((paused - heartbeats[0]["t"]) / 1e9 / (status_sup["runner_seq"] - 1)
+                    if heartbeats and paused and status_sup["runner_seq"] > 1 else None)
+        detail["heartbeat_interval_s"] = interval
+        detail["implied_last_heartbeat_before_pause_s"] = (LIFE_S - detail["inhibited_after_pause_s"]
+                                                           if detail["inhibited_after_pause_s"] is not None else None)
+        bounds_ok = (interval is not None and detail["inhibited_after_pause_s"] is not None
+                     and LIFE_S - 1.5 * interval <= detail["inhibited_after_pause_s"] <= LIFE_S + 0.03)
+        if not bounds_ok or detail["forwarded_after_inhibition"] or not detail["inhibited_rejections"]:
             failures.append(f"case b: {detail}")
     else:
         failures.append(f"unknown case {case}")

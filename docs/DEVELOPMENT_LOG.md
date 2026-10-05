@@ -413,3 +413,25 @@
 - **Finding.** The ideal-force estimate in the protocol overstated the response ~20×; the measured response map replaces it.
 - **Records.** Evidence `artifacts/s1/20261005T115944Z-m1/` (67 files). Bilingual [report](stages/S1-M1-throttle.md). 91 script tests and 26 plugin tests pass.
 - **Next.** The user's decision on M2. S1-02's box is left for user review. Acceptance count unchanged (3/34).
+
+## 2026-10-05 — M2 (stops under motion) passes; motion protocol v0.1 complete
+
+- **Approval.** The user replied "yes run M2"; the approval record now lists M0–M2.
+- **Added.**
+  - Stage `m2` (throttle {0, 0.01}, steering 0).
+  - A `--m2-case a|b` option and an M2 calibration source, which never sends a zero to stop: stopping is the mechanism under test.
+  - A runner heartbeat pause, triggered by a pause file the source writes.
+  - Analysis `autodrive_s1_m2.py`.
+- **Case a (hang): pass.**
+  - One 0.01 request, applied 0.368 s.
+  - `lease-expired` came the step after throttle ended, then motor torque 0 with brakes.
+  - Peak 0.051 m/s, 18 mm travel; stopped 0.78 s after generation.
+- **Case b (runner loss): pass.**
+  - The supervisor inhibited exactly 0.5 s after the last heartbeat received (cadence 117 ms; 0.405 s after the runner noticed the pause).
+  - It then rejected 12/12 `inhibited`, with 0 forwarded after inhibition.
+  - Throttle was applied 0.768 s, then the guard lease expired.
+  - 38 mm travel; stopped 0.76 s after the last forwarded generation, with 28 mm after it.
+- **Retained analysis correction.** The first check measured inhibition from the pause notice.
+- **Both trials.** Unassisted, all children exited 0, the port was released, all 604 player files were unchanged, and there was no guard fault or rejection.
+- **Records.** Evidence `artifacts/s1/20261005T122018Z-m2/` (68 files); bilingual [report](stages/S1-M2-stops.md). 92 script tests and 26 plugin tests pass.
+- **Next.** Draft the S1-03 target-speed controller proposal from the M1 response map and stop for confirmation. S1-02/S1-04 boxes await user review. Acceptance count unchanged (3/34).

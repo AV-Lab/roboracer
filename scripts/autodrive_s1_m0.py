@@ -20,6 +20,7 @@ import math
 from pathlib import Path
 
 WHEELBASE, TRACK, LIMIT_DEG, RATE_DEG_S = 324.0, 236.0, 30.0, 183.346
+FIXED_STEP_S = 0.001  # pinned fixed timestep (SIM1-02); the guard traces every step
 
 
 def rows(path):
@@ -89,10 +90,12 @@ def analyze(directory: Path) -> dict:
                        # Convention-free cross-check: the inner front wheel steers more (Ackermann).
                        inner_wheel="left" if abs(left) > abs(right) else "right")
             target = abs(value) * LIMIT_DEG
-            internal = [(s["mono"], abs(internal_from_left(s["steer"][0]))) for s in seg]
+            # Simulation time (fixed step index x 1 ms): Unity runs several physics steps back to
+            # back per rendered frame, so the wall-clock stamps in the trace are bunched.
+            internal = [(s["step"], abs(internal_from_left(s["steer"][0]))) for s in seg]
             t10 = next((t for t, a in internal if a >= 0.1 * target), None)
             t90 = next((t for t, a in internal if a >= 0.9 * target), None)
-            row["slew_deg_s"] = 0.8 * target / ((t90 - t10) / 1e9) if t10 and t90 and t90 > t10 else None
+            row["slew_deg_s"] = 0.8 * target / ((t90 - t10) * FIXED_STEP_S) if t10 and t90 and t90 > t10 else None
             settled = duration_s >= 0.5
             row["settled"] = settled
             if settled:

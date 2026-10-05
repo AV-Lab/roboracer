@@ -51,6 +51,8 @@ class RunnerStageTests(unittest.TestCase):
 
     def test_feedback_steering_only_in_m0_and_never_throttle(self):
         self.assertEqual(-0.262, motion_fields(frame(steering="-0.262"), "m0")["Steering Feedback"])
+        # Full lock (30 deg = 0.5235988 rad) is reported rounded to 3 decimals.
+        self.assertEqual(-0.524, motion_fields(frame(steering="-0.524"), "m0")["Steering Feedback"])
         for args in ((frame(steering="0.262"), None), (frame(throttle="0.010"), "m0"), (frame(steering="0.6"), "m0")):
             with self.subTest(args=args[1:]), self.assertRaises(ValueError):
                 motion_fields(*args)

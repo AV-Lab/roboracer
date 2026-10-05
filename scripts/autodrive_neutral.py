@@ -114,7 +114,9 @@ SIM1_REPLY_FIELDS = {"RR Ping Mono", "RR Test Freeze", "RR Reply To", "RR Reply 
 # Confirmed motion-protocol stages (s1-motion-protocol.md v0.1); mirrors
 # roboracer.runtime.supervisor_core.STAGES (a test checks they are equal).
 MOTION_STAGES = {"m0": {"throttle": (0.0,), "steering": (0.0, 0.1, -0.1, 0.5, -0.5, 1.0, -1.0)}}
-STEERING_FEEDBACK_LIMIT_RAD = 0.5235988  # 30 degrees, the controller's SteeringLimit
+# 30 degrees (the controller's SteeringLimit, 0.5235988 rad) as telemetry reports it: rounded to
+# 3 decimals, so full lock arrives as 0.524 (found in the first M0 attempt).
+STEERING_FEEDBACK_LIMIT_RAD = 0.5245
 
 
 def check_guard_request(text, stage):

@@ -310,3 +310,19 @@
   - the consumer matrix: GUI manual Ackermann commands refused; gauge mirror; headless dashboard shows 0.0 acceleration; BasicSim fails loudly.
 - The Tk GUI was not launched. Evidence: `artifacts/s1/20261005T074139Z-s1-01/`.
 - Next: S1-02, the observation bridge on the guarded SIM1-02 player and the supervisor skeleton (no motion); then the numerical motion protocol for confirmation.
+
+## 2026-10-05 — S1-02: bridge observation path passes (interlocked, no motion)
+
+- Recorded the user's "go on" as continuation of S1-02 within the S1 entry of amendment 1.2.
+- **Scan check fixed and passed.** The WIP `autodrive_scan_check.py` first comparison was invalid (retained): its ray targets included the vehicle's own colliders, which enclose the LiDAR head, so every beam was blanked inside the 0.06 m minimum range. With static scenery only, the vendor convention (CCW from −135°, 0.25°, 1081 beams, head 0.2733 m ahead / 0.096 m above the rear-axle IPS point) is best in all six SIM1-02 first frames: 1 finite mismatch, p50 2.0 mm, p95 ≤ 9.2 mm. All frames share the spawn pose. Three analytical fixtures added.
+- **Observation path.** Added `roboracer/integration/autodrive_observation.py` (ROS-free `SnapshotAssembler`: pending provenance records, members matched by acquisition header stamp or IPS value, fail-closed rejections, CLOCK_MONOTONIC acquisition stamps, labelled GT pose). `AutoDriveBridge` subscribes only on `connect()` (private rclpy context, no signal takeover), serves atomic `SensorFrame`s, and advertises `LIDAR_2D`/`IMU`. `LOCALIZATION` is gated by the new `gt_localization` setting (default off). The runner's provenance message now carries `ips_position`; added `--plugin-observer` and `autodrive_s1_observation.py`.
+- 19 plugin tests pass, including a replay of both recorded SIM1-02 observation runs. The replay found the Devkit's float32 `angle_min` (−2.35619, 4.5 µrad off), so the layout tolerance is 1e-5 rad. Runner/provenance/guard/scan-check suites pass.
+- **Live run.** Ran 60 s on the SIM1-02 player: interlocked, zero requests, speed limit 0. Each run had a visual PID/window-bound pre-Connect review.
+  - The first attempt lost its Connect click; it was retained, cleanup was clean, and the retry passed.
+  - 240/240 acquisition frames became exactly one snapshot each, in order; the only rejection was the first frame.
+  - Scan identity (stamp and float32 hash against the independent observer), GT pose (IPS equality) and yaw (≤ 5 mrad) matched in 240/240.
+  - Skew ≤ 50 ms; clock bound 40–43 ms.
+  - Commit latency was ~110 ms, almost all of it the runner's 0.1 s reply pacing, which precedes provenance publication.
+  - Guard trace: 0 nonzero-output steps in 78,377. Maximum displacement 3 mm. All children exited 0, the port was released, and all 604 player files were unchanged.
+- Evidence `artifacts/s1/20261005T102231Z-s1-02-live/` (64-file manifest); bilingual [report](stages/S1-observation.md).
+- **S1-02 stays open** for command signs/units against observed response (needs motion). Next (no motion): the S1 supervisor skeleton, then draft the numerical motion protocol and stop for confirmation. Acceptance count unchanged (3/34).

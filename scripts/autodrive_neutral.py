@@ -321,8 +321,10 @@ def bridge(args):
                     provenance_publisher = incoming.autodrive_incoming_bridge.create_publisher(
                         String, "/autodrive/f1tenth_1/provenance", 10)
                 message = String()
+                # ips_position lets a consumer match the header-less IPS Point to this frame.
                 message.data = json.dumps({"session": tracker.session, **provenance,
-                                           "stamp_basis": row["stamp_basis"]})
+                                           "stamp_basis": row["stamp_basis"],
+                                           "ips_position": motion["Position"]})
                 provenance_publisher.publish(message)
             row["handler_completed_monotonic_ns"] = time.monotonic_ns()
             row["publisher_count"] = len(list(incoming.autodrive_incoming_bridge.publishers))

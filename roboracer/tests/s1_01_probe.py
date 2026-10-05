@@ -202,5 +202,44 @@ def case_consumers():
             "headless_acceleration_display": getattr(returned, "acceleration", 0.0)}
 
 
+def case_s1_02_bridge():
+    """S1-02 observation surface without ROS: messages are fed to the bridge's offer hook."""
+    plugin = load_plugin()
+    sys.path.insert(0, str(Path(PLUGIN).parent))
+    from roboracer.tests import s1_02_fixtures as fx
+    bridge = plugin.AutoDriveBridge()
+    settings = plugin.PluginSettings
+
+    def view():
+        frame = bridge.get_sensor_frame()
+        lidar = frame.lidar
+        return {"lidar_points": None if lidar.points is None else len(lidar.points),
+                "imu": None if frame.imu is None else list(frame.imu.linear_accel)}
+
+    def stack():
+        return sorted(c.name for c in bridge.stack_capabilities)
+
+    result = {"world_capabilities": sorted(c.name for c in bridge.world_capabilities), "before": view()}
+    capabilities = {"default": stack()}
+    messages, provenance = fx.frame(2)
+    for name, message in messages.items():
+        bridge._offer(name, message)
+    bridge._offer("provenance", fx.NS(data=provenance))
+    after = view()
+    first, second = bridge.get_sensor_frame(), bridge.get_sensor_frame()
+    after.update(lidar_mount=first.lidar.base_to_sensor[:3, 3].tolist(),
+                 fresh_objects=first.lidar is not second.lidar and first.imu is not second.imu,
+                 committed=bridge.statistics()["committed"])
+    xy = {"default": [bridge.get_ego_state().x, bridge.get_ego_state().y]}
+    settings.gt_localization = True
+    capabilities["gt_enabled"] = stack()
+    ego = bridge.get_ego_state()
+    xy["gt_enabled"] = [ego.x, ego.y]
+    after.update(ego_xy=xy, gt_theta=ego.theta)
+    result.update(stack_capabilities=capabilities, after=after,
+                  watched_modules=host_snapshot()["watched_modules"])
+    return result
+
+
 if __name__ == "__main__":
     print(json.dumps(globals()["case_" + CASE.replace("-", "_")]()))

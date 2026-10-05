@@ -345,3 +345,25 @@
   - **Getter.** Added `get_lidar_data()`, so the getter API serves the advertised LiDAR.
   - **README.** Now covers requirements and setup: ROS 2 Humble for `connect()`, the provenance Devkit and the SIM1-02 player, no pip extras and no `launch.sh`. It also documents the settings file location and the GT filter.
 - **Tests.** S1-01 factory cases now use AVLite's filter (default: commands reach the bridge; filtered: never actuates), replacing the test-only GT subclass. The S1-02 bridge case checks that contracts are class-attribute `frozenset`s. 19 plugin tests pass with ResourceWarnings as errors; runner tests pass. The live S1-02 evidence is unaffected because the observation path is unchanged; the reports note the superseded setting.
+
+## 2026-10-05 — S1 supervisor skeleton passes (no motion); motion protocol drafted, awaiting confirmation
+
+- Recorded the user's "go on the task" as continuation to amendment 1.2 steps 3–4.
+- **Supervisor.** Added `roboracer.supervisor/1` as its own process:
+  - `runtime/supervisor_core.py` is the pure logic: validation order, expiry from the original generation time, a 500 ms runner lease with sticky inhibition, and a motion gate that cannot be opened in code;
+  - `runtime/supervisor_process.py` runs it with non-blocking sockets and a bounded trace.
+- **Bridge.** It sends each distinct command once, carrying its tick's snapshot identity. The tick-pinned snapshot keeps GT pose and sensors in one frame. This also fixed a stray `snapshot_listener` reset in `close()`.
+- **Runner.** `autodrive_neutral.py --plugin-stack` runs AVLite `SyncExecuter` + `HoldController` at 10 Hz with the real supervisor. Runner heartbeats start after Connect.
+- **Tests.** 26 plugin tests pass, including the real process over sockets. An offline smoke run found AVLite's float time sum skipping control on ~20 % of ticks; the stage periods are now 0.99 × the tick period.
+- **Live, interlocked, exact zero (60 s).** Connect worked first time.
+  - 873 ticks at 100 ms with 0 overruns.
+  - 631 requests sent, 622 forwarded, 0 rejected during the observation. 9 were `inhibited` after it ended, when the runner lease expired 292 ms after the observation ended.
+  - 233/233 guard acceptances trace to AVLite requests, with the original generation time and deadline = generation + 500 ms.
+  - Guard: 0 nonzero-output steps in 81,180. Maximum displacement 4 mm. All children exited 0, the port was released, and all 604 player files were unchanged.
+  - Observation age at the supervisor was p95 443 / max 489 ms against a 500 ms limit, which is the tightest margin.
+- The first analysis flagged the post-run inhibition; it is retained, and the rule was refined. Evidence `artifacts/s1/20261005T110210Z-s1-supervisor/` (39 files); bilingual [report](stages/S1-supervisor.md).
+- **Motion protocol draft v0.1** ([EN](planning/s1-motion-protocol.md) / [ZH](planning/s1-motion-protocol.zh-CN.md)):
+  - **Facts:** CAWD with 85.6 N·m total (throttle 0.01 ≈ 4 m/s² ideal); steering slew 183°/s; spawn corridor 0.54/0.74 m.
+  - **Decisions:** D1, the front-motor-torque clearing patch (a pre-motion blocker); D2, a calibration request source; D3, freshness via earlier provenance publication.
+  - **Stages:** M0 steering only, M1 minimal throttle pulses (0.002–0.01, 0.25 s, caps 0.5 m/s and 0.5 m), M2 expiry/runner-loss stops. Common abort and stop-qualification rules.
+- **Stopped for confirmation.** No command that can move the vehicle has been sent. Acceptance count unchanged (3/34).

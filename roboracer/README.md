@@ -11,6 +11,10 @@ Community plugin for RoboRacer development with AVLite and the source-built Auto
 | `HoldController` | Always requests a standstill. It is the safe default and command-path probe, and needs no plan or localization. |
 | `PluginSettings` | Validated settings: loopback host, port, request life (at most the guard's 1 s), speed limit (0 until the motion protocol is confirmed), and steering limit (at most 30°). Saved by AVLite to `plugin_roboracer.yaml` in the user config directory (`~/.config/avlite/`, or `AVLITE_CONFIG_DIR`). |
 
+## Supervisor (separate process)
+
+`python -m roboracer.runtime.supervisor_process --name <socket> --target <guard inbox> --origin sup-1 --status <json> --trace <jsonl>` (repository root on `PYTHONPATH`). Protocol `roboracer.supervisor/1` is documented in `runtime/supervisor_core.py`. It requires runner heartbeats (500 ms lease, sticky inhibition), measures expiry from each request's original generation, and forwards only exact zero until the motion protocol is confirmed (the gate cannot be opened in code). The bridge sends to it after `connect(supervisor=...)`.
+
 ## Requirements and setup
 
 - AVLite (tested with the development checkout, source version 0.6.3). No extra pip packages, so there is no `requirements.txt`.

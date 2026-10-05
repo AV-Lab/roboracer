@@ -535,3 +535,18 @@
   - Stop and stale cut otherwise worked: stop from 0.3 m/s 0.23 s, stale → zero 0.50 s, inhibit 0.80 s.
 - **Cause.** Environment. `nvidia-smi` shows 9.5 of 10 GB of GPU memory held by two of the user's `thellmbook` Python processes (7.6 + 1.0 GB). The simulator is starved, which probably also explains attempt 1's start-up segfault.
 - **Status.** Not something to tune away. Asked the user to free the GPU (or approve a longer request life); M5 not run.
+
+## 2026-10-05 — GPU freed; M4 passes; M5 (reactive A) passes — S1-03 demonstrated
+
+- **GPU.** At the user's instruction ("You can kill the Python processes to free the GPU memory"), sent SIGTERM to the two `thellmbook` Jupyter kernels (PIDs 952235, 1166408; 7.6 + 1.0 GB). Both exited within 4 s; GPU memory went from 9.5 GB to 874 MiB, and the Jupyter server was left running. The player is back at 60 Hz, with a frame period of p50 210 / max 241 ms.
+- **M4 trial 5: pass.**
+  - Speed means 0.109 / 0.212 / 0.311 m/s (±0.05 needed), overshoot ≤ 0.037, 0 brake events.
+  - Stop from 0.3 m/s 0.34 s; blackout → zero throttle 0.50 s, inhibit 0.80 s.
+  - 2.26 m straight; one final lease expiry; no guard fault.
+  - Latency p50: generation → supervisor decision 0.12 ms, → guard accept 145 ms; accept → applied 1 ms (simulation time).
+- **M5 trial 1: pass.** `GapFollowController` drove 6.06 m in 21.0 s through AVLite (D6), with steering −0.068 to 0 rad and encoder speed ≤ 0.35 m/s.
+  - Side clearance ≥ 0.28 m, front ≥ 1.49 m; final stop 0.17 s.
+  - 267/267 forwarded, no stale events, one final lease expiry, no guard fault.
+  - Finding: A does not center; right clearance shrank 0.54 → 0.28 m as the corridor widened. Noted for laps.
+- **Records.** All 604 player files unchanged. 94 script tests and 39 plugin tests pass. Evidence `artifacts/s1/20261005T152922Z-m4/` (159 files) and `artifacts/s1/20261005T160657Z-m5/` (39 files); bilingual reports [M4](stages/S1-M4-speed.md) and [M5](stages/S1-M5-reactive.md).
+- **Next.** The S1-02/03/04 check boxes await user review. Laps (S1-05/06) and higher speeds are not authorized.

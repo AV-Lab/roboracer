@@ -1,53 +1,48 @@
-# S1-03 stage M4 — closed-loop speed (in progress; not passed)
+# S1-03 stage M4 — closed-loop speed
 
-Date: **2026-10-05**. Run: `20261005T152922Z-m4`. Proposal: [s1-03-controller-proposal.md](../planning/s1-03-controller-proposal.md) (v0.2, with a v0.3 change request in §7). Approval: "yes run M4 and M5" ([record](../planning/s1-motion-approval.json)).
+Date: **2026-10-05**. Run: `20261005T152922Z-m4`. [Chinese report](S1-M4-speed.zh-CN.md). Proposal: [s1-03-controller-proposal.md](../planning/s1-03-controller-proposal.md), v0.3. Approvals: "yes run M4 and M5"; v0.3 thresholds, "yes rerun M4"; GPU freed, "You can kill the Python processes to free the GPU memory" ([record](../planning/s1-motion-approval.json)).
 
-**M4 has not passed. M5 was not started.** The full stack now drives the car: AVLite `SpeedStepController` → plugin bridge → supervisor speed loop (D5), using the supervisor's own encoder feedback (D4 A) → guard. Most criteria passed, but speed tracking at 0.2 and 0.3 m/s failed. The cause is identified: the approved 0.4 s stale-feedback threshold is shorter than the feedback age this setup produces. A narrow threshold change (v0.3) awaits your confirmation.
+**M4 passes (trial 5).** For the first time the car is driven by AVLite through the target-speed path:
+- AVLite `SpeedStepController` requests target speeds;
+- the plugin bridge carries them to the supervisor;
+- the supervisor's speed loop (D5 v0.3) turns each target into throttle, using encoder speed from its own subscription (D4 A);
+- the guard applies it.
 
-## Built for M4/M5 (all tested)
+On the straight, with steering exactly 0, speed tracks 0.1 / 0.2 / 0.3 m/s with no brake chatter. It stops from 0.3 m/s in 0.34 s, and a deliberate feedback blackout cuts throttle and then inhibits the supervisor.
 
-- **Supervisor (D4/D5):**
-  - stages `m4`/`m5` for AVLite requests;
-  - `SpeedLoop`: static inverse feedforward K = 5.02, bounded integral trim, u_max 0.07, rise limit 0.1 per s, overspeed and stale-feedback rules;
-  - exact steering conversion;
-  - its own encoder-speed subscription (`--feedback`), plus a blackout test hook.
-- **Plugin (D6):**
-  - `SpeedStepController` (test controller);
-  - `GapFollowController` (reactive A: follow-the-gap with disparity extension, |steer| ≤ 0.35 rad, v* ≤ 0.3 m/s);
-  - `EgoState.velocity` from encoder speed.
-- **Runner:**
-  - range-checked stage profiles;
-  - an AVLite stack stage driver with the stage abort rules;
-  - analysis `autodrive_s1_m45.py`, including the D7 latency chain.
+## Results (trial 5)
 
-The runner raises the plugin's `max_target_speed_mps` to 0.3 inside the stack process only; the shipped default stays 0.
+| Target | Mean over last 1 s (±0.05 needed) | Overshoot (≤ 0.1) | Brake events (≤ 2) |
+| --- | --- | --- | --- |
+| 0.1 m/s | 0.109 | 0.027 | 0 |
+| 0.2 m/s | 0.212 | 0.037 | 0 |
+| 0.3 m/s | 0.311 | 0.027 | 0 |
 
-## Trial 3 results
+- **Stop from 0.3 m/s:** 0.34 s (limit 1.5 s). **Final stop:** 0.13 s.
+- **Stale feedback** (the supervisor ignores its encoder feedback from 12 s on): throttle 0 after 0.50 s (limit 0.6 s + one frame), inhibition after 0.80 s, nothing forwarded afterwards. Exactly one final `lease-expired` stop with zero output.
+- **Feedback age** before the blackout: p50 211 ms, p95 299 ms, max 324 ms. Telemetry frame period: p50 210 ms, max 241 ms.
+- **Latency chain (D7)**, each segment on its own clock:
 
-| Criterion | Result |
-| --- | --- |
-| Step 0.1 m/s: mean of the last 1 s | 0.109 m/s ✓; overshoot 0.050 ✓; brake events 2 ✓ |
-| Step 0.2 m/s | 0.164 m/s ✗ (needs ±0.05); overshoot 0.051 ✓; brake events 4 ✗ |
-| Step 0.3 m/s | 0.189 m/s ✗; overshoot 0.049 ✓; brake events 3 ✗ |
-| Stop from 0.3 m/s (limit 1.5 s) | 0.45 s ✓ |
-| Stale feedback → throttle 0 (limit 0.4 s + one frame) | 0.20 s after the blackout ✓; inhibited 0.40 s after it; 0 forwarded afterwards ✓ |
-| Final stop | 0.11 s ✓ |
-| Guard | no fault, no rejection, one final lease expiry; throttle ≤ 0.07, steering 0 ✓ |
-| Latency chain (D7, p50) | tick → request generation 0.45 ms; generation → supervisor decision 0.19 ms; generation → guard accept 198 ms; accept → first applied step 1 ms (simulation time) |
+  | Segment | p50 | p95 | max |
+  | --- | --- | --- | --- |
+  | AVLite tick → request generation | 0.29 ms | 0.37 ms | 0.51 ms |
+  | generation → supervisor decision | 0.12 ms | 0.15 ms | 0.21 ms |
+  | generation → guard accept | 145 ms | 185 ms | 238 ms |
+  | accept → first applied step (simulation time) | 1 ms | 1 ms | 1 ms |
 
-**Cause.**
-- The supervisor's encoder feedback arrives once per telemetry frame: p50 243 ms, p95 284 ms. That is slower than M3b's 206 ms, with the extra subscriber running. Delivery adds about 155 ms.
-- At request time, feedback is therefore p50 274 ms, p95 405 ms, max 564 ms old.
-- The 0.4 s stale rule therefore fired routinely (11 of 104 control decisions). Each time it commanded zero throttle, which is a hard brake: the car stopped within a frame and the rise limit ramped it back. The speed trace shows this cycling directly.
-- Between those events, the commanded throttle and measured speed agree with K = 5.02.
+- **Travel and path:** 2.26 m in a straight line, under the 2.5 m limit. Guard output stayed within throttle ≤ 0.07 and steering 0, with no guard fault or rejection.
+- **Requests:** 171 forwarded, plus 16 rejected as `inhibited` and 1 as `feedback-lost` after the blackout, as intended.
+- **Processes and player:** all children exited 0, the port was released, and all 604 player files were unchanged.
 
-## Attempts (all retained)
+## Attempts (all retained; 2 of 6 driving trials used)
 
-| Attempt | Outcome | Motion |
+| Attempt | Outcome | Cause and handling |
 | --- | --- | --- |
-| 0 | The supervisor could not import `rclpy`: the runner had replaced `PYTHONPATH` instead of extending it. Fixed. | none (player never started) |
-| 1 | The player segfaulted during start-up, after Vulkan initialisation. The monitor layout had just changed to a single 2560 × 1440 display. It did not recur. | none |
-| 2 | The supervisor inhibited itself on the first request, because "no feedback yet" was treated as "feedback lost". Fixed: no feedback yet → zero throttle, not inhibition. Stopped with SIGTERM; clean cleanup. | none (the guard never armed) |
-| 3 | Ran to completion; speed tracking failed as above. | 1.9 m straight, ≤ 0.35 m/s |
+| 0 | No motion | The supervisor could not import `rclpy`: the runner replaced `PYTHONPATH` instead of extending it. Fixed. |
+| 1 | No motion | The player segfaulted during start-up. The GPU was nearly full (see attempt 4). |
+| 2 | No motion | "No feedback yet" was treated as "feedback lost", so the supervisor inhibited itself on the first request. Fixed. |
+| 3 | Ran; tracking failed | The 0.4 s stale threshold sat below the measured feedback age (max 564 ms) and hard-braked routinely. Proposal **v0.3** raised it to 0.6 s, and loss to 0.9 s; you confirmed it. |
+| 4 | Ran; stopped by the guard | Telemetry slowed (frame gaps up to 648 ms, render rate 34 Hz) because two `thellmbook` Jupyter kernels held 8.6 of 10 GB of GPU memory. The guard lease expired and stopped the car, as designed. With your permission I terminated those two kernels (SIGTERM), and GPU use fell to 874 MiB. |
+| 5 | **Pass** | Render rate 60 Hz, frame period 210 ms. |
 
-Evidence: `artifacts/s1/20261005T152922Z-m4/` (96-file manifest). All 604 player files were unchanged. Tests: 94 script tests and 38 plugin tests pass.
+The proposal's change log records the D5 history: v0.2 numbers, then K = 5.02 from M3b, then the v0.3 thresholds.

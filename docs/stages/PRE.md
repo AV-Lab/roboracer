@@ -1,6 +1,6 @@
 # PRE — Current Qualification Status
 
-Updated: **2026-10-05**. **Complete PRE before S1 remains confirmed.** PRE-01/02, SIM0-01/02/03 and LNX-01–04 accepted. The user approved option A: SIM0-B06 closed as inherited simulator creep (also in the installed vendor player), P0 position rule amended to an inclusive 10 mm bound, unexecuted pose tracing superseded. Both amended-P0 60-second neutral runs passed (3 mm max, all guards and cleanup passed). [English](SIM0-completion.md) / [中文](SIM0-completion.zh-CN.md). SIM0-04 awaits stage review; PRE-03/04 still require SIM1, whose entry gate is unchanged.
+Updated: **2026-10-05**. **Complete PRE before S1 remains confirmed.** PRE-01/02, SIM0-01–04 and LNX-01–04 accepted ([SIM0 report](SIM0-completion.md)); SIM1 entered on the user's “go on the development plan”. **SIM1-01 passes:** per-source acquisition identity, clock-offset bounds and acquisition-time ROS headers through the isolated Devkit ([English](SIM1-provenance.md) / [中文](SIM1-provenance.zh-CN.md)). PRE-03/04 still require SIM1-02–05; no nonzero command has been sent.
 
 ## Reports and evidence
 

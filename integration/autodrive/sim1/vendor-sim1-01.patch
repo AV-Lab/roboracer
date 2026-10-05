@@ -1,0 +1,130 @@
+diff --git a/Assets/Scripts/IMU.cs b/Assets/Scripts/IMU.cs
+index e856782..e3aa620 100644
+--- a/Assets/Scripts/IMU.cs
++++ b/Assets/Scripts/IMU.cs
+@@ -77,6 +77,7 @@ public class IMU : MonoBehaviour
+         LinearAccelerationArray[0] = LinearAcceleration.z;
+         LinearAccelerationArray[1] = -LinearAcceleration.x;
+         LinearAccelerationArray[2] = LinearAcceleration.y;
++        RoboRacer.Provenance.Record(this); // RoboRacer SIM1: acquisition identity
+         //Debug.Log("Linear Acceleration [x: " + LinearAccelerationArray[0] + " y: " + LinearAccelerationArray[1] + " z: " + LinearAccelerationArray[2] + "]");
+     }
+ }
+diff --git a/Assets/Scripts/IPS.cs b/Assets/Scripts/IPS.cs
+index ab9ab48..49d2040 100644
+--- a/Assets/Scripts/IPS.cs
++++ b/Assets/Scripts/IPS.cs
+@@ -16,9 +16,11 @@ public class IPS : MonoBehaviour
+ 
+     void FixedUpdate()
+     {
++        if(RoboRacer.Provenance.Frozen("ips")) return; // RoboRacer SIM1 source-freeze test hook (requires -roboracerTestHooks)
+         VehiclePosition[0] = VehicleTransform.position.z;
+         VehiclePosition[1] = -VehicleTransform.position.x;
+         VehiclePosition[2] = VehicleTransform.position.y;
++        RoboRacer.Provenance.Record(this); // RoboRacer SIM1: acquisition identity
+         //Debug.Log("Position [x: " + VehiclePosition[0] + " y: " + VehiclePosition[1] + " z: " + VehiclePosition[2] + "]");
+     }
+ }
+diff --git a/Assets/Scripts/LIDAR.cs b/Assets/Scripts/LIDAR.cs
+index 9671083..5084e12 100644
+--- a/Assets/Scripts/LIDAR.cs
++++ b/Assets/Scripts/LIDAR.cs
+@@ -77,6 +77,7 @@ public class LIDAR : MonoBehaviour
+ 
+ 		void LaserScan()
+ 		{
++				if(RoboRacer.Provenance.Frozen("lidar")) return; // RoboRacer SIM1 source-freeze test hook (requires -roboracerTestHooks)
+ 				float angle = (Head.transform.eulerAngles.y-MinimumAngularRange)*(Mathf.PI/180); // Reset angle to align w.r.t. starting point
+ 
+ 				// LASER SCAN
+@@ -117,6 +118,8 @@ public class LIDAR : MonoBehaviour
+ 						IntensityArray[i] = Intensity.ToString(); // Update the intensity
+ 				}
+ 
++				RoboRacer.Provenance.Record(this); // RoboRacer SIM1: scan acquisition identity
++
+ 				// LOG LASER SCAN
+ 				/*
+ 				// Range Array
+diff --git a/Assets/Scripts/Socket.cs b/Assets/Scripts/Socket.cs
+index e71deeb..f4246d2 100644
+--- a/Assets/Scripts/Socket.cs
++++ b/Assets/Scripts/Socket.cs
+@@ -30,6 +30,11 @@ public class Socket : MonoBehaviour
+ 
+     public TLController[] TrafficLightControllers; // Traffic light controller references
+ 
++    // RoboRacer SIM1-01 provenance/clock-echo state (main thread only)
++    private long RRTelemetrySeq = 0;
++    private string RRPingEcho = "";
++    private long RRPingReceiptNs = 0;
++
+     // Use this for initialization
+     void Start()
+     {
+@@ -73,7 +78,14 @@ public class Socket : MonoBehaviour
+     void OnBridge(SocketIOEvent obj)
+     {
+         //Debug.Log("Bridge");
++        long rrReceiptNs = RoboRacer.Provenance.MonotonicNs(); // RoboRacer SIM1: request receipt time
+         JSONObject jsonObject = obj.data; // Read incoming data and store it in a `JSONObject`
++        if(jsonObject.HasField("RR Ping Mono"))
++        {
++            RRPingEcho = jsonObject.GetField("RR Ping Mono").str;
++            RRPingReceiptNs = rrReceiptNs;
++        }
++        if(jsonObject.HasField("RR Test Freeze")) RoboRacer.Provenance.ApplyTestRequest(jsonObject.GetField("RR Test Freeze").str);
+         //Debug.Log(obj.data);
+         // Write data to traffic lights
+         if(TrafficLightControllers.Length != 0)
+@@ -146,11 +158,36 @@ public class Socket : MonoBehaviour
+                     data["V"+(i+1).ToString()+" LIDAR Intensity Array"] = LIDARIntensityArray; // Get LIDAR intensity array
+                     LIDARRangeArray = ""; // Reset LIDAR range array for next measurement
+                     LIDARIntensityArray = ""; // Reset LIDAR intensity array for next measurement
+-                    if(FrontCameras.Length != 0) data["V"+(i+1).ToString()+" Front Camera Image"] = Convert.ToBase64String(FrameGrabber.CaptureFrame(FrontCameras[i])); // Get front camera image
++                    if(FrontCameras.Length != 0)
++                    {
++                        long rrCaptureStart = RoboRacer.Provenance.MonotonicNs();
++                        data["V"+(i+1).ToString()+" Front Camera Image"] = Convert.ToBase64String(FrameGrabber.CaptureFrame(FrontCameras[i])); // Get front camera image
++                        RoboRacer.Provenance.RecordInterval(FrontCameras[i], rrCaptureStart, RoboRacer.Provenance.MonotonicNs());
++                    }
++                    // RoboRacer SIM1: per-source acquisition identities ("seq episode step simTime monoNs monoEndNs")
++                    string rrPrefix = "V"+(i+1).ToString()+" RR ";
++                    data[rrPrefix+"LIDAR Stamp"] = RoboRacer.Provenance.Get(LIDARUnits[i]).Format();
++                    data[rrPrefix+"IPS Stamp"] = RoboRacer.Provenance.Get(IndoorPositioningSystems[i]).Format();
++                    data[rrPrefix+"IMU Stamp"] = RoboRacer.Provenance.Get(InertialMeasurementUnits[i]).Format();
++                    data[rrPrefix+"Left Encoder Stamp"] = RoboRacer.Provenance.Get(LeftWheelEncoders[i]).Format();
++                    data[rrPrefix+"Right Encoder Stamp"] = RoboRacer.Provenance.Get(RightWheelEncoders[i]).Format();
++                    if(FrontCameras.Length != 0) data[rrPrefix+"Front Camera Stamp"] = RoboRacer.Provenance.Get(FrontCameras[i]).Format();
+ 
+                     if(RearCameras.Length != 0) data["V"+(i+1).ToString()+" Rear Camera Image"] = Convert.ToBase64String(FrameGrabber.CaptureFrame(RearCameras[i])); // Get rear camera image
+                 }
+             }
++            // RoboRacer SIM1-01 handshake/provenance fields; the stock Devkit ignores unknown keys
++            data["RR Schema"] = RoboRacer.Provenance.Schema;
++            data["RR Session"] = RoboRacer.Provenance.Session;
++            data["RR Episode"] = RoboRacer.Provenance.Episode.ToString(System.Globalization.CultureInfo.InvariantCulture);
++            data["RR Telemetry Seq"] = (++RRTelemetrySeq).ToString(System.Globalization.CultureInfo.InvariantCulture);
++            data["RR Capabilities"] = RoboRacer.Provenance.TestHooks ? "provenance clock-echo test-hooks" : "provenance clock-echo";
++            data["RR Clock"] = "Stopwatch " + System.Diagnostics.Stopwatch.Frequency.ToString(System.Globalization.CultureInfo.InvariantCulture);
++            data["RR Ping Echo"] = RRPingEcho;
++            data["RR Ping Receipt Mono"] = RRPingReceiptNs.ToString(System.Globalization.CultureInfo.InvariantCulture);
++            data["RR Test Frozen"] = RoboRacer.Provenance.FrozenKinds;
++            data["RR Test Hook Rejections"] = RoboRacer.Provenance.HookRejections.ToString(System.Globalization.CultureInfo.InvariantCulture);
++            data["RR Emit Mono"] = RoboRacer.Provenance.MonotonicNs().ToString(System.Globalization.CultureInfo.InvariantCulture);
+             socket.Emit("Bridge", new JSONObject(data)); // Write data to server
+         });
+     }
+diff --git a/Assets/Scripts/WheelEncoder.cs b/Assets/Scripts/WheelEncoder.cs
+index e645422..f4682ec 100644
+--- a/Assets/Scripts/WheelEncoder.cs
++++ b/Assets/Scripts/WheelEncoder.cs
+@@ -83,6 +83,7 @@ public class WheelEncoder : MonoBehaviour
+             VelocitySum += Velocity;
+         }
+         VelocityFromTicks = VelocitySum/VelocityBufferLimit;
++        RoboRacer.Provenance.Record(this); // RoboRacer SIM1: acquisition identity
+         //Debug.Log("Velocity From Ticks: " + VelocityFromTicks);
+     }
+ }

@@ -1,6 +1,6 @@
 # RoboRacer 社区插件研究报告
 
-最新执行（2026-10-05）：完整 PRE 后进入 S1 的顺序不变；SIM0-01／02／03 与 LNX-01–04 已通过。SIM0-B06（约 3 mm/min 被动蠕移，已安装厂商播放器同样存在）经用户决定关闭，P0 修订为 10 mm 上限；两次 60 秒静止运行均通过。见 [SIM0 报告](../stages/SIM0-completion.zh-CN.md)。下一关口：SIM0-04 阶段评审与 SIM1 进入确认。
+最新执行（2026-10-05）：完整 PRE 后进入 S1 的顺序不变。SIM0 已完成（[报告](../stages/SIM0-completion.zh-CN.md)）；已进入 SIM1，SIM1-01 通过：源码构建的模拟器现报告各传感器采集身份，Devkit 以采集时刻标注 ROS 消息头（[SIM1-01 报告](../stages/SIM1-provenance.zh-CN.md)）。SIM1 内下一关口：未上电的接收端守卫（SIM1-02）。
 
 日期：**2026-09-28**。阶段：**初始研究交接**。目标平台：位于 `/home/a2rl/Workspace/avlite` 的 AVLite 工作副本。下文保留初始交接时的发现与待确认状态，不代表开发计划已经批准，也不代表实现已经完成。
 

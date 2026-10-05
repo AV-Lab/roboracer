@@ -104,11 +104,20 @@ def check_kinematics_prefix(directory, pid):
             "first_sample_phase": sample["phase"]}
 
 
+SIM1_REPLY_FIELDS = {"RR Ping Mono", "RR Test Freeze"}
+
+
 def check_zero_reply(event, data):
-    if event != "Bridge" or set(data) != {"V1 Throttle", "V1 Steering"}:
+    controls = {"V1 Throttle", "V1 Steering"}
+    if event != "Bridge" or not controls <= set(data) or not set(data) - controls <= SIM1_REPLY_FIELDS:
         raise ValueError("Unexpected outbound event or command fields")
-    if any(float(value) != 0.0 for value in data.values()):
+    if any(float(data[key]) != 0.0 for key in controls):
         raise ValueError("Nonzero/nonfinite control blocked")
+    if "RR Ping Mono" in data and not data["RR Ping Mono"].isdigit():
+        raise ValueError("Malformed provenance ping")
+    from autodrive_provenance import FREEZABLE
+    if any(kind and kind not in FREEZABLE for kind in data.get("RR Test Freeze", "").split(",")):
+        raise ValueError("Unsupported test-hook request")
 
 
 def motion_fields(data):
@@ -141,6 +150,37 @@ def bridge(args):
     raw_wsgi = incoming.socketio.WSGIApp
     reference = None
     trace = (out / "bridge-frames.jsonl").open("w", buffering=1)
+    tracker = provenance_publisher = first_frame_ns = None
+    acquisition_stamps = {}
+    if args.provenance:
+        from autodrive_provenance import ProvenanceTracker
+        tracker = ProvenanceTracker(expect_test_hooks=bool(args.freeze_test))
+        state.update(provenance=True, freeze_test=args.freeze_test, freeze_window=args.freeze_window,
+                     hook_rejection_probe=not args.freeze_test, clock_samples=0)
+
+        def restamp(name, factory):
+            def wrapper(*positional, **keywords):
+                message = factory(*positional, **keywords)
+                key = name if isinstance(name, str) else name(*positional)
+                if key in acquisition_stamps:
+                    message.header.stamp = acquisition_stamps[key]
+                return message
+            return wrapper
+
+        # Header stamps become acquisition time mapped into ROS time; vendor stamps remain
+        # only until the first clock exchange (recorded as stamp_basis).
+        incoming.create_laser_scan_msg = restamp("lidar", incoming.create_laser_scan_msg)
+        incoming.create_imu_msg = restamp("imu", incoming.create_imu_msg)
+        incoming.create_image_msg = restamp("front_camera", incoming.create_image_msg)
+        incoming.create_joint_state_msg = restamp(lambda angle, joint, frame: joint, incoming.create_joint_state_msg)
+
+    def freeze_request():
+        if args.freeze_test:
+            start, end = args.freeze_window
+            elapsed = (time.monotonic_ns() - first_frame_ns) / 1e9 if first_frame_ns else -1
+            return args.freeze_test if start <= elapsed < end else ""
+        # Clean runs send one hook request, which a hook-less player must reject and count.
+        return "lidar" if state["processed"] == 5 else None
 
     def checkpoint():
         save(out / "bridge-status.json", state)
@@ -165,6 +205,13 @@ def bridge(args):
     def guarded_emit(event, data=None, **kwargs):
         check_zero_reply(event, data)
         gevent.sleep(args.reply_delay)
+        if tracker is not None:
+            data = dict(data)
+            request = freeze_request()
+            if request is not None:
+                data["RR Test Freeze"] = request
+            data["RR Ping Mono"] = tracker.clock.ping(time.monotonic_ns())  # stamped at send time
+            check_zero_reply(event, data)
         state["emissions"] += 1
         return raw_emit(event, data=data, **kwargs)
 
@@ -205,7 +252,34 @@ def bridge(args):
                 row["unexpected_movement_fields"] = changed
                 trace.write(json.dumps(row) + "\n")
                 raise ValueError("Unexpected movement in reported fields: " + ", ".join(changed))
+            if tracker is not None:
+                nonlocal provenance_publisher, first_frame_ns
+                first_frame_ns = first_frame_ns or received
+                provenance = tracker.check(data, received)  # ProvenanceError fails closed below
+                row["provenance"] = provenance
+                acquisition_stamps.clear()
+                clock = provenance["clock"]
+                if clock:
+                    import rclpy.time
+                    node = incoming.autodrive_incoming_bridge
+                    ros_now, mono_now = node.get_clock().now().nanoseconds, time.monotonic_ns()
+                    for name, entry in provenance["sources"].items():
+                        if entry["acquired"]:
+                            acquired = entry["mono_end_ns"] - clock["offset_ns"]
+                            entry["ros_stamp_ns"] = int(round(ros_now - (mono_now - acquired)))
+                            acquisition_stamps[name] = rclpy.time.Time(nanoseconds=entry["ros_stamp_ns"]).to_msg()
+                    state["clock_samples"] = len(tracker.clock.samples)
+                row["stamp_basis"] = "acquisition" if clock else "bridge-publication"
             raw_bridge(sid, data)  # Official conversion/publishing; guarded zero-only reply.
+            if tracker is not None:
+                from std_msgs.msg import String
+                if provenance_publisher is None:
+                    provenance_publisher = incoming.autodrive_incoming_bridge.create_publisher(
+                        String, "/autodrive/f1tenth_1/provenance", 10)
+                message = String()
+                message.data = json.dumps({"session": tracker.session, **provenance,
+                                           "stamp_basis": row["stamp_basis"]})
+                provenance_publisher.publish(message)
             row["handler_completed_monotonic_ns"] = time.monotonic_ns()
             row["publisher_count"] = len(list(incoming.autodrive_incoming_bridge.publishers))
             trace.write(json.dumps(row) + "\n")
@@ -282,6 +356,16 @@ def observe(args):
         checkpoint()
 
     subscriptions = []
+    if args.provenance:
+        from std_msgs.msg import String
+
+        def provenance_callback(msg):
+            trace.write(json.dumps({"topic": "provenance", "received_monotonic_ns": time.monotonic_ns(),
+                                    "data": json.loads(msg.data)}) + "\n")
+            state["provenance_count"] = state.get("provenance_count", 0) + 1
+
+        subscriptions.append(node.create_subscription(String, "/autodrive/f1tenth_1/provenance",
+                                                      provenance_callback, 10))
     types = (Float32, Float32, JointState, JointState, Point, Imu, LaserScan, Image)
     for name, kind in zip(TOPICS, types):
         subscriptions.append(node.create_subscription(kind, "/autodrive/f1tenth_1/" + name,
@@ -398,7 +482,12 @@ def analyze(args):
         if run.get("pose_trace_enabled"):
             from autodrive_pose import analyze_pose
             pose = analyze_pose(directory / "kinematics", run)
+        provenance = None
+        if run.get("provenance"):
+            from autodrive_provenance import summarize
+            provenance = summarize(frames, messages, run.get("freeze_test"))
         reports.append({"run": directory.name, "completed_observation": run.get("completed_observation", False),
+            "provenance": provenance,
             "profile": run.get("profile", profile_record("p0")),
             "completed_diagnostic_window": run.get("completed_diagnostic_window", False),
             "observation_start_ns": run.get("observation_start_ns"),
@@ -471,7 +560,9 @@ def trial(args, context, out):
               "requested_seconds_after_first_complete_observation": args.duration,
               "startup_timeout_seconds": args.startup_timeout, "children": [], "actions": [],
               "environment_overrides": dict(context["environment"], ROS_DOMAIN_ID="87", ROS_LOCALHOST_ONLY="1"),
-              "source_acquisition_identity_available": False, "completed_observation": False}
+              "source_acquisition_identity_available": args.provenance, "completed_observation": False,
+              "provenance": args.provenance, "freeze_test": args.freeze_test,
+              "freeze_window_seconds_after_first_frame": args.freeze_window if args.freeze_test else None}
 
     def checkpoint():
         save(out / "run.json", record)
@@ -495,9 +586,13 @@ def trial(args, context, out):
         if any(config.getfloat("f1tenth_1", key) != 0 for key in ("throttle_command", "steering_command")):
             raise RuntimeError("Existing qualified Devkit command configuration is not zero")
         own_script = str(Path(__file__).resolve())
+        sim1 = ["--provenance"] if args.provenance else []
+        if args.freeze_test:
+            sim1 += ["--freeze-test", args.freeze_test, "--freeze-window", ",".join(map(str, args.freeze_window))]
         spawn("bridge", [context["devkit_python"], "-B", own_script, "bridge", "--results", str(out),
-                         "--reply-delay", str(args.reply_delay), "--profile", args.profile], bridge_environment)
-        spawn("observer", [context["avlite_python"], "-B", own_script, "observe", "--results", str(out)], environment)
+                         "--reply-delay", str(args.reply_delay), "--profile", args.profile, *sim1], bridge_environment)
+        spawn("observer", [context["avlite_python"], "-B", own_script, "observe", "--results", str(out),
+                           *(["--provenance"] if args.provenance else [])], environment)
         deadline = time.monotonic() + 15
         while not (read(out / "bridge-status.json").get("ready") and read(out / "observer-status.json").get("ready")):
             if any(p.poll() is not None for p, _, _ in children) or time.monotonic() > deadline:
@@ -512,6 +607,8 @@ def trial(args, context, out):
             player_args += ["-roboracerContacts", args.contact_mode, "-roboracerContactTarget", args.contact_target or "proto-track"]
         if args.pose_trace:
             player_args += ["-roboracerPoseTrace"]
+        if args.freeze_test:
+            player_args += ["-roboracerTestHooks"]
         player = spawn("player", player_args, environment)
         player_started = time.monotonic()
         connection = display.Display()
@@ -735,6 +832,13 @@ def main():
                         help="Approved statement-level tracing: Floor control, at most two 10-second windows")
     parser.add_argument("--contact-mode", choices=("control", "treatment"),
                         help="Explicit contact A/B diagnostic; requires kinematics, treatment also requires verified controls")
+    parser.add_argument("--provenance", action="store_true",
+                        help="SIM1-01: validate roboracer.sim1/1 provenance, restamp headers, publish provenance topic")
+    parser.add_argument("--freeze-test", choices=("lidar", "ips"),
+                        help="SIM1-01 P1a: launch with test hooks and freeze one source in --freeze-window")
+    parser.add_argument("--freeze-window", default="10,15",
+                        type=lambda text: tuple(float(v) for v in text.split(",")),
+                        help="Freeze start,end seconds after the bridge's first frame")
     parser.add_argument("--contact-target", choices=("proto-track", "floor"), help="Explicit collision surface and approved inertia policy")
     parser.add_argument("--control-evidence", type=Path, help="Verified control gate JSON, mandatory for treatment")
     parser.add_argument("--contact-gate-output", type=Path, help="Fresh contact gate JSON for analyze mode")
@@ -752,6 +856,14 @@ def main():
         parser.error("Kinematics probe requires run mode and the diagnostic-only profile")
     if args.contact_mode and (not args.kinematics_probe or args.mode != "run"):
         parser.error("Contact mode requires explicit kinematics diagnostic run")
+    if (args.provenance or args.freeze_test) and args.mode in ("run", "bridge") and (
+            args.profile != "p0-creep" or args.kinematics_probe):
+        parser.error("SIM1 provenance runs use the amended neutral p0-creep profile without diagnostic probes")
+    if args.freeze_test and not args.provenance:
+        parser.error("Freeze tests require --provenance")
+    if args.freeze_test and not (len(args.freeze_window) == 2 and 0 < args.freeze_window[0] < args.freeze_window[1]
+                                 and args.freeze_window[1] + 5 <= args.duration):
+        parser.error("Freeze window must be ordered and end at least 5 s before the observation ends")
     if args.contact_target and not args.contact_mode:
         parser.error("Contact target requires contact mode")
     if args.pose_trace and (not args.kinematics_probe or args.mode!="run" or args.contact_mode!="control" or
@@ -786,7 +898,7 @@ def main():
         raise KeyboardInterrupt(f"Signal {signum}; clean up owned children")
 
     signal.signal(signal.SIGTERM, interrupted)
-    result = {"stage": "SIM0", "runs_requested": args.runs, "duration_requested": args.duration,
+    result = {"stage": "SIM1" if args.provenance else "SIM0", "runs_requested": args.runs, "duration_requested": args.duration,
               "profile": profile_record(args.profile),
               "kinematics_enabled": args.kinematics_probe,
               "pose_trace_enabled": args.pose_trace,

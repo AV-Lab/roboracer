@@ -75,6 +75,8 @@ def main():
                         help="Stage the approved opt-in motion/contact diagnostic in a fresh derived project")
     parser.add_argument("--pose-trace", action="store_true",
                         help="Add approved opt-in statement markers to the exact pinned controller; requires kinematics")
+    parser.add_argument("--sim1-patch", action="store_true",
+                        help="Stage the SIM1 provenance component and apply the reviewed vendor patch in a fresh derived project")
     operation = parser.add_mutually_exclusive_group()
     operation.add_argument("--import-only", action="store_true")
     operation.add_argument("--audit-scene", action="store_true",
@@ -104,6 +106,16 @@ def main():
     if args.kinematics_probe and (not needs_player or not diagnostic_source.is_file() or
             not diagnostic_dir.parent.is_dir() or diagnostic_dir.exists() or diagnostic_dir.with_suffix(".meta").exists()):
         parser.error("Kinematics build requires a prepared derived project with a fresh Diagnostics destination")
+    sim1_root = Path(__file__).resolve().parents[1] / "integration/autodrive/sim1"
+    sim1_patch = sim1_root / "vendor-sim1-01.patch"
+    sim1_dir = project / "Assets/Scripts/RoboRacer"
+    if args.sim1_patch:
+        if not needs_player or args.kinematics_probe:
+            parser.error("SIM1 patch requires a player build without diagnostic probes")
+        if sim1_dir.exists() or sim1_dir.with_suffix(".meta").exists() or git(project, "diff", "HEAD", "--", "Assets/Scripts"):
+            parser.error("SIM1 patch requires an unpatched derived project")
+        if subprocess.run(["git", "-C", str(project), "apply", "--check", str(sim1_patch)]).returncode != 0:
+            parser.error("SIM1 vendor patch does not apply cleanly")
     pose_original = pose_patched = None
     if args.pose_trace:
         if not args.kinematics_probe:
@@ -163,7 +175,7 @@ def main():
                  "-roboracerTrackMode", "generate" if args.recover_tracks else
                  "packing-probe" if args.probe_track_packing else "verify"]
     record = {
-        "stage": "SIM0", "operation": "recover-tracks" if args.recover_tracks else
+        "stage": "SIM1" if args.sim1_patch else "SIM0", "operation": "recover-tracks" if args.recover_tracks else
             "verify-native-tracks" if args.verify_native_tracks else
             "probe-track-packing" if args.probe_track_packing else
             "audit" if args.audit_scene else "import" if args.import_only else "build",
@@ -217,6 +229,21 @@ def main():
                 "staged_sha256": {str(p.relative_to(project)): digest(p) for p in
                     [diagnostic_dir.with_suffix(".meta"), *sorted(diagnostic_dir.iterdir())]},
                 "retained_in_derived_project": True, "diagnostic_only": True}
+            write_json(results / "build-result.json", record)
+        if args.sim1_patch:
+            sim1_dir.mkdir()
+            sim1_dir.with_suffix(".meta").write_bytes((sim1_root / "RoboRacer.meta").read_bytes())
+            for origin in sorted((sim1_root / "RoboRacer").iterdir()):
+                (sim1_dir / origin.name).write_bytes(origin.read_bytes())
+            subprocess.run(["git", "-C", str(project), "apply", str(sim1_patch)], check=True)
+            (results / "executed-vendor-sim1-01.patch").write_bytes(sim1_patch.read_bytes())
+            record["sim1_patch"] = {
+                "schema": "roboracer.sim1/1", "vendor_patch_sha256": digest(sim1_patch),
+                "test_hooks": "-roboracerTestHooks launch argument only; rejected and counted otherwise",
+                "staged_sha256": {str(p.relative_to(project)): digest(p) for p in
+                    [sim1_dir.with_suffix(".meta"), *sorted(sim1_dir.iterdir())]},
+                "patched_sha256": {name: digest(project / "Assets/Scripts" / name) for name in
+                    ("IMU.cs", "IPS.cs", "LIDAR.cs", "Socket.cs", "WheelEncoder.cs")}}
             write_json(results / "build-result.json", record)
         if args.pose_trace:
             import difflib

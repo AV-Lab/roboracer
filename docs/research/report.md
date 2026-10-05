@@ -2,7 +2,7 @@
 
 Chinese translation: [简体中文](report.zh-CN.md).
 
-Latest execution, 2026-10-05: full PRE before S1 remains confirmed. SIM0-01/02/03 and LNX-01–04 pass. SIM0-B06 (passive ~3 mm/min creep, also present in the installed vendor player) was closed by user decision with an amended 10 mm P0 bound; both 60-second neutral runs passed. See the [SIM0 report](../stages/SIM0-completion.md). Next gate: SIM0-04 stage review and SIM1 entry.
+Latest execution, 2026-10-05: full PRE before S1 remains confirmed. SIM0 complete ([report](../stages/SIM0-completion.md)); SIM1 entered and SIM1-01 passes: the source-built simulator now reports per-sensor acquisition identity and the Devkit stamps ROS headers at acquisition time ([SIM1-01 report](../stages/SIM1-provenance.md)). Next gate inside SIM1: disarmed receiver guard (SIM1-02).
 
 Date: **2026-09-28**. Stage: **original research handoff**. Target platform: the AVLite checkout at `/home/a2rl/Workspace/avlite`. The body below preserves the findings and pending status at that handoff; it is not an approved development plan or an implementation-completion claim.
 

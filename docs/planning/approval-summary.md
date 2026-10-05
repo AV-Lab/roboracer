@@ -1,6 +1,6 @@
 # Development Plan v1.0 — Approval Summary
 
-**Execution update, 2026-10-05:** the user approved option A: SIM0-B06 closed as inherited simulator creep and P0 amended to an inclusive 10 mm displacement bound (other guards unchanged). SIM0-01/02/03 and LNX-01–04 accepted; both amended-P0 runs passed. [SIM0 report](../stages/SIM0-completion.md). Next: SIM0-04 stage review and SIM1 entry confirmation.
+**Execution update, 2026-10-05:** SIM0 complete after option A (inherited creep, 10 mm P0 bound); the user's “go on the development plan” accepted SIM0 and entered SIM1. SIM1-01 (source provenance) passes; amendment 5/10. [SIM0](../stages/SIM0-completion.md), [SIM1-01](../stages/SIM1-provenance.md). Next: disarmed SIM1-02 receiver guard.
 
 Date: **2026-09-28**. Status: **approved by the user's explicit response; PRE + S1 authorized**. The [full plan](development-plan.md) defines the contracts, 34 todos, measurements, evidence and stage gates. The [decision record](../research/decision-follow-up.md) distinguishes confirmed choices from runtime evidence. Numerical motion limits remain subject to the stated pre-motion gate.
 

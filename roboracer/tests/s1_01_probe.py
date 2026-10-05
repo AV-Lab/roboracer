@@ -229,5 +229,43 @@ def case_s1_02_bridge():
     return result
 
 
+def case_s1_supervisor_client():
+    """The bridge's request path, received on a plain test socket (no ROS, no supervisor)."""
+    import socket as socket_module
+    plugin = load_plugin()
+    sys.path.insert(0, str(Path(PLUGIN).parent))
+    from roboracer.tests import s1_02_fixtures as fx
+    Command = plugin.TargetSpeedSteeringCommand
+    name = f"rr-probe-{os.getpid()}"
+    receiver = socket_module.socket(socket_module.AF_UNIX, socket_module.SOCK_DGRAM)
+    receiver.bind("\0" + name)
+    receiver.settimeout(2.0)
+    bridge = plugin.AutoDriveBridge()
+    bridge.connect_supervisor(name)
+
+    def offer(frame):
+        messages, provenance = frame
+        for topic, message in messages.items():
+            bridge._offer(topic, message)
+        bridge._offer("provenance", fx.NS(data=provenance))
+
+    bridge.control_ego_state(Command())  # before any snapshot
+    before = "no_observation" if bridge.request_io["no_observation"] == 1 else "sent"
+    offer(fx.frame(2))
+    bridge.get_sensor_frame()  # tick uses frame 2
+    first = Command()
+    bridge.control_ego_state(first)
+    bridge.control_ego_state(first)  # AVLite's held re-send
+    offer(fx.frame(3, position=(0.8, 3.0, 0.059)))  # committed mid-tick
+    ego = bridge.get_ego_state()
+    bridge.control_ego_state(Command())
+    bridge.get_sensor_frame()  # next tick uses frame 3
+    bridge.control_ego_state(Command())
+    requests = [json.loads(receiver.recv(4096)) for _ in range(3)]
+    receiver.close()
+    return {"before_snapshot": before, "requests": requests, "generated": [first.generated_mono_ns],
+            "ego_mid_tick": [ego.x, ego.y], "io": bridge.request_io}
+
+
 if __name__ == "__main__":
     print(json.dumps(globals()["case_" + CASE.replace("-", "_")]()))

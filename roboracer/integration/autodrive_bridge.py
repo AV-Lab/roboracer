@@ -10,14 +10,18 @@ Contracts follow the AVLite plugin guide: public ``frozenset`` class attributes.
 built-in ``BasicSim``, the bridge advertises ground-truth ``LOCALIZATION``; switch it off with
 AVLite's own Bridge Setting filter (``c40_execution.c41_world_stack_capabilities``).
 
-Commands are validated and recorded only. The supervisor-owned command path is separate
-(S1 supervisor skeleton); nothing here can move the vehicle.
+Commands are validated here and, when ``connect(supervisor=...)`` named a supervisor, sent to
+that separate process (``runtime/supervisor_process.py``), which owns the only path to the
+simulator. Each distinct command is sent once, tagged with the identity of the snapshot the
+tick used; AVLite's held re-sends of the same command are not re-sent.
 """
 
 from __future__ import annotations
 
 from dataclasses import replace
+import json
 import logging
+import socket
 import threading
 import time
 
@@ -53,13 +57,21 @@ class AutoDriveBridge(WorldBridge):
         self._lock = threading.Lock()
         self._snapshot: Snapshot | None = None
         self._transport = None
+        self._tick_snapshot: Snapshot | None = None  # the snapshot this tick's sensor frame used
+        self._supervisor = None  # (socket, abstract name) once connect(supervisor=...) is called
+        self._request_seq = 0
+        self._last_sent_gen: int | None = None
+        self.request_io = {"sent": 0, "refused": 0, "dropped": 0, "held_resend": 0, "no_observation": 0}
         # Optional callable(snapshot), invoked on the transport thread under the bridge lock for
         # every committed snapshot. It must be quick and must not call back into the bridge.
         self.snapshot_listener = None
 
     # -- observation path --------------------------------------------------------------------
-    def connect(self, timeout_s: float = 0.0) -> bool:
-        """Start the ROS subscriptions. With ``timeout_s`` > 0, wait for the first snapshot."""
+    def connect(self, timeout_s: float = 0.0, supervisor: str | None = None) -> bool:
+        """Start the ROS subscriptions and, optionally, the request path to the supervisor's
+        abstract socket ``supervisor``. With ``timeout_s`` > 0, wait for the first snapshot."""
+        if supervisor is not None:
+            self.connect_supervisor(supervisor)
         if self._transport is None:
             self._transport = _RosTransport(self)
         if timeout_s > 0:
@@ -68,13 +80,20 @@ class AutoDriveBridge(WorldBridge):
                 time.sleep(0.01)
         return self.latest() is not None
 
+    def connect_supervisor(self, name: str) -> None:
+        """Open the non-blocking request path to the supervisor's abstract socket ``name``."""
+        if self._supervisor is None:
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+            sock.setblocking(False)  # never block the executor on the supervisor
+            self._supervisor = (sock, name)
+
     def close(self) -> None:
         if self._transport is not None:
             self._transport.close()
             self._transport = None
-        # Optional callable(snapshot), invoked on the transport thread under the bridge lock for
-        # every committed snapshot. It must be quick and must not call back into the bridge.
-        self.snapshot_listener = None
+        if self._supervisor is not None:
+            self._supervisor[0].close()
+            self._supervisor = None
         self.connected = False
 
     def _offer(self, topic: str, message) -> None:
@@ -106,13 +125,14 @@ class AutoDriveBridge(WorldBridge):
         with self._lock:
             a = self.assembler
             return {"committed": a.committed, "rejections": dict(a.rejections), "dropped": a.dropped,
-                    "last_rejection": a.last_rejection, "pending": len(a.pending)}
+                    "last_rejection": a.last_rejection, "pending": len(a.pending),
+                    "requests": dict(self.request_io), "command_rejections": dict(self.rejections)}
 
     def get_sensor_frame(self, agent_id: int = 0) -> SensorFrame:
         """One atomic snapshot: fresh sensor objects every call, shared read-only buffers."""
         if agent_id != 0:
             raise NotImplementedError(f"{type(self).__name__} does not support sensors for agent {agent_id}")
-        snapshot = self.latest()
+        snapshot = self._tick_snapshot = self.latest()
         if snapshot is None:
             lidar = Lidar(sensor_name="lidar", base_to_sensor=translation(LIDAR_MOUNT_M))
             frame = SensorFrame(lidars={"lidar": lidar}, primary_lidar_name="lidar", stamp=time.monotonic(),
@@ -135,9 +155,10 @@ class AutoDriveBridge(WorldBridge):
         return replace(snapshot.imu) if snapshot is not None else None
 
     def get_ego_state(self) -> EgoState:
-        """Ground-truth pose from the latest snapshot (unchanged before the first). Velocity is
-        not observed by this bridge and is left unchanged."""
-        snapshot = self.latest()
+        """Ground-truth pose (unchanged before the first snapshot). Within a tick it comes from
+        the snapshot ``get_sensor_frame()`` used, so pose and sensors never mix frames. Velocity
+        is not observed by this bridge and is left unchanged."""
+        snapshot = self._tick_snapshot or self.latest()
         if snapshot is not None:
             self.ego_state.x, self.ego_state.y, self.ego_state.z = snapshot.pose.x, snapshot.pose.y, snapshot.pose.z
             self.ego_state.theta = snapshot.pose.yaw
@@ -162,9 +183,37 @@ class AutoDriveBridge(WorldBridge):
             return
         self.accepted += 1
         self.last_request = cmd
+        if cmd.generated_mono_ns == self._last_sent_gen:
+            self.request_io["held_resend"] += 1  # AVLite re-applies its held command every tick
+            return
+        self._last_sent_gen = cmd.generated_mono_ns
+        if self._supervisor is not None:
+            self._send(cmd)
+
+    def _send(self, cmd: TargetSpeedSteeringCommand) -> None:
+        snapshot = self._tick_snapshot or self.latest()
+        if snapshot is None:
+            self.request_io["no_observation"] += 1
+            return
+        self._request_seq += 1
+        message = {"kind": "request", "origin": "avlite", "seq": self._request_seq,
+                   "gen_ns": cmd.generated_mono_ns, "target_speed": cmd.target_speed, "steer": cmd.steer,
+                   "observation": {"telemetry_seq": snapshot.telemetry_seq, "session": snapshot.session,
+                                   "episode": snapshot.episode, "stamp_ns": int(round(snapshot.pose.stamp * 1e9)),
+                                   "lidar_stamp_ns": int(round(snapshot.lidar.stamp * 1e9))}}
+        sock, name = self._supervisor
+        try:
+            sock.sendto(json.dumps(message).encode(), "\0" + name)
+            self.request_io["sent"] += 1
+        except (ConnectionRefusedError, FileNotFoundError):
+            self.request_io["refused"] += 1
+        except BlockingIOError:
+            self.request_io["dropped"] += 1
 
     def reset(self):
         self.last_request = None
+        self._tick_snapshot = None
+        self._last_sent_gen = None
 
 
 class _RosTransport:

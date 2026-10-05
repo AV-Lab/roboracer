@@ -47,6 +47,9 @@ class AutoDriveBridge(WorldBridge):
         self._lock = threading.Lock()
         self._snapshot: Snapshot | None = None
         self._transport = None
+        # Optional callable(snapshot), invoked on the transport thread under the bridge lock for
+        # every committed snapshot. It must be quick and must not call back into the bridge.
+        self.snapshot_listener = None
 
     @property
     def stack_capabilities(self) -> frozenset:
@@ -68,6 +71,9 @@ class AutoDriveBridge(WorldBridge):
         if self._transport is not None:
             self._transport.close()
             self._transport = None
+        # Optional callable(snapshot), invoked on the transport thread under the bridge lock for
+        # every committed snapshot. It must be quick and must not call back into the bridge.
+        self.snapshot_listener = None
         self.connected = False
 
     def _offer(self, topic: str, message) -> None:
@@ -80,6 +86,9 @@ class AutoDriveBridge(WorldBridge):
             if snapshots:
                 self._snapshot = snapshots[-1]
                 self.connected = True
+                if self.snapshot_listener is not None:
+                    for snapshot in snapshots:
+                        self.snapshot_listener(snapshot)
 
     def latest(self) -> Snapshot | None:
         with self._lock:
@@ -163,8 +172,11 @@ class _RosTransport:
         from sensor_msgs.msg import Imu as ImuMsg, JointState, LaserScan
         from std_msgs.msg import String
 
+        from rclpy.signals import SignalHandlerOptions
+
         self.context = rclpy.Context()
-        rclpy.init(context=self.context)
+        # Never take over the host application's SIGINT/SIGTERM handling.
+        rclpy.init(context=self.context, signal_handler_options=SignalHandlerOptions.NO)
         self.node = rclpy.create_node("roboracer_autodrive_bridge", context=self.context)
         qos = QoSProfile(reliability=ReliabilityPolicy.RELIABLE, history=HistoryPolicy.KEEP_LAST, depth=10)
         kinds = {"lidar": LaserScan, "imu": ImuMsg, "left_encoder": JointState, "right_encoder": JointState,

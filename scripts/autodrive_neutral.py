@@ -29,6 +29,7 @@ import sys
 import time
 
 
+PLUGIN_DIRECTORY = Path(__file__).resolve().parents[1] / "roboracer"
 TOPICS = ("throttle", "steering", "left_encoder", "right_encoder", "ips", "imu", "lidar", "front_camera")
 PROFILES = ("p0", "p0-creep", "drift-diagnostic")
 CREEP_BOUNDED = ("p0-creep", "drift-diagnostic")
@@ -431,6 +432,56 @@ def observe(args):
         trace.close()
 
 
+def plugin_observe(args):
+    """S1-02: the plugin's AutoDriveBridge, loaded by AVLite's own plugin loader, as one more
+    read-only subscriber. Records every committed snapshot; never publishes or commands."""
+    import numpy as np
+    from avlite.c60_apps.c63_plugins import import_plugin_modules
+
+    import_plugin_modules(str(args.plugin), pkg_name="roboracer")
+    plugin = sys.modules["avlite.plugins.roboracer"]
+    bridge = plugin.AutoDriveBridge()
+    trace = (args.results / "plugin-snapshots.jsonl").open("w", buffering=1)
+    state = {"pid": os.getpid(), "plugin": str(args.plugin), "plugin_file": plugin.__file__,
+             "gt_localization": plugin.PluginSettings.gt_localization,
+             "max_target_speed_mps": plugin.PluginSettings.max_target_speed_mps, "ready": False, "snapshots": 0}
+    stop = []
+
+    def checkpoint():
+        state["statistics"] = bridge.statistics()
+        save(args.results / "plugin-observer-status.json", state)
+
+    def record(snapshot):
+        trace.write(json.dumps({
+            "telemetry_seq": snapshot.telemetry_seq, "session": snapshot.session, "episode": snapshot.episode,
+            "committed_monotonic_ns": snapshot.committed_monotonic_ns,
+            "pose": [snapshot.pose.x, snapshot.pose.y, snapshot.pose.z, snapshot.pose.yaw],
+            "pose_label": snapshot.pose.label, "pose_age_at_commit_s": snapshot.committed_monotonic_ns / 1e9 - snapshot.pose.stamp,
+            "lidar_stamp_s": snapshot.lidar.stamp, "imu_stamp_s": snapshot.imu.stamp,
+            "sources": snapshot.sources, "scan_pose_skew_s": snapshot.scan_pose_skew_s,
+            "clock_bound_s": snapshot.clock_bound_s, "points": len(snapshot.lidar.points),
+            "scan_sha256": hashlib.sha256(np.ascontiguousarray(snapshot.scan_ranges).tobytes()).hexdigest(),
+            "lidar_mount": snapshot.lidar.base_to_sensor[:3, 3].tolist(),
+            "imu_mount": snapshot.imu.base_to_sensor[:3, 3].tolist(),
+            "encoders": list(snapshot.encoder_angles_rad)}) + "\n")
+        state["snapshots"] += 1
+
+    signal.signal(signal.SIGTERM, lambda *_: stop.append(True))
+    bridge.snapshot_listener = record
+    bridge.connect()
+    state["ready"] = True
+    checkpoint()
+    try:
+        while not stop:
+            time.sleep(0.2)
+            checkpoint()
+    finally:
+        bridge.close()
+        state["completed"] = True
+        checkpoint()
+        trace.close()
+
+
 def endpoint_free():
     try:
         with socket.socket() as connection:
@@ -618,7 +669,7 @@ def trial(args, context, out):
               "source_acquisition_identity_available": args.provenance, "completed_observation": False,
               "provenance": args.provenance, "freeze_test": args.freeze_test,
               "freeze_window_seconds_after_first_frame": args.freeze_window if args.freeze_test else None,
-              "guard": args.guard, "guard_actions": []}
+              "guard": args.guard, "guard_actions": [], "plugin_observer": args.plugin_observer}
 
     def checkpoint():
         save(out / "run.json", record)
@@ -660,8 +711,18 @@ def trial(args, context, out):
                 "--status", str(out / f"supervisor-{index}-status.json")], environment))
         spawn("observer", [context["avlite_python"], "-B", own_script, "observe", "--results", str(out),
                            *(["--provenance"] if args.provenance else [])], environment)
+        ready_files = ["bridge-status.json", "observer-status.json"]
+        if args.plugin_observer:
+            isolated = out / "plugin-avlite"
+            plugin_environment = dict(environment, PYTHONNOUSERSITE="1", MPLCONFIGDIR=str(isolated / "mpl"),
+                                      **{name: str(isolated / name.lower()) for name in (
+                                          "AVLITE_CONFIG_DIR", "AVLITE_PLUGINS_DIR", "AVLITE_DATA_DIR",
+                                          "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME")})
+            spawn("plugin-observer", [context["avlite_python"], "-B", own_script, "plugin-observe",
+                                      "--results", str(out), "--plugin", str(PLUGIN_DIRECTORY)], plugin_environment)
+            ready_files.append("plugin-observer-status.json")
         deadline = time.monotonic() + 15
-        while not (read(out / "bridge-status.json").get("ready") and read(out / "observer-status.json").get("ready")):
+        while not all(read(out / name).get("ready") for name in ready_files):
             if any(p.poll() is not None for p, _, _ in children) or time.monotonic() > deadline:
                 raise RuntimeError("Bridge/observer startup failed")
             time.sleep(0.1)
@@ -1028,7 +1089,7 @@ def trial(args, context, out):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("run", "bridge", "observe", "analyze"))
+    parser.add_argument("mode", choices=("run", "bridge", "observe", "plugin-observe", "analyze"))
     parser.add_argument("--results", type=Path, required=True)
     parser.add_argument("--context", type=Path)
     parser.add_argument("--player", type=Path)
@@ -1054,6 +1115,9 @@ def main():
     parser.add_argument("--guard", choices=("observe", "scenario"),
                         help="SIM1-02: launch the guarded interlocked player with a supervisor stand-in; "
                              "observe forwards zero requests for --duration, scenario runs the disarmed P1a cases")
+    parser.add_argument("--plugin-observer", action="store_true",
+                        help="S1-02: also run the RoboRacer plugin's AutoDriveBridge as a read-only subscriber")
+    parser.add_argument("--plugin", type=Path, default=None, help=argparse.SUPPRESS)
     parser.add_argument("--guard-timeout", type=float, default=420,
                         help="Execution bound for a guard trial after startup")
     parser.add_argument("--disconnect-wait", type=float, default=30,
@@ -1086,6 +1150,8 @@ def main():
     if args.freeze_test and not (len(args.freeze_window) == 2 and 0 < args.freeze_window[0] < args.freeze_window[1]
                                  and args.freeze_window[1] + 5 <= args.duration):
         parser.error("Freeze window must be ordered and end at least 5 s before the observation ends")
+    if args.plugin_observer and not args.provenance:
+        parser.error("The plugin observer needs the provenance topic (--provenance)")
     if args.contact_target and not args.contact_mode:
         parser.error("Contact target requires contact mode")
     if args.pose_trace and (not args.kinematics_probe or args.mode!="run" or args.contact_mode!="control" or
@@ -1103,6 +1169,8 @@ def main():
         return bridge(args)
     if args.mode == "observe":
         return observe(args)
+    if args.mode == "plugin-observe":
+        return plugin_observe(args)
     if not args.context or not args.player or not args.player.is_file() or args.results.exists():
         parser.error("Run mode needs an existing player/context and fresh results path")
     args.player = args.player.resolve()

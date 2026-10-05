@@ -119,6 +119,7 @@ class Snapshot:
     imu: Imu
     pose: GroundTruthPose
     encoder_angles_rad: tuple[float, float]
+    scan_ranges: np.ndarray = field(repr=False)  # (1081,) float32 as published, read-only
     sources: dict = field(repr=False)  # provenance per source: seq, sim_time, reused, stamp, bound
     clock_bound_s: float
     scan_pose_skew_s: float
@@ -268,15 +269,21 @@ class SnapshotAssembler:
 
         offset, bound = record["clock"]["offset_ns"], record["clock"]["bound_ns"]
         stamps = {name: (sources[name]["mono_end_ns"] - offset) / 1e9 for name in TOPICS}
+        points = scan_points(ranges)
+        points.setflags(write=False)  # shared by every SensorFrame built from this snapshot
         lidar = Lidar(sensor_name="lidar", sensor_id="autodrive-f1tenth-lidar", stamp=stamps["lidar"],
-                      base_to_sensor=translation(LIDAR_MOUNT_M), points=scan_points(ranges))
+                      base_to_sensor=translation(LIDAR_MOUNT_M), points=points)
         imu = Imu(sensor_name="imu", sensor_id="autodrive-f1tenth-imu", stamp=stamps["imu"],
                   base_to_sensor=translation(IMU_MOUNT_M),
                   linear_accel=tuple(values[7:10]), angular_velocity=tuple(values[4:7]))
         pose = GroundTruthPose(x=ips.x, y=ips.y, z=ips.z, yaw=yaw_from_quaternion(*values[:4]), stamp=stamps["ips"])
         summary = {name: {"seq": sources[name]["seq"], "sim_time": sources[name]["sim_time"],
-                          "reused": bool(sources[name].get("reused")), "stamp": stamps[name]} for name in TOPICS}
+                          "reused": bool(sources[name].get("reused")), "stamp": stamps[name],
+                          "ros_stamp_ns": sources[name].get("ros_stamp_ns")} for name in TOPICS}
+        published = np.asarray(scan.ranges, dtype=np.float32).copy()
+        published.setflags(write=False)
         self.committed += 1
         return Snapshot(session=record["session"], episode=record["episode"], telemetry_seq=record["telemetry_seq"],
-                        lidar=lidar, imu=imu, pose=pose, encoder_angles_rad=tuple(encoders), sources=summary,
+                        lidar=lidar, imu=imu, pose=pose, encoder_angles_rad=tuple(encoders), scan_ranges=published,
+                        sources=summary,
                         clock_bound_s=bound / 1e9, scan_pose_skew_s=skew, committed_monotonic_ns=now_ns)

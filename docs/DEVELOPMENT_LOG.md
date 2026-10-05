@@ -288,3 +288,9 @@
 - Live, interlocked: 17 P1a cases ×3 fresh processes all pass (`scenario-b`); Devkit loss cleared the lease in 1.7–17.2 ms via disconnect. Across 0.41 M traced steps, 0 had nonzero output/torque/steer, and every applied command was accepted while armed and before expiry. Two 60 s observation windows: 230/233 requests accepted and applied, 0 rejections/expiries, ~4 points player CPU over SIM1-01.
 - Retained failures: a patch-series pre-check that tested 02 against the unpatched tree (fixed before any Editor start); `scenario-a` (trace passed; three harness defects fixed: GUI click retry, supervisor-loss check window, Devkit-loss wait/partial-line read); `observe-failed-connect` (lost Connect click; exposed a blocking supervisor send, now non-blocking). Evidence `artifacts/simulator-build/20261005T063753Z-sim1-02/` (186-file manifest); bilingual [report](stages/SIM1-guard.md).
 - Counts: original 2/34, source amendment 6/10, recovery 4/4. Next: SIM1-03 disarm/reset/epoch/rearm and stale-command rejection across reconnect/reset, still disarmed. No nonzero command reached the controller.
+
+## 2026-10-05 — Sequencing amendment 1.2: S1 before remaining PRE
+
+- The user asked to postpone PRE and start S1 immediately. Given three options, they selected starting S1 on the SIM1-02 build. Recorded as [amendment 1.2](planning/s1-first-amendment.md), superseding the 2026-09-29 PRE-first instruction.
+- S1 is entered. PRE-03/04 and the postponed SIM1-03–06 now gate S1 acceptance rather than entry; all criteria and the 34 original todos are unchanged. The numerical motion protocol becomes S1's first gate, and the guard's zero-output interlock stays on until it is confirmed.
+- Order: S1-01 plugin loading/settings, then S1-02 observation bridge and the supervisor skeleton (no motion), then the motion protocol for confirmation.

@@ -1,6 +1,6 @@
 # Development Plan v1.0 — Approval Summary
 
-**Execution update, 2026-10-05:** SIM0 complete after option A (inherited creep, 10 mm P0 bound); the user's “go on the development plan” accepted SIM0 and entered SIM1. SIM1-01 (source provenance) and SIM1-02 (receiver guard and lease, disarmed) pass; amendment 6/10. [SIM0](../stages/SIM0-completion.md), [SIM1-01](../stages/SIM1-provenance.md), [SIM1-02](../stages/SIM1-guard.md). Next: SIM1-03 disarm/reset/epoch/rearm, still disarmed.
+**Execution update, 2026-10-05:** SIM0 complete after option A (inherited creep, 10 mm P0 bound); the user's “go on the development plan” accepted SIM0 and entered SIM1. SIM1-01 (source provenance) and SIM1-02 (receiver guard and lease, disarmed) pass; amendment 6/10. [SIM0](../stages/SIM0-completion.md), [SIM1-01](../stages/SIM1-provenance.md), [SIM1-02](../stages/SIM1-guard.md). **Amendment 1.2 (user, 2026-10-05):** postpone the remaining PRE work and start S1 on the SIM1-02 build ([amendment](s1-first-amendment.md)). PRE-03/04 and SIM1-03–06 now gate S1 acceptance. The motion protocol is still confirmed before any motion.
 
 Date: **2026-09-28**. Status: **approved by the user's explicit response; PRE + S1 authorized**. The [full plan](development-plan.md) defines the contracts, 34 todos, measurements, evidence and stage gates. The [decision record](../research/decision-follow-up.md) distinguishes confirmed choices from runtime evidence. Numerical motion limits remain subject to the stated pre-motion gate.
 

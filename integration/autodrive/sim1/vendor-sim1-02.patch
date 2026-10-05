@@ -1,0 +1,83 @@
+diff --git a/Assets/Scripts/DrivingMode.cs b/Assets/Scripts/DrivingMode.cs
+--- a/Assets/Scripts/DrivingMode.cs
++++ b/Assets/Scripts/DrivingMode.cs
+@@ -16,12 +16,14 @@
+ 
+     private void Start()
+     {
++        if(RoboRacer.Guard.Active) { VehicleController.DrivingMode = 1; Label.text = "Guarded"; return; } // RoboRacer SIM1-02 qualified test mode
+         VehicleController.DrivingMode = 0;
+             Label.text = "Manual";
+     }
+ 
+     public void ToggleDrivingMode()
+     {
++        if(RoboRacer.Guard.BlockGui("driving-mode")) return; // RoboRacer SIM1-02: no GUI bypass of the guard
+         Mode = !Mode;
+         if(Mode)
+         {
+diff --git a/Assets/Scripts/Socket.cs b/Assets/Scripts/Socket.cs
+--- a/Assets/Scripts/Socket.cs
++++ b/Assets/Scripts/Socket.cs
+@@ -70,6 +70,7 @@
+     void OnDisconnect(SocketIOEvent obj)
+     {
+         //Debug.Log("Disconnected!");
++        RoboRacer.Guard.OnDisconnect(); // RoboRacer SIM1-02: disarm and clear the lease
+         ConnectionButton.interactable = true;
+         ConnectionLabel.text = "Disconnected";
+         EmitTelemetry(obj);
+@@ -86,6 +87,7 @@
+             RRPingReceiptNs = rrReceiptNs;
+         }
+         if(jsonObject.HasField("RR Test Freeze")) RoboRacer.Provenance.ApplyTestRequest(jsonObject.GetField("RR Test Freeze").str);
++        bool rrGuarded = RoboRacer.Guard.OnBridge(jsonObject, rrReceiptNs); // RoboRacer SIM1-02: guard owns control inputs in its test mode
+         //Debug.Log(obj.data);
+         // Write data to traffic lights
+         if(TrafficLightControllers.Length != 0)
+@@ -100,7 +102,7 @@
+         {
+             for(int i=0;i<VehicleControllers.Length;i++)
+             {
+-              if(VehicleControllers[i].CurrentDrivingMode == 1)
++              if(VehicleControllers[i].CurrentDrivingMode == 1 && !rrGuarded)
+               {
+                     VehicleControllers[i].CurrentThrottle = float.Parse(jsonObject.GetField("V"+(i+1).ToString()+" Throttle").str); // Set throttle
+                     VehicleControllers[i].CurrentSteeringAngle = float.Parse(jsonObject.GetField("V"+(i+1).ToString()+" Steering").str); // Set steering angle
+@@ -181,13 +183,16 @@
+             data["RR Session"] = RoboRacer.Provenance.Session;
+             data["RR Episode"] = RoboRacer.Provenance.Episode.ToString(System.Globalization.CultureInfo.InvariantCulture);
+             data["RR Telemetry Seq"] = (++RRTelemetrySeq).ToString(System.Globalization.CultureInfo.InvariantCulture);
+-            data["RR Capabilities"] = RoboRacer.Provenance.TestHooks ? "provenance clock-echo test-hooks" : "provenance clock-echo";
++            data["RR Capabilities"] = RoboRacer.Guard.Capabilities(RoboRacer.Provenance.TestHooks ? "provenance clock-echo test-hooks" : "provenance clock-echo");
+             data["RR Clock"] = "Stopwatch " + System.Diagnostics.Stopwatch.Frequency.ToString(System.Globalization.CultureInfo.InvariantCulture);
+             data["RR Ping Echo"] = RRPingEcho;
+             data["RR Ping Receipt Mono"] = RRPingReceiptNs.ToString(System.Globalization.CultureInfo.InvariantCulture);
+             data["RR Test Frozen"] = RoboRacer.Provenance.FrozenKinds;
+             data["RR Test Hook Rejections"] = RoboRacer.Provenance.HookRejections.ToString(System.Globalization.CultureInfo.InvariantCulture);
+-            data["RR Emit Mono"] = RoboRacer.Provenance.MonotonicNs().ToString(System.Globalization.CultureInfo.InvariantCulture);
++            RoboRacer.Guard.AddTelemetry(data); // RoboRacer SIM1-02 state/accept/apply/reject acknowledgements
++            long rrEmitNs = RoboRacer.Provenance.MonotonicNs();
++            data["RR Emit Mono"] = rrEmitNs.ToString(System.Globalization.CultureInfo.InvariantCulture);
++            RoboRacer.Guard.NoteEmit(RRTelemetrySeq, rrEmitNs);
+             socket.Emit("Bridge", new JSONObject(data)); // Write data to server
+         });
+     }
+diff --git a/Assets/Scripts/VehicleController.cs b/Assets/Scripts/VehicleController.cs
+--- a/Assets/Scripts/VehicleController.cs
++++ b/Assets/Scripts/VehicleController.cs
+@@ -266,6 +266,7 @@
+   	void FixedUpdate()
+   	{
+     		GetInput();
++            RoboRacer.Guard.BeforeActuation(this); // RoboRacer SIM1-02: validated lease immediately before actuation (-roboracerGuard only)
+             if(driveType!=DriveType.SkidSteer)
+             {
+                     Steer(); // Do not steer like a car for skid-steer configuration
+@@ -273,5 +274,6 @@
+             }
+             else ExtendedDifferentialDrive();
+     		UpdateWheelPoses();
++            RoboRacer.Guard.AfterActuation(this); // RoboRacer SIM1-02: read back applied torques (-roboracerGuard only)
+   	}
+ }

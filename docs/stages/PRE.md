@@ -1,6 +1,6 @@
 # PRE — Current Qualification Status
 
-Updated: **2026-10-05**. **Complete PRE before S1 remains confirmed.** PRE-01/02, SIM0-01–04 and LNX-01–04 accepted ([SIM0 report](SIM0-completion.md)); SIM1 entered on the user's “go on the development plan”. **SIM1-01 passes:** per-source acquisition identity, clock-offset bounds and acquisition-time ROS headers through the isolated Devkit ([English](SIM1-provenance.md) / [中文](SIM1-provenance.zh-CN.md)). PRE-03/04 still require SIM1-02–05; no nonzero command has been sent.
+Updated: **2026-10-05**. **Complete PRE before S1 remains confirmed.** PRE-01/02, SIM0-01–04 and LNX-01–04 accepted ([SIM0 report](SIM0-completion.md)); SIM1 entered on the user's “go on the development plan”. **SIM1-01 passes:** per-source acquisition identity, clock-offset bounds and acquisition-time ROS headers through the isolated Devkit ([English](SIM1-provenance.md) / [中文](SIM1-provenance.zh-CN.md)). **SIM1-02 passes:** a receiver guard and lease immediately before actuation reject every disarmed P1a command/clock/failure case, with legacy/manual/GUI bypasses closed and a zero-output interlock ([English](SIM1-guard.md) / [中文](SIM1-guard.zh-CN.md)). PRE-03/04 still require SIM1-03–05; no nonzero command has reached the controller (rejected fault-injection values and ignored legacy-bypass probes only).
 
 ## Reports and evidence
 

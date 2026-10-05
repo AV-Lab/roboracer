@@ -114,8 +114,28 @@ Two actual player builds succeeded, but strict comparison found normal-channel m
 
 ## SIM1-01 provenance build and runs
 
-`autodrive_build.py --sim1-patch` stages `integration/autodrive/sim1/RoboRacer/` into `Assets/Scripts/RoboRacer/` of a fresh, unpatched derived project. It applies `vendor-sim1-01.patch` only after a clean `git apply --check`, and records the patch and staged/patched file hashes in `build-result.json`. It refuses diagnostic probes in the same build. The wire format is documented in [`integration/autodrive/sim1/PROTOCOL.md`](../integration/autodrive/sim1/PROTOCOL.md).
+`autodrive_build.py --sim1-patch` stages the SIM1 components from `integration/autodrive/sim1/RoboRacer/` into `Assets/Scripts/RoboRacer/` of a fresh, unpatched derived project. It applies the vendor patch series up to `--sim1-through` (default `02`; use `01` to reproduce the provenance-only SIM1-01 player), in order. Before touching the project, it checks the whole series on a throwaway index from HEAD, and it records the patch and staged/patched file hashes in `build-result.json`. It refuses diagnostic probes in the same build. The wire format is documented in [`integration/autodrive/sim1/PROTOCOL.md`](../integration/autodrive/sim1/PROTOCOL.md).
 
 `autodrive_neutral.py run --profile p0-creep --provenance` runs the amended neutral observation against such a player. The bridge validates every frame with `autodrive_provenance.ProvenanceTracker` and fails closed on any violation. It adds `RR Ping Mono` to each zero-only reply, restamps LaserScan/Imu/JointState/Image headers to acquisition time, and publishes `/autodrive/f1tenth_1/provenance` (JSON `std_msgs/String`). Clean runs send one freeze request, which a hook-less player must reject and count. Add `--freeze-test lidar|ips --freeze-window START,END` (seconds after the first frame; must end ≥5 s before `--duration`) to launch with `-roboracerTestHooks` and freeze that source. `analyze` then adds a `provenance` block with per-source new/reused counts, ages, clock bounds, the header-stamp cross-check and the freeze verdict.
 
 `autodrive_provenance.py` is import-safe, with no ROS or Unity dependency; its contract/fault fixtures are in `tests/test_autodrive_provenance.py`. Accepted runs: `artifacts/simulator-build/20261005T053316Z-sim1/`. See the [SIM1-01 report](../docs/stages/SIM1-provenance.md).
+
+## Derived copies
+
+`autodrive_derive.py --base <qualified authoring project> --derived <fresh path> --record <fresh json>` registers a new detached worktree of the pinned source. It mirrors the base's working tree and Library cache into it (never `.git`, `Temp` or `Logs`) and requires the tracked diff (`4965e4fa…`) and status to equal the base. The base is only read. The resulting incremental builds are not clean-import claims.
+
+## SIM1-02 receiver guard
+
+The guard is launched with `-roboracerGuard` and has a zero-output interlock unless `-roboracerMotionAuthorized` is given; the runner never passes that flag. The protocol is documented in [`PROTOCOL.md`](../integration/autodrive/sim1/PROTOCOL.md#roboracerguard1--receiver-guard-sim1-02).
+
+`autodrive_neutral.py run --profile p0-creep --provenance --guard observe|scenario` adds the following to the neutral run:
+
+- **Supervisor stand-in:** `autodrive_guard.py supervise`, run as its own OS process. It sends exact-zero requests at 20 Hz with a 1 s life to the bridge over a Linux abstract datagram socket.
+- **Player launch:** the guarded player with `-roboracerGuardTrace <run>/guard`.
+- **Acknowledgement checks:** a `GuardTracker` check of every frame's acknowledgements.
+- **`observe`:** arms once and forwards every fresh request for `--duration`.
+- **`scenario`:** scripts the disarmed P1a cases, each in its own arm epoch. It covers malformed, nonfinite and out-of-range content; duplicate and out-of-order requests; an expired original in a new envelope; envelope replay; lifetime, epoch and origin; arming faults; clock uncertainty and discontinuity; legacy and manual/GUI bypass; supervisor loss; and finally Devkit loss.
+
+The parent performs the actions the bridge requests: killing or respawning the supervisor, a 1 s Up-arrow press plus a click on the reviewed driving-mode button, and killing the bridge. After the Devkit kill, it waits up to `--disconnect-wait` for the player's own trace to show lease expiry and disconnect. Guarded runs require the pre-Connect review to report mode `Guarded`; scenario runs also require it to report the driving-mode button's `mode_xy`. Legacy reply controls stay exact-zero except in the legacy-bypass probe, which sends finite in-range values the guarded player must ignore.
+
+`analyze` adds a `guard` block: the authoritative `guard-trace.jsonl` analysis (no nonzero output/torque/steer step, every applied id accepted while armed and before expiry, expiry lateness, rejections by reason), the driver's phase results, and a cross-check that every event the driver relied on appears identically in the player trace. Tests are in `tests/test_autodrive_guard.py`. They compile and run the C# core cases (`integration/autodrive/sim1/tests/GuardCoreTests.cs`) under the pinned Editor's Mono, and run the full scenario driver against a simulated receiver, including a defective one.

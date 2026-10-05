@@ -25,6 +25,7 @@ import resource
 import signal
 import socket
 import subprocess
+import sys
 import time
 
 
@@ -104,17 +105,25 @@ def check_kinematics_prefix(directory, pid):
             "first_sample_phase": sample["phase"]}
 
 
-SIM1_REPLY_FIELDS = {"RR Ping Mono", "RR Test Freeze"}
+SIM1_REPLY_FIELDS = {"RR Ping Mono", "RR Test Freeze", "RR Reply To", "RR Reply Frame Receipt",
+                     "RR Guard Arm", "RR Guard Request", "RR Guard Envelope"}
 
 
-def check_zero_reply(event, data):
+def check_zero_reply(event, data, allow_legacy=False):
+    """Legacy controls are exact zero. Only the SIM1-02 legacy-bypass probe may send finite
+    in-range legacy values, to a player whose guard must ignore them."""
     controls = {"V1 Throttle", "V1 Steering"}
     if event != "Bridge" or not controls <= set(data) or not set(data) - controls <= SIM1_REPLY_FIELDS:
         raise ValueError("Unexpected outbound event or command fields")
-    if any(float(data[key]) != 0.0 for key in controls):
+    values = [float(data[key]) for key in controls]
+    if allow_legacy:
+        if not all(math.isfinite(v) and abs(v) <= 1 for v in values):
+            raise ValueError("Legacy bypass probe values must be finite and within [-1, 1]")
+    elif any(v != 0.0 for v in values):
         raise ValueError("Nonzero/nonfinite control blocked")
-    if "RR Ping Mono" in data and not data["RR Ping Mono"].isdigit():
-        raise ValueError("Malformed provenance ping")
+    for key in ("RR Ping Mono", "RR Reply To", "RR Reply Frame Receipt"):
+        if key in data and not data[key].isdigit():
+            raise ValueError("Malformed " + key)
     from autodrive_provenance import FREEZABLE
     if any(kind and kind not in FREEZABLE for kind in data.get("RR Test Freeze", "").split(",")):
         raise ValueError("Unsupported test-hook request")
@@ -174,6 +183,16 @@ def bridge(args):
         incoming.create_image_msg = restamp("front_camera", incoming.create_image_msg)
         incoming.create_joint_state_msg = restamp(lambda angle, joint, frame: joint, incoming.create_joint_state_msg)
 
+    driver = inbox = guard_tracker = None
+    reply_context = {}
+    if args.guard:
+        from autodrive_guard import GuardTracker, RequestInbox, ScenarioDriver, socket_name
+        inbox = RequestInbox(socket_name(os.getpid()))
+        guard_tracker = GuardTracker(require_interlock=True)
+        driver = ScenarioDriver(inbox, lambda number: str(number) in read(out / "actions-done.json"),
+                                mode=args.guard, duration_ns=int(args.duration * 1e9))
+        state.update(guard_mode=args.guard, guard_socket=socket_name(os.getpid()))
+
     def freeze_request():
         if args.freeze_test:
             start, end = args.freeze_window
@@ -205,13 +224,34 @@ def bridge(args):
     def guarded_emit(event, data=None, **kwargs):
         check_zero_reply(event, data)
         gevent.sleep(args.reply_delay)
+        # Guard replies are chosen after the pacing delay so forwarded requests are as fresh as possible.
+        reply = driver.next_reply() if driver is not None else {}
+        if reply.get("hold_s"):
+            gevent.sleep(reply["hold_s"])
         if tracker is not None:
             data = dict(data)
             request = freeze_request()
             if request is not None:
                 data["RR Test Freeze"] = request
-            data["RR Ping Mono"] = tracker.clock.ping(time.monotonic_ns())  # stamped at send time
-            check_zero_reply(event, data)
+            skew = reply.get("ping_skew_ns", 0)
+            now = time.monotonic_ns()
+            # A skewed ping is injected only for the guard's discontinuity case; it is not registered,
+            # so the bridge's own clock estimate ignores its echo.
+            data["RR Ping Mono"] = str(now + skew) if skew else tracker.clock.ping(now)  # stamped at send time
+            if driver is not None:
+                data["RR Reply To"] = str(reply_context["seq"])
+                if not reply.get("no_frame_receipt"):
+                    data["RR Reply Frame Receipt"] = str(reply_context["received"] + skew)
+                for key, field in (("arm", "RR Guard Arm"), ("request", "RR Guard Request"),
+                                   ("envelope", "RR Guard Envelope")):
+                    if reply.get(key) is not None:
+                        data[field] = reply[key]
+                if reply.get("legacy"):
+                    data["V1 Throttle"], data["V1 Steering"] = reply["legacy"]
+            check_zero_reply(event, data, allow_legacy=bool(reply.get("legacy")))
+        if driver is not None:
+            state.update(action=driver.action, guard=driver.summary(), supervisor_requests_received=inbox.received)
+            checkpoint()
         state["emissions"] += 1
         return raw_emit(event, data=data, **kwargs)
 
@@ -270,6 +310,10 @@ def bridge(args):
                             acquisition_stamps[name] = rclpy.time.Time(nanoseconds=entry["ros_stamp_ns"]).to_msg()
                     state["clock_samples"] = len(tracker.clock.samples)
                 row["stamp_basis"] = "acquisition" if clock else "bridge-publication"
+                if driver is not None:
+                    row["guard"] = guard_tracker.check(data)  # GuardError fails closed below
+                    driver.on_frame(row["guard"], tracker.session, provenance["episode"])
+                    reply_context.update(seq=provenance["telemetry_seq"], received=received)
             raw_bridge(sid, data)  # Official conversion/publishing; guarded zero-only reply.
             if tracker is not None:
                 from std_msgs.msg import String
@@ -486,8 +530,17 @@ def analyze(args):
         if run.get("provenance"):
             from autodrive_provenance import summarize
             provenance = summarize(frames, messages, run.get("freeze_test"))
+        guard = None
+        if run.get("guard") and (directory / "guard/guard-trace.jsonl").exists():
+            from autodrive_guard import analyze_trace, cross_check, read_trace
+            trace_path = directory / "guard/guard-trace.jsonl"
+            scenario = bridge_state.get("guard", {})
+            guard = {"trace": analyze_trace(trace_path), "driver": scenario,
+                     "driver_events_missing_from_trace": cross_check(scenario.get("phases", []), read_trace(trace_path)[1]),
+                     "actions": run.get("guard_actions"), "devkit_loss": run.get("devkit_loss"),
+                     "frames_with_acknowledgements": sum("guard" in f for f in frames)}
         reports.append({"run": directory.name, "completed_observation": run.get("completed_observation", False),
-            "provenance": provenance,
+            "provenance": provenance, "guard": guard,
             "profile": run.get("profile", profile_record("p0")),
             "completed_diagnostic_window": run.get("completed_diagnostic_window", False),
             "observation_start_ns": run.get("observation_start_ns"),
@@ -562,7 +615,8 @@ def trial(args, context, out):
               "environment_overrides": dict(context["environment"], ROS_DOMAIN_ID="87", ROS_LOCALHOST_ONLY="1"),
               "source_acquisition_identity_available": args.provenance, "completed_observation": False,
               "provenance": args.provenance, "freeze_test": args.freeze_test,
-              "freeze_window_seconds_after_first_frame": args.freeze_window if args.freeze_test else None}
+              "freeze_window_seconds_after_first_frame": args.freeze_window if args.freeze_test else None,
+              "guard": args.guard, "guard_actions": []}
 
     def checkpoint():
         save(out / "run.json", record)
@@ -589,8 +643,19 @@ def trial(args, context, out):
         sim1 = ["--provenance"] if args.provenance else []
         if args.freeze_test:
             sim1 += ["--freeze-test", args.freeze_test, "--freeze-window", ",".join(map(str, args.freeze_window))]
-        spawn("bridge", [context["devkit_python"], "-B", own_script, "bridge", "--results", str(out),
+        if args.guard:
+            sim1 += ["--guard", args.guard, "--duration", str(args.duration)]
+        bridge_process = spawn("bridge", [context["devkit_python"], "-B", own_script, "bridge", "--results", str(out),
                          "--reply-delay", str(args.reply_delay), "--profile", args.profile, *sim1], bridge_environment)
+        supervisors = []
+
+        def spawn_supervisor():
+            # The request source is its own OS process, separate from the bridge and this runner.
+            index = len(supervisors) + 1
+            supervisors.append(spawn(f"supervisor-{index}", [sys.executable, "-B",
+                str(Path(__file__).resolve().with_name("autodrive_guard.py")), "supervise",
+                "--target", read(out / "bridge-status.json")["guard_socket"], "--origin", f"sup-{index}",
+                "--status", str(out / f"supervisor-{index}-status.json")], environment))
         spawn("observer", [context["avlite_python"], "-B", own_script, "observe", "--results", str(out),
                            *(["--provenance"] if args.provenance else [])], environment)
         deadline = time.monotonic() + 15
@@ -598,6 +663,8 @@ def trial(args, context, out):
             if any(p.poll() is not None for p, _, _ in children) or time.monotonic() > deadline:
                 raise RuntimeError("Bridge/observer startup failed")
             time.sleep(0.1)
+        if args.guard:
+            spawn_supervisor()
         player_args = [str(args.player), "-screen-fullscreen", "0", "-screen-width", "1280",
                        "-screen-height", "720", "-logFile", str(out / "player-unity.log")]
         if args.kinematics_probe:
@@ -609,6 +676,10 @@ def trial(args, context, out):
             player_args += ["-roboracerPoseTrace"]
         if args.freeze_test:
             player_args += ["-roboracerTestHooks"]
+        if args.guard:
+            # Interlock stays on: -roboracerMotionAuthorized is never passed by this runner.
+            (out / "guard").mkdir()
+            player_args += ["-roboracerGuard", "-roboracerGuardTrace", str(out / "guard")]
         player = spawn("player", player_args, environment)
         player_started = time.monotonic()
         connection = display.Display()
@@ -636,11 +707,123 @@ def trial(args, context, out):
             pixels = window.get_image(0, 0, 1280, 720, X.ZPixmap, 0xffffffff)
             Image.frombytes("RGB", (1280, 720), pixels.data, "raw", "BGRX").save(out / (label + ".png"))
 
+        def target_window(window, x, y):
+            """Activate, raise and focus the owned window, then point at (x, y) inside it."""
+            active_atom = connection.intern_atom("_NET_ACTIVE_WINDOW")
+            root.send_event(event.ClientMessage(window=window.id, client_type=active_atom,
+                data=(32, [2, X.CurrentTime, 0, 0, 0])),
+                event_mask=X.SubstructureRedirectMask | X.SubstructureNotifyMask)
+            connection.sync()
+            time.sleep(0.5)
+            frame = window
+            while frame.query_tree().parent.id != root.id:
+                frame = frame.query_tree().parent
+            frame.configure(stack_mode=X.Above)
+            window.configure(stack_mode=X.Above)
+            window.set_input_focus(X.RevertToParent, X.CurrentTime)
+            window.warp_pointer(x, y)
+            connection.sync()
+            time.sleep(0.2)
+            local = window.query_pointer()
+            if connection.get_input_focus().focus != window or (local.win_x, local.win_y) != (x, y):
+                raise RuntimeError("Guard input is not targeting the reviewed owned window")
+
+        def guard_action(kind, window, approval):
+            now = time.monotonic_ns()
+            if kind == "kill-supervisor":
+                process = supervisors[-1]
+                entry = next(e for p, _, e in children if p is process)
+                entry["expected_kill"] = True
+                os.killpg(process.pid, signal.SIGKILL)
+                process.wait()
+                return {"killed_pid": process.pid, "monotonic_ns": now}
+            if kind == "spawn-supervisor":
+                spawn_supervisor()
+                return {"spawned_pid": supervisors[-1].pid, "monotonic_ns": now}
+            if kind == "manual-input":
+                # Keyboard drive input and a GUI mode-toggle click against the guarded player.
+                from Xlib import XK
+                if window is None:
+                    raise RuntimeError("Owned player window unavailable for the manual-bypass probe")
+                pointer, previous = root.query_pointer(), connection.get_input_focus().focus
+                x, y = approval["mode_xy"]
+                target_window(window, x, y)
+                keycode = connection.keysym_to_keycode(XK.string_to_keysym("Up"))
+                capture(window, "ui-before-manual")
+                xtest.fake_input(connection, X.KeyPress, keycode)
+                connection.sync()
+                time.sleep(1.0)
+                xtest.fake_input(connection, X.KeyRelease, keycode)
+                connection.sync()
+                time.sleep(0.2)
+                # Synthetic clicks are occasionally lost by the player (see SIM0/SIM1-01 Connect retries).
+                # Hover, click, and confirm the guard logged the block; at most three clicks.
+                from autodrive_guard import read_trace
+                clicks = []
+                for _ in range(3):
+                    window.warp_pointer(x + 3, y)
+                    connection.sync()
+                    time.sleep(0.1)
+                    window.warp_pointer(x, y)
+                    connection.sync()
+                    time.sleep(0.3)
+                    clicked = time.monotonic_ns()
+                    xtest.fake_input(connection, X.ButtonPress, 1)
+                    connection.sync()
+                    time.sleep(0.1)
+                    xtest.fake_input(connection, X.ButtonRelease, 1)
+                    connection.sync()
+                    time.sleep(0.5)
+                    events = read_trace(out / "guard/guard-trace.jsonl", live=True)[1]
+                    blocked = any(e["event"] == "blocked driving-mode" and e["mono"] >= clicked for e in events)
+                    clicks.append({"monotonic_ns": clicked, "blocked_logged": blocked})
+                    if blocked:
+                        break
+                capture(window, "ui-after-manual")
+                root.warp_pointer(pointer.root_x, pointer.root_y)
+                if hasattr(previous, "set_input_focus"):
+                    previous.set_input_focus(X.RevertToParent, X.CurrentTime)
+                connection.sync()
+                return {"key": "Up", "key_seconds": 1.0, "click_xy": [x, y], "clicks": clicks, "monotonic_ns": now,
+                        "completed_ns": time.monotonic_ns()}
+            if kind == "kill-bridge":
+                entry = next(e for p, _, e in children if p is bridge_process)
+                entry["expected_kill"] = True
+                os.killpg(bridge_process.pid, signal.SIGKILL)
+                bridge_process.wait()
+                record["devkit_loss"] = {"killed_ns": time.monotonic_ns()}
+                return {"killed_pid": bridge_process.pid, "monotonic_ns": now}
+            raise RuntimeError("Unknown guard action " + repr(kind))
+
+        def check_devkit_loss():
+            """After the bridge is killed, read the player's own trace: whichever of disconnect or lease
+            expiry clears the lease first, then 2 s of steps with nothing applied."""
+            from autodrive_guard import read_trace
+            loss = record["devkit_loss"]
+            _, events, steps, _ = read_trace(out / "guard/guard-trace.jsonl", live=True)
+            after = [e for e in events if e["mono"] >= loss["killed_ns"]]
+            for key, pattern in (("expired", "state stopped lease-expired"), ("disconnect", "state disarmed disconnect")):
+                hit = next((e for e in after if e["event"].startswith(pattern)), None)
+                if hit and key not in loss:
+                    loss[key] = {"event": hit["event"], "n": hit["n"], "after_kill_ms": (hit["mono"] - loss["killed_ns"]) / 1e6}
+            cleared = min((loss[k]["after_kill_ms"] for k in ("expired", "disconnect") if k in loss), default=None)
+            loss["lease_cleared_after_kill_ms"] = cleared
+            later = [s for s in steps if s["mono"] >= loss["killed_ns"]]
+            loss["steps_after_kill"] = len(later)
+            if cleared is not None:
+                cleared_ns = loss["killed_ns"] + cleared * 1e6
+                loss["applied_steps_after_clear"] = sum(s["applied"] >= 0 for s in later if s["mono"] > cleared_ns)
+                loss["observed_after_clear_s"] = (later[-1]["mono"] - cleared_ns) / 1e9 if later else 0
+            waited = (time.monotonic_ns() - loss["killed_ns"]) / 1e9
+            loss["waited_seconds"] = waited
+            return (cleared is not None and loss["observed_after_clear_s"] >= 2) or waited >= args.disconnect_wait
+
         reviewed, connected, observation_start = False, False, None
+        approval = {}
         sample_at = 0
         with (out / "resources.jsonl").open("w", buffering=1) as metrics:
-            while time.monotonic() - started < args.startup_timeout + args.duration + 15:
-                if any(p.poll() is not None for p, _, _ in children):
+            while time.monotonic() - started < args.startup_timeout + max(args.duration, args.guard_timeout) + 15:
+                if any(p.poll() is not None and not e.get("expected_kill") for p, _, e in children):
                     raise RuntimeError("An owned child exited during observation")
                 bridge_state, observer_state = read(out / "bridge-status.json"), read(out / "observer-status.json")
                 if bridge_state.get("errors"):
@@ -677,8 +860,12 @@ def trial(args, context, out):
                         reviewed = True
                     approval = read(out / "ui-review.json")
                     if not connected and approval:
-                        if approval.get("pid") != player.pid or approval.get("window_id") != window.id or approval.get("mode") != "Manual":
-                            raise RuntimeError("UI review does not match this owned Manual-mode window")
+                        expected_mode = "Guarded" if args.guard else "Manual"
+                        if approval.get("pid") != player.pid or approval.get("window_id") != window.id or approval.get("mode") != expected_mode:
+                            raise RuntimeError(f"UI review does not match this owned {expected_mode}-mode window")
+                        if args.guard == "scenario" and not (isinstance(approval.get("mode_xy"), list) and
+                                all(0 <= v < limit for v, limit in zip(approval["mode_xy"], (1280, 720)))):
+                            raise RuntimeError("Guard scenario review must locate the driving-mode button")
                         x, y = approval["connect_xy"]
                         if not (0 <= x < 1280 and 0 <= y < 720):
                             raise RuntimeError("Connect coordinates outside the owned window")
@@ -750,6 +937,29 @@ def trial(args, context, out):
                     checkpoint()
                 if observation_start is None and time.monotonic() - started > args.startup_timeout:
                     raise TimeoutError("No complete stationary observation within startup bound")
+                if args.guard:
+                    action = bridge_state.get("action")
+                    done = read(out / "actions-done.json")
+                    if action and str(action["id"]) not in done and "devkit_loss" not in record:
+                        result = guard_action(action["kind"], window, approval)
+                        record["guard_actions"].append(dict(action, **result))
+                        if action["kind"] != "kill-bridge":
+                            save(out / "actions-done.json", dict(done, **{str(action["id"]): result}))
+                        checkpoint()
+                    if "devkit_loss" in record and check_devkit_loss():
+                        record.update(completed_observation=True, observation_end_ns=time.monotonic_ns(),
+                                      bridge_at_end=bridge_state, observer_at_end=observer_state)
+                        if window is not None:
+                            capture(window, "ui-completed")
+                        break
+                    if args.guard == "observe" and bridge_state.get("guard", {}).get("complete"):
+                        if window is not None:
+                            capture(window, "ui-completed")
+                        record.update(completed_observation=True, observation_end_ns=time.monotonic_ns(),
+                                      bridge_at_end=bridge_state, observer_at_end=observer_state)
+                        break
+                    if time.monotonic() - started > args.startup_timeout + args.guard_timeout:
+                        raise TimeoutError("Guard trial did not complete within its bound")
                 target = observation_start + int(args.duration * 1e9) if observation_start else None
                 if target and args.profile == "drift-diagnostic" and time.monotonic_ns() >= target:
                     record.update(completed_diagnostic_window=True, diagnostic_deadline_ns=target,
@@ -758,7 +968,7 @@ def trial(args, context, out):
                     if window is not None:
                         capture(window, "ui-completed")
                     break  # End by wall time, including stalled streams; analyze their coverage separately.
-                if target and args.profile in ("p0", "p0-creep") and bridge_state.get("last_received_ns", 0) >= target and all(observer_state.get("last_received_ns", {}).get(t, 0) >= target for t in TOPICS):
+                if target and not args.guard and args.profile in ("p0", "p0-creep") and bridge_state.get("last_received_ns", 0) >= target and all(observer_state.get("last_received_ns", {}).get(t, 0) >= target for t in TOPICS):
                     if window is not None:
                         capture(window, "ui-completed")
                     record.update(completed_observation=True, observation_end_ns=time.monotonic_ns(),
@@ -797,7 +1007,7 @@ def trial(args, context, out):
         if args.kinematics_probe:
             record["kinematics_final"] = read(out / "kinematics/status.json")
         checkpoint()
-    if not record["endpoint_released"] or any(e["exit_code"] != 0 for e in record["children"]):
+    if not record["endpoint_released"] or any(e["exit_code"] != 0 and not e.get("expected_kill") for e in record["children"]):
         raise RuntimeError("Owned-process cleanup requires review")
     if args.kinematics_probe:
         check_kinematics_status(record["kinematics_final"], player.pid, time.monotonic_ns(), closed=True)
@@ -833,12 +1043,19 @@ def main():
     parser.add_argument("--contact-mode", choices=("control", "treatment"),
                         help="Explicit contact A/B diagnostic; requires kinematics, treatment also requires verified controls")
     parser.add_argument("--provenance", action="store_true",
-                        help="SIM1-01: validate roboracer.sim1/1 provenance, restamp headers, publish provenance topic")
+                        help="SIM1: validate roboracer.sim1/1 provenance, restamp headers, publish provenance topic")
     parser.add_argument("--freeze-test", choices=("lidar", "ips"),
                         help="SIM1-01 P1a: launch with test hooks and freeze one source in --freeze-window")
     parser.add_argument("--freeze-window", default="10,15",
                         type=lambda text: tuple(float(v) for v in text.split(",")),
                         help="Freeze start,end seconds after the bridge's first frame")
+    parser.add_argument("--guard", choices=("observe", "scenario"),
+                        help="SIM1-02: launch the guarded interlocked player with a supervisor stand-in; "
+                             "observe forwards zero requests for --duration, scenario runs the disarmed P1a cases")
+    parser.add_argument("--guard-timeout", type=float, default=420,
+                        help="Execution bound for a guard trial after startup")
+    parser.add_argument("--disconnect-wait", type=float, default=30,
+                        help="Seconds to wait for the player's disconnect after the Devkit-loss kill")
     parser.add_argument("--contact-target", choices=("proto-track", "floor"), help="Explicit collision surface and approved inertia policy")
     parser.add_argument("--control-evidence", type=Path, help="Verified control gate JSON, mandatory for treatment")
     parser.add_argument("--contact-gate-output", type=Path, help="Fresh contact gate JSON for analyze mode")
@@ -861,6 +1078,9 @@ def main():
         parser.error("SIM1 provenance runs use the amended neutral p0-creep profile without diagnostic probes")
     if args.freeze_test and not args.provenance:
         parser.error("Freeze tests require --provenance")
+    if args.guard and (not args.provenance or args.freeze_test or
+                       not all(math.isfinite(v) and v > 0 for v in (args.guard_timeout, args.disconnect_wait))):
+        parser.error("Guard trials require --provenance, no freeze test, and positive finite bounds")
     if args.freeze_test and not (len(args.freeze_window) == 2 and 0 < args.freeze_window[0] < args.freeze_window[1]
                                  and args.freeze_window[1] + 5 <= args.duration):
         parser.error("Freeze window must be ordered and end at least 5 s before the observation ends")

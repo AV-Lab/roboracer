@@ -21,6 +21,8 @@ from datetime import datetime, timezone
 COMMIT = "635dbb6d86ec98e25ea845a97188f7bbe85a09e8"
 VERSION = "2021.3.9f1"
 CHANGESET = "ad3870b89536"
+# SIM1 patch levels and the RoboRacer components each one stages, applied cumulatively.
+SIM1_SERIES = {"01": ("Provenance",), "02": ("GuardCore", "Guard")}
 
 
 def digest(path):
@@ -76,7 +78,9 @@ def main():
     parser.add_argument("--pose-trace", action="store_true",
                         help="Add approved opt-in statement markers to the exact pinned controller; requires kinematics")
     parser.add_argument("--sim1-patch", action="store_true",
-                        help="Stage the SIM1 provenance component and apply the reviewed vendor patch in a fresh derived project")
+                        help="Stage the SIM1 components and apply the reviewed vendor patch series in a fresh derived project")
+    parser.add_argument("--sim1-through", choices=tuple(SIM1_SERIES), default="02",
+                        help="Last SIM1 patch level to apply (01 reproduces the SIM1-01 provenance-only build)")
     operation = parser.add_mutually_exclusive_group()
     operation.add_argument("--import-only", action="store_true")
     operation.add_argument("--audit-scene", action="store_true",
@@ -107,15 +111,25 @@ def main():
             not diagnostic_dir.parent.is_dir() or diagnostic_dir.exists() or diagnostic_dir.with_suffix(".meta").exists()):
         parser.error("Kinematics build requires a prepared derived project with a fresh Diagnostics destination")
     sim1_root = Path(__file__).resolve().parents[1] / "integration/autodrive/sim1"
-    sim1_patch = sim1_root / "vendor-sim1-01.patch"
+    levels = list(SIM1_SERIES)[:list(SIM1_SERIES).index(args.sim1_through) + 1]
+    sim1_patches = [sim1_root / f"vendor-sim1-{level}.patch" for level in levels]
+    sim1_sources = [sim1_root / "RoboRacer" / f"{name}{suffix}" for level in levels
+                    for name in SIM1_SERIES[level] for suffix in (".cs", ".cs.meta")]
     sim1_dir = project / "Assets/Scripts/RoboRacer"
     if args.sim1_patch:
         if not needs_player or args.kinematics_probe:
             parser.error("SIM1 patch requires a player build without diagnostic probes")
         if sim1_dir.exists() or sim1_dir.with_suffix(".meta").exists() or git(project, "diff", "HEAD", "--", "Assets/Scripts"):
             parser.error("SIM1 patch requires an unpatched derived project")
-        if subprocess.run(["git", "-C", str(project), "apply", "--check", str(sim1_patch)]).returncode != 0:
-            parser.error("SIM1 vendor patch does not apply cleanly")
+        # Check the series in order on a throwaway index from HEAD (Assets/Scripts equals HEAD above),
+        # since `git apply --check` would test every patch against the unpatched tree.
+        import tempfile
+        with tempfile.TemporaryDirectory() as scratch:
+            index = dict(os.environ, GIT_INDEX_FILE=str(Path(scratch) / "index"))
+            subprocess.run(["git", "-C", str(project), "read-tree", "HEAD"], env=index, check=True)
+            for patch in sim1_patches:
+                if subprocess.run(["git", "-C", str(project), "apply", "--cached", str(patch)], env=index).returncode != 0:
+                    parser.error(f"SIM1 vendor patch series does not apply cleanly at {patch.name}")
     pose_original = pose_patched = None
     if args.pose_trace:
         if not args.kinematics_probe:
@@ -233,17 +247,21 @@ def main():
         if args.sim1_patch:
             sim1_dir.mkdir()
             sim1_dir.with_suffix(".meta").write_bytes((sim1_root / "RoboRacer.meta").read_bytes())
-            for origin in sorted((sim1_root / "RoboRacer").iterdir()):
+            for origin in sim1_sources:
                 (sim1_dir / origin.name).write_bytes(origin.read_bytes())
-            subprocess.run(["git", "-C", str(project), "apply", str(sim1_patch)], check=True)
-            (results / "executed-vendor-sim1-01.patch").write_bytes(sim1_patch.read_bytes())
+            for patch in sim1_patches:
+                subprocess.run(["git", "-C", str(project), "apply", str(patch)], check=True)
+                (results / ("executed-" + patch.name)).write_bytes(patch.read_bytes())
             record["sim1_patch"] = {
-                "schema": "roboracer.sim1/1", "vendor_patch_sha256": digest(sim1_patch),
+                "schema": "roboracer.sim1/1", "through": args.sim1_through,
+                "vendor_patch_sha256": {patch.name: digest(patch) for patch in sim1_patches},
                 "test_hooks": "-roboracerTestHooks launch argument only; rejected and counted otherwise",
+                "guard": ("-roboracerGuard launch argument only (roboracer.guard/1); zero-output interlock unless "
+                          "-roboracerMotionAuthorized") if args.sim1_through >= "02" else None,
                 "staged_sha256": {str(p.relative_to(project)): digest(p) for p in
                     [sim1_dir.with_suffix(".meta"), *sorted(sim1_dir.iterdir())]},
                 "patched_sha256": {name: digest(project / "Assets/Scripts" / name) for name in
-                    ("IMU.cs", "IPS.cs", "LIDAR.cs", "Socket.cs", "WheelEncoder.cs")}}
+                    ("IMU.cs", "IPS.cs", "LIDAR.cs", "Socket.cs", "WheelEncoder.cs", "VehicleController.cs", "DrivingMode.cs")}}
             write_json(results / "build-result.json", record)
         if args.pose_trace:
             import difflib

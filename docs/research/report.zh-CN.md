@@ -1,6 +1,6 @@
 # RoboRacer 社区插件研究报告
 
-最新执行（2026-10-05）：完整 PRE 后进入 S1 的顺序不变。SIM0 已完成（[报告](../stages/SIM0-completion.zh-CN.md)）；已进入 SIM1，SIM1-01 通过：源码构建的模拟器现报告各传感器采集身份，Devkit 以采集时刻标注 ROS 消息头（[SIM1-01 报告](../stages/SIM1-provenance.zh-CN.md)）。SIM1 内下一关口：未上电的接收端守卫（SIM1-02）。
+最新执行（2026-10-05）：完整 PRE 后进入 S1 的顺序不变。SIM0 已完成（[报告](../stages/SIM0-completion.zh-CN.md)）；已进入 SIM1，SIM1-01 通过：源码构建的模拟器现报告各传感器采集身份，Devkit 以采集时刻标注 ROS 消息头（[SIM1-01 报告](../stages/SIM1-provenance.zh-CN.md)）；SIM1-02 通过：执行前的接收端守卫与租约在断电状态下拒绝全部 P1a 指令／时钟／故障用例（[SIM1-02 报告](../stages/SIM1-guard.zh-CN.md)）。SIM1 内下一关口：断电／复位／纪元／重新上电（SIM1-03）。
 
 日期：**2026-09-28**。阶段：**初始研究交接**。目标平台：位于 `/home/a2rl/Workspace/avlite` 的 AVLite 工作副本。下文保留初始交接时的发现与待确认状态，不代表开发计划已经批准，也不代表实现已经完成。
 

@@ -523,3 +523,15 @@
 - **Analysis fix.** The stop-from-0.3 m/s window ran into the next step.
 - **Proposal v0.3 (change request).** Stale threshold 0.6 s, loss threshold 0.9 s; nothing else changes. Awaiting confirmation; no further M4 or M5 runs.
 - **Records.** Evidence `artifacts/s1/20261005T152922Z-m4/` (96 files); [report](stages/S1-M4-speed.md).
+
+## 2026-10-05 — v0.3 confirmed; M4 trial 4 stopped by the guard lease during a slow telemetry gap
+
+- **Approval.** The user replied "yes rerun M4"; recorded as confirming proposal v0.3 (stale 0.6 s, loss 0.9 s). The M4 stale criterion is now 0.6 s + one frame.
+- **Trial 4.** Unassisted run, no abort, no guard fault.
+  - The supervisor improved: only 3 stale events (11 before).
+  - The 0.1 m/s step averaged 0.128 m/s with 0 brake events.
+  - Then **telemetry slowed**: frame period p50 286 / p95 328 / **max 648 ms**, against 206 ms in M3b; the player rendered at 34 Hz.
+  - One 648 ms gap outlived the approved 500 ms request life, so the guard's lease expired (`state stopped lease-expired 72`). The car stopped, and later requests were rejected as `not-armed`, as designed.
+  - Stop and stale cut otherwise worked: stop from 0.3 m/s 0.23 s, stale → zero 0.50 s, inhibit 0.80 s.
+- **Cause.** Environment. `nvidia-smi` shows 9.5 of 10 GB of GPU memory held by two of the user's `thellmbook` Python processes (7.6 + 1.0 GB). The simulator is starved, which probably also explains attempt 1's start-up segfault.
+- **Status.** Not something to tune away. Asked the user to free the GPU (or approve a longer request life); M5 not run.

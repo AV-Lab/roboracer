@@ -30,6 +30,7 @@ import time
 
 
 PLUGIN_DIRECTORY = Path(__file__).resolve().parents[1] / "roboracer"
+MOTION_APPROVAL = Path(__file__).resolve().parents[1] / "docs/planning/s1-motion-approval.json"
 TOPICS = ("throttle", "steering", "left_encoder", "right_encoder", "ips", "imu", "lidar", "front_camera")
 PROFILES = ("p0", "p0-creep", "drift-diagnostic")
 CREEP_BOUNDED = ("p0-creep", "drift-diagnostic")
@@ -110,6 +111,24 @@ SIM1_REPLY_FIELDS = {"RR Ping Mono", "RR Test Freeze", "RR Reply To", "RR Reply 
                      "RR Guard Arm", "RR Guard Request", "RR Guard Envelope"}
 
 
+# Confirmed motion-protocol stages (s1-motion-protocol.md v0.1); mirrors
+# roboracer.runtime.supervisor_core.STAGES (a test checks they are equal).
+MOTION_STAGES = {"m0": {"throttle": (0.0,), "steering": (0.0, 0.1, -0.1, 0.5, -0.5, 1.0, -1.0)}}
+STEERING_FEEDBACK_LIMIT_RAD = 0.5235988  # 30 degrees, the controller's SteeringLimit
+
+
+def check_guard_request(text, stage):
+    """Motion-stage runs: every outbound guard request must lie in the confirmed stage profile
+    (throttle exactly 0 in M0). Raises before anything is sent otherwise."""
+    fields = text.split(" ")
+    if len(fields) != 8:
+        raise ValueError("Malformed guard request in a motion stage")
+    throttle, steering = float(fields[5]), float(fields[6])
+    profile = MOTION_STAGES[stage]
+    if throttle not in profile["throttle"] or steering not in profile["steering"]:
+        raise ValueError(f"Guard request outside confirmed stage {stage}: {throttle} {steering}")
+
+
 def check_zero_reply(event, data, allow_legacy=False):
     """Legacy controls are exact zero. Only the SIM1-02 legacy-bypass probe may send finite
     in-range legacy values, to a player whose guard must ignore them."""
@@ -130,7 +149,9 @@ def check_zero_reply(event, data, allow_legacy=False):
         raise ValueError("Unsupported test-hook request")
 
 
-def motion_fields(data):
+def motion_fields(data, stage=None):
+    """Parsed motion telemetry. Actuator feedback must be exact zero, except steering feedback
+    within the 30-degree limit in motion stage M0 (steering only); throttle is always zero."""
     result = {}
     for key, count in (("Position", 3), ("Encoder Angles", 2), ("Encoder Ticks", 2),
                        ("Orientation Quaternion", 4), ("Orientation Euler Angles", 3),
@@ -140,7 +161,11 @@ def motion_fields(data):
             raise ValueError("Malformed/nonfinite " + key)
         result[key] = values
     for key in ("Throttle", "Steering"):
-        if float(data["V1 " + key]) != 0.0:
+        value = float(data["V1 " + key])
+        if key == "Steering" and stage == "m0" and math.isfinite(value) and abs(value) <= STEERING_FEEDBACK_LIMIT_RAD:
+            result["Steering Feedback"] = value
+            continue
+        if value != 0.0:
             raise ValueError("Nonzero/nonfinite actuator feedback: " + key)
     return result
 
@@ -189,7 +214,8 @@ def bridge(args):
     if args.guard:
         from autodrive_guard import GuardTracker, RequestInbox, ScenarioDriver, socket_name
         inbox = RequestInbox(socket_name(os.getpid()))
-        guard_tracker = GuardTracker(require_interlock=True)
+        # Only a confirmed motion stage runs a motion-authorized player; the mode is checked per frame.
+        guard_tracker = GuardTracker(require_interlock=not args.motion_stage)
         driver = ScenarioDriver(inbox, lambda number: str(number) in read(out / "actions-done.json"),
                                 mode=args.guard, duration_ns=int(args.duration * 1e9))
         state.update(guard_mode=args.guard, guard_socket=socket_name(os.getpid()))
@@ -222,7 +248,24 @@ def bridge(args):
 
         return dispatch
 
+    pending_provenance = []
+
+    def publish_provenance():
+        # D3: the frame's provenance goes out as soon as its sensor topics are published,
+        # before the paced reply, so consumers commit snapshots one pacing delay earlier.
+        nonlocal provenance_publisher
+        if pending_provenance:
+            from std_msgs.msg import String
+            if provenance_publisher is None:
+                provenance_publisher = incoming.autodrive_incoming_bridge.create_publisher(
+                    String, "/autodrive/f1tenth_1/provenance", 10)
+            message = String()
+            message.data = pending_provenance.pop()
+            provenance_publisher.publish(message)
+            state["provenance_before_reply"] = state.get("provenance_before_reply", 0) + 1
+
     def guarded_emit(event, data=None, **kwargs):
+        publish_provenance()
         check_zero_reply(event, data)
         gevent.sleep(args.reply_delay)
         # Guard replies are chosen after the pacing delay so forwarded requests are as fresh as possible.
@@ -250,6 +293,8 @@ def bridge(args):
                 if reply.get("legacy"):
                     data["V1 Throttle"], data["V1 Steering"] = reply["legacy"]
             check_zero_reply(event, data, allow_legacy=bool(reply.get("legacy")))
+            if args.motion_stage and "RR Guard Request" in data:
+                check_guard_request(data["RR Guard Request"], args.motion_stage)
         if driver is not None:
             state.update(action=driver.action, guard=driver.summary(), supervisor_requests_received=inbox.received)
             checkpoint()
@@ -270,7 +315,7 @@ def bridge(args):
             return  # Parent observes failure and contains the owned process group.
         received = time.monotonic_ns()
         try:
-            motion = motion_fields(data)
+            motion = motion_fields(data, args.motion_stage)
             ranges = np.array([float(v) for v in data["V1 LIDAR Range Array"].split()])
             intensities = np.array([float(v) for v in data["V1 LIDAR Intensity Array"].split()])
             if not len(ranges) or len(ranges) != len(intensities) or np.isnan(ranges).any() or (ranges < 0).any():
@@ -313,20 +358,18 @@ def bridge(args):
                 row["stamp_basis"] = "acquisition" if clock else "bridge-publication"
                 if driver is not None:
                     row["guard"] = guard_tracker.check(data)  # GuardError fails closed below
+                    expected = "motion-authorized" if args.motion_stage else "interlock"
+                    if row["guard"]["config"]["mode"] != expected:
+                        raise ValueError(f"Guard mode {row['guard']['config']['mode']} is not {expected}")
                     driver.on_frame(row["guard"], tracker.session, provenance["episode"])
                     reply_context.update(seq=provenance["telemetry_seq"], received=received)
-            raw_bridge(sid, data)  # Official conversion/publishing; guarded zero-only reply.
             if tracker is not None:
-                from std_msgs.msg import String
-                if provenance_publisher is None:
-                    provenance_publisher = incoming.autodrive_incoming_bridge.create_publisher(
-                        String, "/autodrive/f1tenth_1/provenance", 10)
-                message = String()
                 # ips_position lets a consumer match the header-less IPS Point to this frame.
-                message.data = json.dumps({"session": tracker.session, **provenance,
-                                           "stamp_basis": row["stamp_basis"],
-                                           "ips_position": motion["Position"]})
-                provenance_publisher.publish(message)
+                pending_provenance[:] = [json.dumps({"session": tracker.session, **provenance,
+                                                     "stamp_basis": row["stamp_basis"],
+                                                     "ips_position": motion["Position"]})]
+            raw_bridge(sid, data)  # Official conversion/publishing; guarded reply (emit publishes provenance first).
+            publish_provenance()  # only if the official handler did not emit
             row["handler_completed_monotonic_ns"] = time.monotonic_ns()
             row["publisher_count"] = len(list(incoming.autodrive_incoming_bridge.publishers))
             trace.write(json.dumps(row) + "\n")
@@ -523,6 +566,136 @@ def plugin_observe(args):
         trace.close()
         if ticks is not None:
             ticks.close()
+
+
+M0_SPAWN_XY = (0.741, 3.158)  # recorded spawn IPS (S1-02)
+M0_HOLD_S = 1.0
+M0_SETTLE_S = 3.0
+M0_EXPIRY_WAIT_S = 4.0
+
+
+def m0_schedule():
+    """(start s, end s, steering) after the settle: each value held 1 s with 1 s at zero between,
+    then the expiry case: +0.5 held 1 s, after which nothing more is sent."""
+    steps, t = [], 0.0
+    for value in MOTION_STAGES["m0"]["steering"][1:]:
+        steps += [(t, t + M0_HOLD_S, value), (t + M0_HOLD_S, t + 2 * M0_HOLD_S, 0.0)]
+        t += 2 * M0_HOLD_S
+    steps.append((t, t + M0_HOLD_S, 0.5))
+    return steps
+
+
+def calibrate(args):
+    """Motion protocol v0.1 D2: scripted calibration source for a confirmed stage (M0 only).
+    Observes through the plugin's AutoDriveBridge, sends normalized requests to the supervisor
+    (which bounds them again), and aborts to zero on drift, stale observation or guard fault."""
+    import numpy as np
+    from avlite.c60_apps.c63_plugins import import_plugin_modules
+
+    if args.motion_stage != "m0":
+        raise SystemExit("Only stage m0 is confirmed")
+    import_plugin_modules(str(args.plugin), pkg_name="roboracer")
+    plugin = sys.modules["avlite.plugins.roboracer"]
+    bridge = plugin.AutoDriveBridge()
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    sock.setblocking(False)
+    log = (args.results / "calibration-requests.jsonl").open("w", buffering=1)
+    schedule = m0_schedule()
+    state = {"pid": os.getpid(), "stage": args.motion_stage, "phase": "wait-armed", "ready": False, "seq": 0,
+             "sent": 0, "send_failures": 0, "schedule": schedule, "abort": None, "precheck": None}
+    stop = []
+    signal.signal(signal.SIGTERM, lambda *_: stop.append(True))
+
+    def checkpoint():
+        save(args.results / "calibration-status.json", state)
+
+    def send(snapshot, steering):
+        state["seq"] += 1
+        message = {"kind": "calibration", "origin": "cal", "seq": state["seq"], "gen_ns": time.monotonic_ns(),
+                   "throttle": 0.0, "steering": steering,
+                   "observation": {"telemetry_seq": snapshot.telemetry_seq,
+                                   "stamp_ns": int(round(snapshot.pose.stamp * 1e9))}}
+        try:
+            sock.sendto(json.dumps(message).encode(), "\0" + args.supervisor)
+            state["sent"] += 1
+        except (BlockingIOError, ConnectionRefusedError, FileNotFoundError):
+            state["send_failures"] += 1
+        log.write(json.dumps(dict(message, phase=state["phase"])) + "\n")
+
+    def sector_min(ranges, low_deg, high_deg):
+        start, end = int((low_deg + 135) / 0.25), int((high_deg + 135) / 0.25)
+        values = np.asarray(ranges[start:end + 1], dtype=float)
+        values = values[np.isfinite(values)]
+        return float(values.min()) if len(values) else math.inf
+
+    bridge.connect()
+    state["ready"] = True
+    checkpoint()
+    reference = phase_start = None
+    last_seq, last_new = None, time.monotonic()
+    try:
+        while not stop:
+            time.sleep(0.1)
+            snapshot = bridge.latest()
+            now = time.monotonic()
+            if snapshot is None:
+                continue
+            if snapshot.telemetry_seq != last_seq:
+                last_seq, last_new = snapshot.telemetry_seq, now
+            guard_state = read(args.results / "bridge-status.json").get("guard", {}).get("state")
+            phase = state["phase"]
+            if phase in ("done", "aborted-done"):
+                continue
+            moving = phase in ("profile", "expiry-wait")
+            if moving and reference is not None:
+                drift = math.dist(reference, (snapshot.pose.x, snapshot.pose.y))
+                reason = ("displacement %.4f m" % drift if drift > 0.010 else
+                          "no new observation for %.2f s" % (now - last_new) if now - last_new > 0.6 else
+                          "guard fault" if guard_state == "fault" else None)
+                if reason and state["phase"] == "profile":
+                    state.update(phase="aborted", abort=reason)
+                    phase_start = now
+                    checkpoint()
+            phase = state["phase"]
+            if phase == "wait-armed":
+                send(snapshot, 0.0)
+                if guard_state == "armed":
+                    state["phase"], phase_start = "settle", now
+            elif phase == "settle":
+                send(snapshot, 0.0)
+                if now - phase_start >= M0_SETTLE_S:
+                    ranges = snapshot.scan_ranges
+                    reference = (snapshot.pose.x, snapshot.pose.y)
+                    check = {"spawn_offset_m": math.dist(reference, M0_SPAWN_XY),
+                             "left_min_m": sector_min(ranges, 80, 100), "right_min_m": sector_min(ranges, -100, -80),
+                             "telemetry_seq": snapshot.telemetry_seq}
+                    check["passed"] = check["spawn_offset_m"] <= 0.020 and min(check["left_min_m"], check["right_min_m"]) >= 0.4
+                    state["precheck"] = check
+                    state["phase"], phase_start = ("profile", now) if check["passed"] else ("aborted", now)
+                    if not check["passed"]:
+                        state["abort"] = "workspace precheck"
+            elif phase == "profile":
+                elapsed = now - phase_start
+                current = [value for start, end, value in schedule if start <= elapsed < end]
+                if current:
+                    send(snapshot, current[0])
+                else:
+                    state["phase"], phase_start = "expiry-wait", now  # stop sending: the lease must expire
+            elif phase == "expiry-wait":
+                if now - phase_start >= M0_EXPIRY_WAIT_S:
+                    state["phase"] = "done"
+            elif phase == "aborted":
+                if now - phase_start < 1.0:
+                    send(snapshot, 0.0)
+                else:
+                    state["phase"] = "aborted-done"
+            checkpoint()
+    finally:
+        bridge.close()
+        sock.close()
+        state["completed"] = True
+        checkpoint()
+        log.close()
 
 
 def endpoint_free():
@@ -745,13 +918,15 @@ def trial(args, context, out):
             sim1 += ["--freeze-test", args.freeze_test, "--freeze-window", ",".join(map(str, args.freeze_window))]
         if args.guard:
             sim1 += ["--guard", args.guard, "--duration", str(args.duration)]
+        if args.motion_stage:
+            sim1 += ["--motion-stage", args.motion_stage]
         bridge_process = spawn("bridge", [context["devkit_python"], "-B", own_script, "bridge", "--results", str(out),
                          "--reply-delay", str(args.reply_delay), "--profile", args.profile, *sim1], bridge_environment)
         supervisors = []
 
         supervisor_name = f"roboracer-supervisor-{os.getpid()}"
         plugin_environment = None
-        if args.plugin_observer or args.plugin_stack:
+        if args.plugin_observer or args.plugin_stack or args.motion_stage:
             isolated = out / "plugin-avlite"
             plugin_environment = dict(environment, PYTHONNOUSERSITE="1", MPLCONFIGDIR=str(isolated / "mpl"),
                                       **{name: str(isolated / name.lower()) for name in (
@@ -759,25 +934,35 @@ def trial(args, context, out):
                                           "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_CACHE_HOME")})
 
         def spawn_supervisor():
-            if args.plugin_stack:
+            if args.plugin_stack or args.motion_stage:
                 # S1: the real supervisor (its own process) owns the command path; the AVLite
-                # stack (another process) sends its requests there.
+                # stack or, in a confirmed motion stage, the calibration source (another process)
+                # sends its requests there.
+                stage = ["--stage", args.motion_stage, "--confirmation", str(MOTION_APPROVAL)] if args.motion_stage else []
                 spawn("supervisor-1", [context["avlite_python"], "-B", "-m", "roboracer.runtime.supervisor_process",
                     "--name", supervisor_name, "--target", read(out / "bridge-status.json")["guard_socket"],
                     "--origin", "sup-1", "--status", str(out / "supervisor-1-status.json"),
-                    "--trace", str(out / "supervisor-trace.jsonl")],
+                    "--trace", str(out / "supervisor-trace.jsonl"), *stage],
                     dict(plugin_environment, PYTHONPATH=str(PLUGIN_DIRECTORY.parent)))
                 deadline = time.monotonic() + 30
                 while not read(out / "supervisor-1-status.json").get("ready"):
                     if any(p.poll() is not None for p, _, _ in children) or time.monotonic() > deadline:
                         raise RuntimeError("Supervisor startup failed")
                     time.sleep(0.1)
-                spawn("plugin-stack", [context["avlite_python"], "-B", own_script, "plugin-observe",
-                                       "--results", str(out), "--plugin", str(PLUGIN_DIRECTORY),
-                                       "--supervisor", supervisor_name], plugin_environment)
-                while not read(out / "plugin-observer-status.json").get("ready"):
+                if args.motion_stage:
+                    spawn("calibration", [context["avlite_python"], "-B", own_script, "calibrate",
+                                          "--results", str(out), "--plugin", str(PLUGIN_DIRECTORY),
+                                          "--supervisor", supervisor_name, "--motion-stage", args.motion_stage],
+                          plugin_environment)
+                    status_name = "calibration-status.json"
+                else:
+                    spawn("plugin-stack", [context["avlite_python"], "-B", own_script, "plugin-observe",
+                                           "--results", str(out), "--plugin", str(PLUGIN_DIRECTORY),
+                                           "--supervisor", supervisor_name], plugin_environment)
+                    status_name = "plugin-observer-status.json"
+                while not read(out / status_name).get("ready"):
                     if any(p.poll() is not None for p, _, _ in children) or time.monotonic() > deadline:
-                        raise RuntimeError("AVLite stack startup failed")
+                        raise RuntimeError("Request source startup failed")
                     time.sleep(0.1)
                 return
             # The request source is its own OS process, separate from the bridge and this runner.
@@ -812,9 +997,12 @@ def trial(args, context, out):
         if args.freeze_test:
             player_args += ["-roboracerTestHooks"]
         if args.guard:
-            # Interlock stays on: -roboracerMotionAuthorized is never passed by this runner.
+            # The interlock stays on unless a confirmed motion stage runs (M0 only, per the
+            # approval record); only then is -roboracerMotionAuthorized passed.
             (out / "guard").mkdir()
             player_args += ["-roboracerGuard", "-roboracerGuardTrace", str(out / "guard")]
+            if args.motion_stage:
+                player_args += ["-roboracerMotionAuthorized"]
         player = spawn("player", player_args, environment)
         player_started = time.monotonic()
         connection = display.Display()
@@ -1115,7 +1303,7 @@ def trial(args, context, out):
                         if sample:
                             metrics.write(json.dumps(dict(label=entry["label"], **sample)) + "\n")
                     sample_at = time.monotonic() + 1
-                if args.plugin_stack and connected:
+                if (args.plugin_stack or args.motion_stage) and connected:
                     # Runner liveness for the supervisor's lease, from this loop only (after the
                     # Connect sequence, whose ~1 s of input handling would otherwise trip it).
                     heartbeat_seq += 1
@@ -1171,7 +1359,7 @@ def trial(args, context, out):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("run", "bridge", "observe", "plugin-observe", "analyze"))
+    parser.add_argument("mode", choices=("run", "bridge", "observe", "plugin-observe", "calibrate", "analyze"))
     parser.add_argument("--results", type=Path, required=True)
     parser.add_argument("--context", type=Path)
     parser.add_argument("--player", type=Path)
@@ -1194,9 +1382,15 @@ def main():
     parser.add_argument("--freeze-window", default="10,15",
                         type=lambda text: tuple(float(v) for v in text.split(",")),
                         help="Freeze start,end seconds after the bridge's first frame")
-    parser.add_argument("--guard", choices=("observe", "scenario"),
+    parser.add_argument("--guard", choices=("observe", "scenario", "calibration"),
                         help="SIM1-02: launch the guarded interlocked player with a supervisor stand-in; "
-                             "observe forwards zero requests for --duration, scenario runs the disarmed P1a cases")
+                             "observe forwards zero requests for --duration, scenario runs the disarmed P1a cases; "
+                             "calibration forwards a confirmed motion stage's requests (requires --motion-stage)")
+    parser.add_argument("--motion-stage", choices=sorted(MOTION_STAGES),
+                        help="Confirmed motion-protocol stage (v0.1: m0 only, steering with throttle 0). Passes "
+                             "-roboracerMotionAuthorized; requires the approval record and a SIM1-03 build record")
+    parser.add_argument("--build-record", type=Path,
+                        help="build-result.json of the player (motion stages: must include vendor-sim1-03)")
     parser.add_argument("--plugin-observer", action="store_true",
                         help="S1-02: also run the RoboRacer plugin's AutoDriveBridge as a read-only subscriber")
     parser.add_argument("--plugin-stack", action="store_true",
@@ -1240,6 +1434,23 @@ def main():
         parser.error("The plugin stack runs only with --guard observe and replaces --plugin-observer")
     if args.plugin_observer and not args.provenance:
         parser.error("The plugin observer needs the provenance topic (--provenance)")
+    if (args.guard == "calibration") != bool(args.motion_stage) and args.mode == "run":
+        parser.error("--guard calibration and --motion-stage go together")
+    if args.motion_stage and args.mode == "run":
+        if args.plugin_stack or args.plugin_observer or args.reply_delay > 0.05:
+            parser.error("Motion stages run the calibration source alone with reply pacing <= 50 ms (D3)")
+        approval = read(MOTION_APPROVAL)
+        if approval.get("version") != "0.1" or args.motion_stage.upper() not in approval.get("stages", []):
+            parser.error(f"Stage {args.motion_stage} is not confirmed in {MOTION_APPROVAL}")
+        build = read(args.build_record) if args.build_record else {}
+        argv = build.get("argv", [])
+        built = argv[argv.index("-buildLinux64Player") + 1] if "-buildLinux64Player" in argv else None
+        if build.get("exit_code") != 0 or build.get("sim1_patch", {}).get("through", "") < "03" or \
+                not args.player or built != str(args.player.resolve()):
+            parser.error("Motion stages need the player's own build record with vendor-sim1-03 (D1)")
+        library = args.player.resolve().parent / "GameAssembly.so"
+        if hashlib.sha256(library.read_bytes()).hexdigest() != build["output_files"].get("GameAssembly.so", {}).get("sha256"):
+            parser.error("Player GameAssembly.so differs from its build record")
     if args.contact_target and not args.contact_mode:
         parser.error("Contact target requires contact mode")
     if args.pose_trace and (not args.kinematics_probe or args.mode!="run" or args.contact_mode!="control" or
@@ -1259,6 +1470,8 @@ def main():
         return observe(args)
     if args.mode == "plugin-observe":
         return plugin_observe(args)
+    if args.mode == "calibrate":
+        return calibrate(args)
     if not args.context or not args.player or not args.player.is_file() or args.results.exists():
         parser.error("Run mode needs an existing player/context and fresh results path")
     args.player = args.player.resolve()

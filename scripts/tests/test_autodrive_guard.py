@@ -280,9 +280,11 @@ class SimInbox:
         self.next_ns = self.clock()
 
 
-def simulate(mode="scenario", defect=None, duration_s=5, max_frames=4000):
-    """Lock-step bridge/player loop on simulated time; returns (driver, model)."""
+def simulate(mode="scenario", defect=None, duration_s=5, max_frames=4000, stop_requests_after_s=None):
+    """Lock-step bridge/player loop on simulated time; returns (driver, model).
+    ``stop_requests_after_s``: the request source goes silent then (calibration expiry case)."""
     bridge_now = [10_000 * MS]
+    start_ns = bridge_now[0]
     offset = 7_000 * MS + 123  # sim = bridge + offset; never assumed by the code under test
     model = ModelGuard(defect)
     inbox = SimInbox(lambda: bridge_now[0])
@@ -294,6 +296,8 @@ def simulate(mode="scenario", defect=None, duration_s=5, max_frames=4000):
     killed = False
     for _ in range(max_frames):
         seq += 1
+        if stop_requests_after_s is not None and bridge_now[0] - start_ns >= stop_requests_after_s * 1000 * MS:
+            inbox.alive = False
         emit = bridge_now[0] + offset
         frame = dict(model.telemetry(emit))
         bridge_now[0] += 15 * MS                                    # frame transit
@@ -375,6 +379,18 @@ class ScenarioDriverTests(unittest.TestCase):
         self.assertTrue(driver.complete and driver.summary()["passed"], driver.phases)
         self.assertEqual(0, model.counters["expired"])
         self.assertGreater(model.counters["accepted"], 50)
+
+    def test_calibration_mode_requires_exactly_one_final_lease_expiry(self):
+        driver, model, killed = simulate(mode="calibration", duration_s=20, stop_requests_after_s=15)
+        self.assertFalse(killed)
+        self.assertTrue(driver.complete and driver.summary()["passed"], driver.phases)
+        self.assertEqual("disarmed", driver.summary()["state"])
+        self.assertTrue(any(e.startswith("state stopped lease-expired") for e in model.events))
+        # Without the expiry case the calibration phase must not pass.
+        driver, _, _ = simulate(mode="calibration", duration_s=10)
+        checks = {c["name"]: c["ok"] for c in driver.phases[0]["checks"]}
+        self.assertFalse(checks["one final lease expiry"])
+        self.assertFalse(driver.summary()["passed"])
 
     def test_trace_analysis_flags_torque_and_unaccepted_application(self):
         rows = [{"k": "start", "schema": SCHEMA},

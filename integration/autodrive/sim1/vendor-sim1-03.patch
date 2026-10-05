@@ -1,0 +1,12 @@
+diff --git a/Assets/Scripts/VehicleController.cs b/Assets/Scripts/VehicleController.cs
+--- a/Assets/Scripts/VehicleController.cs
++++ b/Assets/Scripts/VehicleController.cs
+@@ -143,6 +143,8 @@ public class VehicleController : MonoBehaviour
+         {
+             RearLeftWheelCollider.motorTorque = 0;
+             RearRightWheelCollider.motorTorque = 0;
++            FrontLeftWheelCollider.motorTorque = 0; // RoboRacer SIM1-03: clear front torque too (CAWD/IFWD/IAWD assign it)
++            FrontRightWheelCollider.motorTorque = 0; // RoboRacer SIM1-03
+             RearLeftWheelCollider.brakeTorque = BrakeTorque;
+             RearRightWheelCollider.brakeTorque = BrakeTorque;
+             FrontLeftWheelCollider.brakeTorque = BrakeTorque;

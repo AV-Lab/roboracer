@@ -217,7 +217,7 @@ class ScenarioDriver:
         self.complete = False
         self.started = False
         self.current = None
-        self.script = self._observe() if mode == "observe" else self._scenario()
+        self.script = {"observe": self._observe, "calibration": self._calibration}.get(mode, self._scenario)()
 
     # Bridge interface -------------------------------------------------------------
     def on_frame(self, record, session, episode):
@@ -245,6 +245,7 @@ class ScenarioDriver:
 
     def summary(self):
         return {"mode": self.mode, "complete": self.complete, "frames": self.frames,
+                "state": self.record["state"] if self.record else None,
                 "phases": self.phases, "events_seen": len(self.events),
                 "passed": self.complete and all(p["passed"] for p in self.phases)}
 
@@ -280,9 +281,15 @@ class ScenarioDriver:
     def _fresh(self, reforward=False):
         """Next unforwarded supervisor request (or, if allowed, the last one again)."""
         latest = self.inbox.latest(self.inbox.keep)
-        unsent = [r for r in latest if (r["origin"], r["seq"]) not in self.inbox.forwarded]
+        # Never fall back to an older, skipped request once a newer one was forwarded: when the
+        # source goes silent that would send stale, out-of-order requests.
+        newest = getattr(self, "_newest_forwarded", {})
+        unsent = [r for r in latest if (r["origin"], r["seq"]) not in self.inbox.forwarded
+                  and r["seq"] > newest.get(r["origin"], 0)]
         if unsent:
             request = unsent[-1]
+            newest[request["origin"]] = request["seq"]
+            self._newest_forwarded = newest
         elif reforward and latest:
             request = latest[-1]
         else:
@@ -385,6 +392,23 @@ class ScenarioDriver:
         self._forbid("no rejection", since, r"^reject ")
         self._forbid("no expiry", since, r"^state (stopped|fault)")
         self._check("accepted continuously", self.record["state"] == "armed", state=self.record["state"])
+        yield from self._disarm()
+
+    def _calibration(self):
+        """Motion protocol M0 (motion-authorized player): arm once and forward every fresh
+        supervisor request for `duration_ns`. The calibration source ends with an expiry case,
+        so exactly one final `lease-expired` stop is required; no rejection and no fault."""
+        yield from self._warmup()
+        self._open_phase("calibration")
+        yield from self._arm()
+        start, since = self.clock(), self._mark()
+        while self.clock() - start < self.duration_ns:
+            yield self._fresh_reply()
+        self._forbid("no rejection", since, r"^reject ")
+        self._forbid("no fault", since, r"^state fault")
+        stops = [text for _, text, _ in self.events[since:] if text.startswith("state stopped")]
+        self._check("one final lease expiry", len(stops) == 1 and stops[0].startswith("state stopped lease-expired"),
+                    stops=stops)
         yield from self._disarm()
 
     def _scenario(self):

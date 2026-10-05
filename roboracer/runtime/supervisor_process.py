@@ -14,6 +14,7 @@ Every decision is appended to ``--trace`` (bounded); ``--status`` is rewritten p
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import select
@@ -21,7 +22,7 @@ import signal
 import socket
 import time
 
-from .supervisor_core import Limits, SupervisorCore
+from .supervisor_core import STAGES, Limits, SupervisorCore
 
 TRACE_LIMIT_BYTES = 64 * 1024 * 1024
 
@@ -31,6 +32,21 @@ def _write_status(path, value):
     with open(temporary, "w") as stream:
         json.dump(value, stream)
     os.replace(temporary, path)
+
+
+def check_confirmation(path, stage):
+    """The approval record (motion protocol v0.1) must name this stage; returns its summary."""
+    if not path:
+        return None
+    try:
+        raw = open(path, "rb").read()
+        record = json.loads(raw)
+    except (OSError, ValueError):
+        return None
+    if record.get("version") != "0.1" or stage.upper() not in record.get("stages", []):
+        return None
+    return {"path": os.path.abspath(path), "sha256": hashlib.sha256(raw).hexdigest(),
+            "user_reply": record.get("user_reply"), "stages": record["stages"]}
 
 
 def main(argv=None) -> int:
@@ -43,11 +59,19 @@ def main(argv=None) -> int:
     parser.add_argument("--request-life-ms", type=float, default=500.0)
     parser.add_argument("--max-observation-age-ms", type=float, default=500.0)
     parser.add_argument("--runner-lease-ms", type=float, default=500.0)
+    parser.add_argument("--stage", choices=sorted(STAGES), default=None,
+                        help="Confirmed motion-protocol stage for calibration requests (requires --confirmation)")
+    parser.add_argument("--confirmation", default=None, help="Committed approval record naming the stage")
     args = parser.parse_args(argv)
+    confirmation = None
+    if args.stage is not None:
+        confirmation = check_confirmation(args.confirmation, args.stage)
+        if confirmation is None:
+            parser.error(f"Stage {args.stage} is not confirmed by {args.confirmation!r}")
     limits = Limits(request_life_ns=int(args.request_life_ms * 1e6),
                     max_observation_age_ns=int(args.max_observation_age_ms * 1e6),
                     runner_lease_ns=int(args.runner_lease_ms * 1e6))
-    core = SupervisorCore(origin=args.origin, limits=limits)
+    core = SupervisorCore(origin=args.origin, limits=limits, stage=args.stage)
     inbox = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
     inbox.bind("\0" + args.name)
     inbox.setblocking(False)
@@ -69,7 +93,7 @@ def main(argv=None) -> int:
         written += len(text)
 
     def status():
-        _write_status(args.status, dict(core.status(), pid=os.getpid(), io=io, ready=True,
+        _write_status(args.status, dict(core.status(), pid=os.getpid(), io=io, ready=True, confirmation=confirmation,
                                         monotonic_ns=time.monotonic_ns()))
 
     status()
@@ -103,8 +127,9 @@ def main(argv=None) -> int:
                             record({"t": now, "event": "heartbeat", "seq": message.get("seq"),
                                     "rejected": reason, "state": core.state})
                         continue
-                    decision = core.submit(message if kind == "request" else {}, now)
-                    row = {"t": now, "event": "request", "origin": message.get("origin"),
+                    decision = core.submit(message if kind in ("request", "calibration") else {}, now)
+                    row = {"t": now, "event": "request", "kind": kind, "origin": message.get("origin"),
+                           "throttle": message.get("throttle"), "steering": message.get("steering"),
                            "seq": message.get("seq"), "gen_ns": message.get("gen_ns"),
                            "observation": message.get("observation"), "target_speed": message.get("target_speed"),
                            "steer": message.get("steer"), "decision": decision.reason}

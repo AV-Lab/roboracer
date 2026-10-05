@@ -1,0 +1,9 @@
+{
+  "protocol": "docs/planning/s1-motion-protocol.md",
+  "version": "0.1",
+  "approved_date": "2026-10-05",
+  "user_reply": "approve D1 A, D2, D3; run M0 only",
+  "decisions": {"D1": "A", "D2": "approved", "D3": "approved"},
+  "stages": ["M0"],
+  "not_authorized": ["M1", "M2", "AVLite target-speed motion", "reverse", "laps"]
+}

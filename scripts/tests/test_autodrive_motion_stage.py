@@ -1,0 +1,107 @@
+"""Motion protocol v0.1 stage M0 (steering only): runner-side and supervisor-side bounds,
+the approval record and the calibration schedule. No ROS, Unity or GUI required."""
+import importlib.util
+import json
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import unittest
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts"))
+from autodrive_neutral import (MOTION_APPROVAL, MOTION_STAGES, check_guard_request, m0_schedule,  # noqa: E402
+                               motion_fields)
+
+spec = importlib.util.spec_from_file_location("supervisor_core", ROOT / "roboracer/runtime/supervisor_core.py")
+core = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = core
+spec.loader.exec_module(core)
+
+MS = 1_000_000
+NOW = 10_000 * MS
+
+
+def frame(throttle="0.000", steering="0.000"):
+    data = {"V1 " + k: v for k, v in {"Position": "0.741 3.158 0.059", "Encoder Angles": "0 0", "Encoder Ticks": "0 0",
+            "Orientation Quaternion": "0 0 0 1", "Orientation Euler Angles": "0 0 0",
+            "Angular Velocity": "0 0 0", "Linear Acceleration": "0 0 0"}.items()}
+    data.update({"V1 Throttle": throttle, "V1 Steering": steering})
+    return data
+
+
+def calibration(seq=1, throttle=0.0, steering=0.5):
+    return {"kind": "calibration", "origin": "cal", "seq": seq, "gen_ns": NOW - 50 * MS, "throttle": throttle,
+            "steering": steering, "observation": {"telemetry_seq": 9, "stamp_ns": NOW - 200 * MS}}
+
+
+class RunnerStageTests(unittest.TestCase):
+    def test_stage_tables_agree_and_approval_names_only_m0(self):
+        self.assertEqual(core.STAGES, MOTION_STAGES)
+        approval = json.loads(MOTION_APPROVAL.read_text())
+        self.assertEqual(("0.1", ["M0"], "A"), (approval["version"], approval["stages"], approval["decisions"]["D1"]))
+
+    def test_guard_request_bounds(self):
+        for steering in (0, 0.1, -0.1, 0.5, -0.5, 1.0, -1.0):
+            check_guard_request(f"1 sup-1 3 10 20 0 {steering} cal.3.t9", "m0")
+        for text in ("1 sup-1 3 10 20 0.01 0 cal.3.t9", "1 sup-1 3 10 20 0 0.3 cal.3.t9",
+                     "1 sup-1 3 10 20 0 nan cal.3.t9", "1 sup-1 3 10 20 0 1.5 cal.3.t9", "1 sup-1 3 10 20 0"):
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                check_guard_request(text, "m0")
+
+    def test_feedback_steering_only_in_m0_and_never_throttle(self):
+        self.assertEqual(-0.262, motion_fields(frame(steering="-0.262"), "m0")["Steering Feedback"])
+        for args in ((frame(steering="0.262"), None), (frame(throttle="0.010"), "m0"), (frame(steering="0.6"), "m0")):
+            with self.subTest(args=args[1:]), self.assertRaises(ValueError):
+                motion_fields(*args)
+
+    def test_m0_schedule(self):
+        steps = m0_schedule()
+        self.assertEqual([0.1, 0.0, -0.1, 0.0, 0.5, 0.0, -0.5, 0.0, 1.0, 0.0, -1.0, 0.0, 0.5], [s[2] for s in steps])
+        self.assertEqual(13.0, steps[-1][1])
+        self.assertTrue(all(b[0] == a[1] for a, b in zip(steps, steps[1:])))
+
+
+class SupervisorStageTests(unittest.TestCase):
+    def active(self, stage="m0"):
+        s = core.SupervisorCore(origin="sup-1", stage=stage)
+        s.heartbeat(1, NOW - 100 * MS)
+        return s
+
+    def test_m0_forwards_exact_steering_with_zero_throttle(self):
+        s = self.active()
+        for seq, steering, text in ((1, 0.5, "0.5"), (2, -1.0, "-1.0"), (3, 0.0, "0"), (4, -0.0, "0")):
+            d = s.submit(calibration(seq, steering=steering), NOW)
+            self.assertEqual(("0", text, "cal.%d.t9" % seq), (d.forward["throttle"], d.forward["steering"],
+                                                               d.forward["inputs"]))
+
+    def test_stage_limits_and_no_stage(self):
+        s = self.active()
+        self.assertEqual("stage-limit", s.submit(calibration(1, throttle=0.01), NOW).reason)
+        self.assertEqual("stage-limit", s.submit(calibration(2, steering=0.3), NOW).reason)
+        self.assertEqual("no-stage", self.active(None).submit(calibration(1), NOW).reason)
+        # The AVLite path stays exact-zero only, even inside the stage (origin binds to the first source).
+        a = self.active()
+        a.request_origin = "avlite"
+        req = {"kind": "request", "origin": "avlite", "seq": 1, "gen_ns": NOW - 50 * MS, "target_speed": 0.0,
+               "steer": 0.2, "observation": {"telemetry_seq": 9, "stamp_ns": NOW - 200 * MS}}
+        self.assertEqual("motion-not-authorized", a.submit(req, NOW).reason)
+
+    def test_process_refuses_unconfirmed_stage(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            bad = Path(scratch, "approval.json")
+            bad.write_text(json.dumps({"version": "0.1", "stages": ["M1"]}))
+            for confirmation in (str(bad), None):
+                argv = [sys.executable, "-B", "-m", "roboracer.runtime.supervisor_process", "--name", "rr-unused",
+                        "--target", "rr-unused-t", "--origin", "sup-1", "--status", str(Path(scratch, "s.json")),
+                        "--trace", str(Path(scratch, "t.jsonl")), "--stage", "m0"]
+                if confirmation:
+                    argv += ["--confirmation", confirmation]
+                result = subprocess.run(argv, cwd=ROOT, capture_output=True, text=True, timeout=60)
+                with self.subTest(confirmation=confirmation):
+                    self.assertEqual(2, result.returncode, result.stderr)
+                    self.assertIn("not confirmed", result.stderr)
+
+
+if __name__ == "__main__":
+    unittest.main()

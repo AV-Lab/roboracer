@@ -99,7 +99,7 @@ The AVLite plugin retains the official [community structure](/home/a2rl/Workspac
 | S4 | Add deterministic static fixture placement/manifest controls needed for left/right/blocked cases, initially using bounded simple colliders on the correct sensed layer. Validate geometry and reset removal; no arbitrary scene editor. Existing 30 episodes remain. |
 | S5 | Include source patch/toolchain/backend fingerprints and reconstruction in the existing fresh-environment/release evidence. No automatic upload of third-party project assets. |
 
-There are **10 amendment todos: SIM0-01–04 and SIM1-01–02 accepted and four unchecked**, separate from the **34 approved original todos (2 accepted)**. No performance threshold or original acceptance requirement is reduced. Future stage hooks are scheduled scope, not permission to implement S2–S5 now.
+There are **10 amendment todos: SIM0-01–04 and SIM1-01–02 accepted and four unchecked**, separate from the **34 approved original todos (3 accepted: PRE-01/02, S1-01)**. No performance threshold or original acceptance requirement is reduced. Future stage hooks are scheduled scope, not permission to implement S2–S5 now.
 
 ## 5. Permissions and concrete execution scope
 

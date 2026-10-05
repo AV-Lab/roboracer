@@ -294,3 +294,19 @@
 - The user asked to postpone PRE and start S1 immediately. Given three options, they selected starting S1 on the SIM1-02 build. Recorded as [amendment 1.2](planning/s1-first-amendment.md), superseding the 2026-09-29 PRE-first instruction.
 - S1 is entered. PRE-03/04 and the postponed SIM1-03–06 now gate S1 acceptance rather than entry; all criteria and the 34 original todos are unchanged. The numerical motion protocol becomes S1's first gate, and the guard's zero-output interlock stays on until it is confirmed.
 - Order: S1-01 plugin loading/settings, then S1-02 observation bridge and the supervisor skeleton (no motion), then the motion protocol for confirmation.
+
+## 2026-10-05 — S1-01: plugin loading, settings and command consumers pass
+
+- Created the `roboracer/` AVLite community plugin. Exports:
+  - `TargetSpeedSteeringCommand`: target speed in m/s and steering in rad, positive left, with a monotonic generation stamp; a `ControlCommandBase` subclass, not a relabelled Ackermann acceleration;
+  - `AutoDriveBridge`: disconnected in S1-01, advertises no sensors, and validates every command;
+  - `HoldController`: always requests a standstill;
+  - a Pydantic `PluginSettings`: loopback host, port, request life ≤ 1 s, speed limit 0 until the motion protocol is confirmed, steering ≤ 30°.
+- 5 tests (`roboracer/tests/`) run each case in a fresh AVLite 0.6.3 process with isolated AVLite/XDG directories. They cover:
+  - registration through AVLite's own loader, with no side effects;
+  - the factory loading the community plugin, and actuation gated off without localization;
+  - the command delivered through the real Sync execution path via a test-only GT bridge;
+  - the settings round-trip, with 7 invalid values rejected;
+  - the consumer matrix: GUI manual Ackermann commands refused; gauge mirror; headless dashboard shows 0.0 acceleration; BasicSim fails loudly.
+- The Tk GUI was not launched. Evidence: `artifacts/s1/20261005T074139Z-s1-01/`.
+- Next: S1-02, the observation bridge on the guarded SIM1-02 player and the supervisor skeleton (no motion); then the numerical motion protocol for confirmation.

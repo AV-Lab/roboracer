@@ -2,7 +2,7 @@
 
 Version: **1.0 — approved**, 2026-09-28. Status updated 2026-09-29: **the user reconfirmed complete PRE before S1; S1a/deferral is not adopted**. Continue the reviewed [source-build route](simulator-build-amendment.md) to close PRE capability gaps, starting with scoped SIM0 and retaining subsequent stage-entry gates. See the [PRE report](../stages/PRE.md). Original acceptance/dependencies remain in force; the concrete pre-motion protocol remains a separate confirmation gate.
 
-**Latest checkpoint, 2026-10-05:** SIM0 complete ([report](../stages/SIM0-completion.md)); SIM1 entered; **SIM1-01 and SIM1-02 pass** ([provenance report](../stages/SIM1-provenance.md), [guard report](../stages/SIM1-guard.md)). **Sequencing amendment 1.2 adopted:** the user postponed the remaining PRE work and started **S1 on the SIM1-02 build** ([amendment](s1-first-amendment.md)). PRE-03/04 now gate S1 acceptance rather than S1 entry. The numerical motion protocol is S1's first gate before any motion. Original acceptance remains **2/34**.
+**Latest checkpoint, 2026-10-05:** SIM0 complete ([report](../stages/SIM0-completion.md)); SIM1 entered; **SIM1-01 and SIM1-02 pass** ([provenance report](../stages/SIM1-provenance.md), [guard report](../stages/SIM1-guard.md)). **Sequencing amendment 1.2 adopted:** the user postponed the remaining PRE work and started **S1 on the SIM1-02 build** ([amendment](s1-first-amendment.md)). PRE-03/04 now gate S1 acceptance rather than S1 entry. The numerical motion protocol is S1's first gate before any motion. **S1-01 passes** (plugin loading/settings/command consumers). Original acceptance **3/34**.
 
 Quick review: [approval summary](approval-summary.md). This approved version incorporates both substantive planning reviews and all five R2 decisions, followed by the user's explicit final approval.
 
@@ -183,7 +183,16 @@ Qualification failures require a report with alternatives, cost and impact. Ther
 
 **Scope:** matching Humble/Devkit integration, labelled GT localization capability, ordered LiDAR, coherent snapshots, explicit command conversion, command supervisor, paced execution, basic runner/scorer and root profile. **Dependencies:** final-plan approval and PRE-01–04. **Amended 2026-10-05 ([1.2](s1-first-amendment.md)):** S1 is entered on the SIM1-02 build. PRE-03/04 and the postponed SIM1-03–06 must pass before S1 acceptance, and the numerical motion protocol must be confirmed before any motion. **Non-goals:** estimated-pose B, race pace, automatic batch reset, a second simulator or physical actuation.
 
-- [ ] S1-01 — Load/register exports through the AVLite factory; round-trip settings, reject invalid configuration and verify command-consumer compatibility without import-time launch.
+- [x] S1-01 — Load/register exports through the AVLite factory; round-trip settings, reject invalid configuration and verify command-consumer compatibility without import-time launch. **Passed 2026-10-05** (AVLite 0.6.3 isolated venv; each case in a fresh process with isolated AVLite/XDG directories):
+  - `roboracer/` exports `TargetSpeedSteeringCommand` (m/s and rad, a `ControlCommandBase` subclass), `AutoDriveBridge`, `HoldController` and a validated `PluginSettings`.
+  - Importing through AVLite's loader adds no thread, socket, child process or ROS/Socket.IO module.
+  - The factory loads the community plugin itself. Without a localization source it never actuates; a test-only GT bridge delivers the command through the real execution path.
+  - Settings round-trip, and 7 invalid values are rejected with the prior values kept.
+  - The bridge refuses the GUI's manual Ackermann commands and every invalid request.
+  - The visualizer gauge contract is satisfied by a display mirror. The headless dashboard shows acceleration 0.0, and BasicSim fails loudly on the plugin command; both are recorded limitations.
+  - The Tk GUI itself was not launched.
+
+  Evidence: `artifacts/s1/20261005T074139Z-s1-01/`, [plugin README](../../roboracer/README.md).
 - [ ] S1-02 — Deliver the AutoDRIVE/Humble bridge; verify scan/mount/order/masks, source timestamps and command signs/units against qualified fixtures and observed simulator response.
 - [ ] S1-03 — Deliver A through AVLite's actual execution path with visible GT labels, paced sampling and measured command-to-response behavior. Do not count executor ticks as physics steps.
 - [ ] S1-04 — Deliver independent command expiry, stop/disarm/rearm and command clearing; demonstrate missing/invalid observations, stale/non-finite requests, algorithm exit/hang and runner failure outcomes under the pre-motion operational limits before circuit acceptance.

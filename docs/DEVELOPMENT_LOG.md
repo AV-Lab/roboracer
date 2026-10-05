@@ -470,3 +470,21 @@
 - **Cause.** The GNOME session on display :1 is **locked** (`display-root-locked.png`). The lock screen swallows synthetic input, while the window-level capture still shows the player's own content.
 - **Unblocking.** Needs the user to unlock the desktop, and preferably to keep auto-lock off for unattended runs. 3 of the 6 M3 trials are counted conservatively.
 - **Evidence.** `artifacts/s1/20261005T123651Z-m3/`.
+
+## 2026-10-05 — M3 passes after unlock; plant is a static gain; proposal v0.2
+
+- **Trial 4.** The user unlocked the desktop ("unlocked, rerun M3"); a full-screen capture confirmed it. Trial 4 passed unassisted (first click, 54 s).
+  - Holds 0.005/0.01/0.02 for 2 s each.
+  - Steady speed 0.0245/0.049/0.098 m/s: **K = 4.90 m/s per unit throttle** (4.89–4.91), settled within one frame (≤ 0.23 s).
+  - Braking in about one frame (4.7/9.3/18.6 mm).
+  - Stops 0.55–0.56 s after the last request's generation.
+  - Torque exact, D1 release verified, lateral ≤ 1 mm, encoder vs IPS within 0.6 mm.
+  - 78/78 forwarded, one final lease expiry, all 604 player files unchanged.
+- **M1 reinterpreted.** Its "per 0.2 s pulse" response was this steady-state gain.
+- **Retained analysis correction.** Post-hold windows overlapped the next hold; they now end at it. The steady-state gain replaces the initial-acceleration metric.
+- **Proposal v0.2.**
+  - D5 re-derived: feedforward v*/K plus an integral trim (Ki 0.10, ±0.01), no P term, about 77° phase margin, u_max 0.07, rise limit 0.02/frame.
+  - Added M3b: holds 0.03/0.045/0.06, to confirm linearity up to about 0.3 m/s.
+  - Awaiting confirmation; M4/M5 not authorized.
+- **Desktop note.** `idle-delay` is 0 but `lock-enabled` is still true. A future runner improvement: check the root screen for a lock screen before Connect.
+- **Records.** Evidence `artifacts/s1/20261005T123651Z-m3/` (114 files); bilingual [report](stages/S1-M3-identification.md). 93 script tests and 26 plugin tests pass.

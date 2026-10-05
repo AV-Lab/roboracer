@@ -76,13 +76,17 @@ def analyze(directory: Path) -> dict:
         throttle = seg[0]["out"][0]
         expected = MOTOR_TORQUE_NM * throttle / 4
         torque_ok = all(all(abs(m - expected) <= 1e-4 for m in s["motor"]) for s in seg)
-        after = steps[last + 1:last + 1 + 2000]
-        released = all(s["motor"] == [0, 0, 0, 0] and all(abs(b - BRAKE_NM) < 1e-3 for b in s["brake"]) for s in after)
+        # Windows stop at the next hold (holds are only ~1.5 s apart; the first analysis let them overlap).
+        next_first = runs[index + 1][0] if index + 1 < len(runs) else len(steps)
+        after = steps[last + 1:min(last + 1 + 2000, next_first)]
+        released = bool(after) and all(s["motor"] == [0, 0, 0, 0] and all(abs(b - BRAKE_NM) < 1e-3 for b in s["brake"])
+                                       for s in after)
         start_sim = seg[0]["step"] * FIXED_STEP_S + offset
         end_sim = seg[-1]["step"] * FIXED_STEP_S + offset
+        next_sim = steps[next_first]["step"] * FIXED_STEP_S + offset if next_first < len(steps) else math.inf
         accept = accepts.get(seg[-1]["applied"])
         generation_sim = (accept["step"] * FIXED_STEP_S + offset + accept["remaining_s"] - LIFE_S) if accept else None
-        window = [f for f in frames if start_sim - 0.25 <= f["encoder_sim_time"] <= end_sim + 2.5]
+        window = [f for f in frames if start_sim - 0.25 <= f["encoder_sim_time"] <= min(end_sim + 2.5, next_sim - 0.01)]
         during = [f for f in window if start_sim < f["encoder_sim_time"] <= end_sim + 0.05]
         curve = [{"t_s": round(f["encoder_sim_time"] - start_sim, 4), "speed_mps": f["encoder_speed_mps"]} for f in window]
         accel = []
@@ -94,11 +98,20 @@ def analyze(directory: Path) -> dict:
         initial = during[0]["encoder_speed_mps"] / max(during[0]["encoder_sim_time"] - start_sim, 1e-3) if during else None
         late = accel[-2:]
         plateau = bool(late) and all(abs(a["accel_mps2"]) < 0.05 for a in late)
+        # Settling: first frame within 10 % of the final steady speed (frames are ~0.2 s apart,
+        # so this is an upper bound on the response time).
+        steady_reference = (sum(f["encoder_speed_mps"] for f in during[-3:]) / len(during[-3:])) if len(during) >= 3 else None
+        settle_frame = next((f for f in during if steady_reference and abs(f["encoder_speed_mps"] - steady_reference)
+                             <= 0.1 * steady_reference), None)
+        settle_s = settle_frame["encoder_sim_time"] - start_sim if settle_frame else None
         peak = max((f["encoder_speed_mps"] for f in window), default=0.0)
         brake_start_speed = next((f["encoder_speed_mps"] for f in reversed(window) if f["encoder_sim_time"] <= end_sim + 0.05), None)
         stop_frame = next((f for f in window if f["encoder_sim_time"] > end_sim and all(
             g["encoder_speed_mps"] < STOP_SPEED for g in window if g["encoder_sim_time"] >= f["encoder_sim_time"])), None)
-        angle_at = lambda t: min(window, key=lambda f: abs(f["encoder_sim_time"] - t))["encoder_angle_rad"] if window else 0.0
+        def angle_at(t):  # last frame acquired at or before t (conservative: includes motion after it)
+            earlier = [f for f in window if f["encoder_sim_time"] <= t]
+            return (earlier[-1] if earlier else window[0])["encoder_angle_rad"] if window else 0.0
+
         hold_travel = (window[-1]["encoder_angle_rad"] - angle_at(start_sim)) * WHEEL_RADIUS_M if window else 0.0
         brake_distance = (window[-1]["encoder_angle_rad"] - angle_at(end_sim)) * WHEEL_RADIUS_M if window else None
         brake_time = stop_frame["encoder_sim_time"] - end_sim if stop_frame else None
@@ -118,7 +131,9 @@ def analyze(directory: Path) -> dict:
         row = {"throttle": throttle, "applied_s": len(seg) * FIXED_STEP_S, "end_reason": (planned[index] if index < len(planned) else {}).get("end_reason"),
                "torque_ok": torque_ok, "released_with_brakes": released, "peak_speed_mps": peak,
                "initial_accel_mps2": initial, "initial_accel_per_unit_throttle": initial / throttle if initial else None,
-               "plateau": plateau, "steady_speed_mps": (sum(a["speed_mps"] for a in late) / len(late)) if plateau else None,
+               "plateau": plateau, "steady_speed_mps": steady_reference if plateau else None,
+               "steady_gain_mps_per_unit_throttle": steady_reference / throttle if plateau and steady_reference else None,
+               "settle_within_s": settle_s,
                "accel_vs_speed": accel, "brake_start_speed_mps": brake_start_speed, "brake_time_s": brake_time,
                "brake_distance_m": brake_distance,
                "brake_decel_mps2": (brake_start_speed / brake_time) if brake_time and brake_start_speed else None,
@@ -136,9 +151,12 @@ def analyze(directory: Path) -> dict:
             failures.append(f"hold {index} throttle {throttle}: " + ", ".join(k for k, v in checks.items() if not v))
         holds.append(row)
 
-    gains = [h["initial_accel_per_unit_throttle"] for h in holds if h["initial_accel_per_unit_throttle"]]
+    gains = [h["steady_gain_mps_per_unit_throttle"] for h in holds if h["steady_gain_mps_per_unit_throttle"]]
+    settles = [h["settle_within_s"] for h in holds if h["settle_within_s"] is not None]
     return {"run": str(directory), "holds": holds,
-            "plant_gain_b_mps2_per_unit_throttle": sorted(gains)[len(gains) // 2] if gains else None,
+            "steady_gain_mps_per_unit_throttle": sorted(gains)[len(gains) // 2] if gains else None,
+            "steady_gain_spread": [min(gains), max(gains)] if gains else None,
+            "settle_within_s_max": max(settles) if settles else None,
             "finish_reason": status.get("finish_reason"), "abort": status.get("abort"), "precheck": status.get("precheck"),
             "supervisor_decisions": len(supervisor), "guard_steps": len(steps),
             "guard_stops": [t for _, t in events if t.startswith("state stopped")],
@@ -155,9 +173,9 @@ def main():
     report = analyze(args.run)
     args.output.write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps({"holds": [{k: h[k] for k in ("throttle", "applied_s", "end_reason", "peak_speed_mps",
-                                                  "initial_accel_per_unit_throttle", "plateau", "brake_distance_m",
+                                                  "steady_gain_mps_per_unit_throttle", "settle_within_s", "plateau", "brake_distance_m",
                                                   "stop_from_generation_s", "passed")} for h in report["holds"]],
-                      "b": report["plant_gain_b_mps2_per_unit_throttle"], "failures": report["failures"],
+                      "steady_gain": report["steady_gain_mps_per_unit_throttle"], "settle_max_s": report["settle_within_s_max"], "failures": report["failures"],
                       "passes": report["passes"]}))
     return 0 if report["passes"] else 1
 

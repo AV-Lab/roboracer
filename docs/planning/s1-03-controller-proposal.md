@@ -1,6 +1,11 @@
 # S1-03 Target-Speed Controller and Reactive Baseline A — Proposal for Confirmation
 
-Version: **0.1 — DRAFT, not confirmed.** Date: 2026-10-05. [Chinese version](s1-03-controller-proposal.zh-CN.md). This follows [motion protocol v0.1](s1-motion-protocol.md) §4 "After M0–M2". Evidence: [M0](../stages/S1-M0-steering.md), [M1](../stages/S1-M1-throttle.md), [M2](../stages/S1-M2-stops.md).
+Version: **0.2 — D5 revised after M3; awaiting confirmation of the changes.**
+- **v0.1:** confirmed on 2026-10-05 with "approve D4 A, D5, D6, D7; run M3 only". M3 passed ([report](../stages/S1-M3-identification.md)).
+- **What M3 changed:** the plant is a static gain (v ≈ 4.9 m/s × throttle, settled within one frame), not an accelerator. The v0.1 D5 gains and u_max = 0.03 therefore no longer fit. **D5 below is revised and needs your confirmation**, and **M3b** is added to D8.
+- **Unchanged:** D4, D6 and D7 are as confirmed.
+
+Date: 2026-10-05. [Chinese version](s1-03-controller-proposal.zh-CN.md). This follows [motion protocol v0.1](s1-motion-protocol.md) §4 "After M0–M2". Evidence: [M0](../stages/S1-M0-steering.md), [M1](../stages/S1-M1-throttle.md), [M2](../stages/S1-M2-stops.md).
 
 **Nothing in this document is executed until you confirm it, or a changed version.** Until then:
 - the plugin's `max_target_speed_mps` stays 0;
@@ -42,20 +47,28 @@ The plan also fixes these rules:
 - **(Recommended) A: the supervisor subscribes itself.** It reads the encoder, IPS and provenance topics through the same `SnapshotAssembler`, in a private rclpy context, and computes speed from encoder angles and acquisition stamps. The supervisor's input then never depends on the algorithm process being correct, and "stale feedback → stop" is measured on the supervisor's own clock. Cost: rclpy in the supervisor process.
 - **B: the bridge sends measured speed with each request.** This is simpler, but the feedback passes through the algorithm process. An algorithm-side bug could then feed the loop a wrong speed, although an algorithm hang still stops the car through expiry.
 
-**D5 — the backend speed controller** (in the supervisor, used only for AVLite `request`s; calibration stages unchanged). Per forwarded frame:
-- `u = clamp(u_ff(v*) + Kp·e + Ki·∫e, 0, u_max)`, with `e = v* − v`.
-  - `v` is the encoder speed from D4.
-  - `u_ff` is the feedforward map from M3.
-  - The integrator is clamped (anti-windup) and frozen while saturated.
-- **Rate limit:** u may rise at most 0.005 per frame; it may fall without limit.
-- **Target 0:** u = 0, a hard brake.
-- **Overspeed:** v > v* + 0.15 m/s, or v > 0.5 m/s → u = 0 for that frame.
-- **Stale feedback:** feedback older than 0.4 s, or missing → u = 0 (the plan's rule); after 0.6 s → disarm.
-- **Initial gains**, from the M1 plant estimate b ≈ 24 m/s² per unit throttle, targeting about a 1 s closed-loop time constant:
-  - Kp = 1/(b·τ) ≈ **0.04** per m/s;
-  - Ki = Kp/2 s ≈ **0.02** per m/s per s;
-  - **u_max = 0.03** for S1-03.
-- **Stability margin:** with about 0.45 s of delay at the 1 rad/s crossover, the estimated phase margin is about 37°. M4 will retune within ±50 % only, with each change recorded.
+**D5 — the backend speed controller (REVISED in v0.2 after M3).** It lives in the supervisor and is used only for AVLite `request`s; calibration stages are unchanged.
+
+**Measured plant (M3):**
+- v_ss = K·u, with K = 4.90 m/s per unit throttle (4.89–4.91 over 0.005–0.02);
+- settles within one frame (≤ 0.23 s);
+- about 0.13 s from request generation to application, plus 0.2 s frame quantization;
+- zero throttle is a hard brake, stopping within about one frame.
+
+**Control law, per forwarded frame:**
+- `u = clamp(v*/K + u_I, 0, u_max)`, a static inverse feedforward plus a bounded integral trim.
+  - `u_I ← clamp(u_I + Ki·e·Δt, −0.01, +0.01)`, where `e = v* − v`, `v` is the encoder speed from D4, and Δt is the encoder acquisition sim-time interval.
+  - `u_I` is frozen while u is saturated, and reset to 0 whenever v* = 0.
+- There is **no proportional term**: the feedforward is already the plant inverse, and the trim only corrects model error (±0.01 ≈ ±0.05 m/s).
+- **Ki = 0.10** per m/s per s, which gives an integral-loop crossover of K·Ki ≈ 0.49 rad/s. With about 0.45 s of total delay, the phase margin is about 90° − 0.49 × 0.45 rad ≈ **77°**.
+- **u_max = 0.07** (about 0.34 m/s), enough for v* = 0.3 m/s with trim margin.
+- **Rate limit:** u may rise at most 0.02 per frame (≈ 0.1 m/s per frame); it may fall without limit.
+- **Target 0:** u = 0 (hard brake), and the trim resets.
+- **Overspeed, unchanged:** v > v* + 0.15 m/s, or v > 0.5 m/s → u = 0 for that frame.
+- **Stale feedback, unchanged:** feedback older than 0.4 s, or missing → u = 0; after 0.6 s → disarm.
+- **Retuning:** M4 may adjust Ki within ±50 % and K within ±10 % of the M3/M3b value only, with every change recorded.
+
+**Validity range:** K is measured only up to 0.1 m/s (u = 0.02). M3b (D8) must confirm it up to about 0.3 m/s (u ≈ 0.06) before M4 uses it.
 - **Steering:** converted exactly, `normalized = clamp(steer_rad / 0.5236, −1, 1)`, with no extra rate limit (the vendor slews at 183°/s). Steering is forwarded only when D8 authorizes steering while moving; until then any nonzero steer is rejected.
 
 **D6 — A, the reactive baseline, as an AVLite plugin `ControlStrategy` (`GapFollowController`).**
@@ -77,6 +90,11 @@ The plan also fixes these rules:
 
 **D8 — the next motion stages.** Each is confirmed and run separately, with all motion-protocol §3 rules unless changed below.
 - **M3, identification (open loop, straight, steering 0).** Calibration holds of throttle 0.005, 0.01 and 0.02. Each holds until encoder speed ≥ 0.3 m/s, 2.0 s, or 0.5 m of travel, then zero. Each starts from rest. Up to 6 trials, from a fresh process at spawn. It measures steady-state speed vs throttle (if reached), acceleration vs speed, and the brake-stop distance from 0.3 m/s. This gives `u_ff` and confirms b.
+- **M3 result (v0.2):** passed. v ≈ 4.90 m/s × throttle, settling within one frame, linear over 0.005–0.02.
+- **M3b, NEW in v0.2: identification up to the M4 range (open loop, straight, steering 0).** It uses the same source, rules and end conditions as M3 (encoder speed ≥ 0.3 m/s, 2.0 s, or 0.4 m of travel, then zero throttle), with holds of throttle **0.03, 0.045 and 0.06**, expected at about 0.15, 0.22 and 0.29 m/s.
+  - **Pass:** the M3 criteria, plus K within ±10 % of 4.90 at every level (otherwise the measured map replaces the single gain in D5).
+  - **Expected per hold:** at most about 0.4 m of travel plus braking of about 0.19 s × speed (≤ 60 mm), so about 1.4 m per trial. The 7.4 m straight ahead covers this.
+  - **Trials:** at most 6.
 - **M4, closed-loop speed (straight, steering 0, D5 active).** AVLite runs a test controller requesting v* = 0.1, 0.2 and 0.3 m/s, each for 3 s, then 0. At most 2.5 m of travel per trial. Pass:
   - mean speed within ±0.05 m/s of v* over the last 1 s of each step;
   - overshoot ≤ 0.1 m/s, and no throttle/brake chatter (at most 2 brake events per step);
@@ -95,7 +113,7 @@ The plan also fixes these rules:
 | Setting | Now | M4/M5 |
 | --- | --- | --- |
 | `max_target_speed_mps` (plugin) | 0 | 0.3 |
-| Supervisor AVLite path | exact zero only | the D5 controller, u_max = 0.03, hard overspeed 0.5 m/s |
+| Supervisor AVLite path | exact zero only | the D5 (v0.2) controller, u_max = 0.07, hard overspeed 0.5 m/s |
 | Steering while moving | rejected | allowed in M5 only, \|steer\| ≤ 0.35 rad |
 | Approval record | M0–M2 | adds the confirmed stages |
 
@@ -107,9 +125,8 @@ The plan also fixes these rules:
 
 ## 6. Requested reply
 
-Please confirm or change:
-- **D4** (A or B);
-- **D5**: controller form, gains, u_max and the stale/overspeed rules;
-- **D6**: A's design and its limits;
-- **D7**;
-- **D8**: which stages to run now (for example, "M3 only").
+D4, D6 and D7 are already confirmed. For v0.2, please confirm or change:
+- **revised D5**: feedforward with integral trim, K = 4.90, Ki = 0.10, trim ±0.01, u_max = 0.07, rise limit 0.02 per frame;
+- whether to run **M3b** (throttle 0.03 / 0.045 / 0.06).
+
+M4 and M5 stay unauthorized until you say otherwise.

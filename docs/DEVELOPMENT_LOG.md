@@ -614,3 +614,28 @@
   - D16: runner error cleanup disarms and observes the stop before killing processes.
   It also drafts S2 budgets.
 - **Records.** 111 script tests and 41 plugin tests pass. Evidence `artifacts/s1/20261006T064500Z-s1-06/`. Bilingual [report](stages/S1-06-measurements.md).
+
+## 2026-10-06 — M1: D13 timing windows pass; F1 tooling; F1-1 trial 1 fails v0.1 timing (stopped for D17)
+
+- **Approval.** "approve D12, D13, D14, D15, D16; run M1". Recorded in the approval record (commit `4e3f6fc`).
+- **D13.** Five fresh M6 laps, each with a complete 10 s + 120 s window and GPU sampling. All clean (1 lap each, 0.104–0.106 m) and within every frozen limit.
+  - Observation age max 346 ms; command → observed p95 ≤ 235 ms; 0 tick overruns.
+  - GPU p50 22–25 %, max 70 %, 1.69 GB.
+  - Player CPU 134–137 % of one core.
+- **F1 tooling** (`7b811bf`):
+  - stage-triggered injections at 6.0 s;
+  - the guard-driver disarm/rearm trigger, tested against the model guard;
+  - D16 runner-error stop; F1-8 runner kill and reaping;
+  - `roboracer_f1.py`.
+  - F1-2 and F1-4 hooks wrap stack-process instances, so the plugin source is unchanged. A NaN scan is rejected as `scan layout differs ...` (the protocol text said `non-finite reading`).
+- **Attempts.**
+  - F1-1 attempt 1 failed at stack startup (freeze mapped in every mode; fixed `4e7b92c`; no motion).
+  - Attempt 2 was refused before launch (output directory not fresh).
+- **F1-1 trial 1: fail** under v0.1.
+  - Stop 1.606 s after the injection request (limit 1.5); throttle until +1124 ms (deadline +1100).
+  - The freeze took effect 0.55 s after the request (it rides the next paced reply and acquisition). The 500 ms observation-age limit and the 500 ms lease then allowed the rest by design.
+  - Detection order correct; travel 0.358 m; no contact.
+  - From onset: stop 1.05 s, last throttle +0.57 s.
+  - My abort check (≤ 0.6 s) also ignored the 100 ms tick.
+- **Stopped** per protocol. D17 asks for (A, recommended) onset-referenced timing with an abort bound of ≤ 0.7 s, or (B) a widened F1-1/F1-2 bound. Trial 1 stays a recorded failure either way.
+- **Records.** 122 script tests and 41 plugin tests pass. Evidence `artifacts/s1/20261006T061501Z-m1-timing/` and `artifacts/s1/20261006T064801Z-m1-f1/`. Bilingual [progress report](stages/S1-06-M1-progress.md).

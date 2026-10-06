@@ -526,6 +526,12 @@ def observe(args):
             rclpy.spin_once(node, timeout_sec=0.1)
     except ExternalShutdownException:
         pass
+    except Exception:
+        # rclpy's SIGTERM handler can shut the context down between ok() and the next wait set
+        # ("context is not valid"); that is the requested stop, not a failure (seen 2026-10-06).
+        if rclpy.ok():
+            raise
+        state["shutdown_race"] = True
     finally:
         state["completed"] = True
         checkpoint()

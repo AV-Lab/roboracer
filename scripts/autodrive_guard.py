@@ -206,9 +206,15 @@ class ScenarioDriver:
     (arm once, forward every fresh supervisor request for `duration_ns`).
     """
 
-    def __init__(self, inbox, action_done, mode="scenario", duration_ns=None, clock=time.monotonic_ns):
+    def __init__(self, inbox, action_done, mode="scenario", duration_ns=None, clock=time.monotonic_ns,
+                 trigger=None, case=None):
         self.inbox, self.action_done, self.mode = inbox, action_done, mode
         self.duration_ns, self.clock = duration_ns, clock
+        # S1-06 (M1 protocol v0.1): calibration mode reads an external trigger each frame,
+        # {"disarm": true, "rearm_after_s": float | null, "source": ...}, written by the AVLite stage
+        # (F1-5 disarm/rearm) or by the runner (D16: disarm on runner error). `case` selects checks.
+        self.trigger, self.case = trigger, case
+        self.external = None
         self.events, self.phases, self.record = [], [], None
         self.session = self.episode = None
         self.frames = self.envelope = self.actions = 0
@@ -403,13 +409,79 @@ class ScenarioDriver:
         yield from self._arm()
         start, since = self.clock(), self._mark()
         while self.clock() - start < self.duration_ns:
+            trigger = (self.trigger() if self.trigger else None) or {}
+            ext = self.external
+            if trigger.get("disarm") and ext is None:
+                ext = self.external = {"trigger": trigger, "old_epoch": self.record["epoch"],
+                                       "disarm_mark": self._mark(), "disarm_ns": self.clock()}
+                yield Reply(arm="disarm")
+                continue
+            rearm_after = (ext or {}).get("trigger", {}).get("rearm_after_s")
+            if ext and rearm_after is not None and "rearm_mark" not in ext \
+                    and self.clock() - ext["disarm_ns"] >= rearm_after * 1e9:
+                ext["rearm_mark"] = self._mark()
+                ext["rearm"] = yield from self._await(ext["rearm_mark"], r"^state armed epoch \d+ ", 12, lambda: Reply(
+                    arm=f"arm {self.session} {self.episode} {self._origin()}") if not self._find(
+                    ext["rearm_mark"], r"^(state armed|reject arm)") else Reply())
+                # One deliberately stale request from the previous epoch must be rejected.
+                stale = self._next_fresh_or_none()
+                if stale is not None:
+                    ext["stale_epoch_seq"] = stale["seq"]
+                    yield Reply(request=self._text(stale, epoch=ext["old_epoch"]))
+                continue
+            if ext and rearm_after is None:
+                yield Reply()  # D16: after a runner-requested disarm nothing more is forwarded
+                continue
             yield self._fresh_reply()
-        self._forbid("no rejection", since, r"^reject ")
-        self._forbid("no fault", since, r"^state fault")
-        stops = [text for _, text, _ in self.events[since:] if text.startswith("state stopped")]
-        self._check("one final lease expiry", len(stops) == 1 and stops[0].startswith("state stopped lease-expired"),
-                    stops=stops)
+        if self.case == "f1-5":
+            self._check_rearm_case(since)
+        elif self.external is not None:
+            self._expect_seen("disarm-request", self.external["disarm_mark"], r"^disarm-request$")
+            self._forbid("no rejection", since, r"^reject ")
+            self._forbid("no fault", since, r"^state fault")
+        else:
+            self._forbid("no rejection", since, r"^reject ")
+            self._forbid("no fault", since, r"^state fault")
+            stops = [text for _, text, _ in self.events[since:] if text.startswith("state stopped")]
+            self._check("one final lease expiry", len(stops) == 1 and stops[0].startswith("state stopped lease-expired"),
+                        stops=stops)
         yield from self._disarm()
+
+    def _next_fresh_or_none(self):
+        return self._fresh()
+
+    def _expect_seen(self, name, since, pattern):
+        hit = self._find(since, pattern)
+        self._check(name, hit is not None, pattern=pattern, event=hit)
+        return hit
+
+    def _check_rearm_case(self, since):
+        """F1-5: disarm stops the car; while disarmed requests are rejected not-armed; a re-arm opens
+        a new epoch; a request from the old epoch is rejected stale-epoch; then normal operation ends
+        with exactly one final lease expiry. No other rejection and no fault."""
+        ext = self.external or {}
+        self._check("disarm triggered", bool(ext), external=bool(ext))
+        if not ext:
+            return
+        self._expect_seen("disarm-request", ext["disarm_mark"], r"^disarm-request$")
+        rearm_mark = ext.get("rearm_mark", len(self.events))
+        between = [text for _, text, _ in self.events[ext["disarm_mark"]:rearm_mark] if text.startswith("reject ")]
+        self._check("rejected not-armed while disarmed", bool(between) and all(t.endswith(" not-armed") for t in between),
+                    rejects=between[:5], count=len(between))
+        armed = ext.get("rearm")
+        epoch_ok = bool(armed) and int(armed[1].split()[3]) == ext["old_epoch"] + 1
+        self._check("re-armed with a new epoch", epoch_ok, event=armed)
+        after = [text for _, text, _ in self.events[rearm_mark:] if text.startswith("reject ")]
+        stale = ext.get("stale_epoch_seq")
+        self._check("old-epoch request rejected stale-epoch", stale is not None and f"reject {stale} stale-epoch" in after,
+                    rejects=after[:5])
+        self._check("no other rejection after re-arm", all(t == f"reject {stale} stale-epoch" for t in after), rejects=after[:5])
+        self._forbid("no fault", since, r"^state fault")
+        stops = [text for _, text, _ in self.events[rearm_mark:] if text.startswith("state stopped")]
+        self._check("one final lease expiry after re-arm",
+                    len(stops) == 1 and stops[0].startswith("state stopped lease-expired"), stops=stops)
+        accepted = [text for _, text, _ in self.events[rearm_mark:] if text.startswith("accept ")]
+        self._check("requests accepted after re-arm", bool(accepted), count=len(accepted))
 
     def _scenario(self):
         yield from self._warmup()

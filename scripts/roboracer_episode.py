@@ -166,6 +166,54 @@ def export(results: Path, geometry_path: Path, output: Path, mode: str, invocati
     return episode
 
 
+def kill_runner_when_requested(runner, results: Path, observe_s=10.0, timeout_s=600.0):
+    """F1-8 runner exit (M1 protocol v0.1): when the AVLite stage asks, SIGKILL the runner; keep
+    the orphaned children running for `observe_s` so the supervisor's runner lease and the guard
+    lease act and the stop is recorded; then terminate each orphaned process group (pids from the
+    runner's last run.json checkpoint) and record the reaping."""
+    import signal
+    import time
+    request = None
+    deadline = time.monotonic() + timeout_s
+    while runner.poll() is None and time.monotonic() < deadline:
+        found = sorted(results.glob("run-*/kill-runner-request.json"))
+        if found:
+            request = found[0]
+            break
+        time.sleep(0.05)
+    if request is None:
+        return {"killed": False, "reason": "no request before the runner ended"}
+    record = {"killed": True, "kill_ns": time.monotonic_ns(), "request": str(request)}
+    runner.kill()
+    runner.wait()
+    time.sleep(observe_s)
+    run_json = json.loads((request.parent / "run.json").read_text())
+    reaped = []
+    for child in run_json.get("children", []):
+        pid, entry = child["pid"], {"label": child["label"], "pid": child["pid"]}
+        for sig, wait in ((signal.SIGTERM, 5.0), (signal.SIGKILL, 2.0)):
+            try:
+                os.killpg(pid, sig)
+            except ProcessLookupError:
+                entry.setdefault("result", "already gone")
+                break
+            end = time.monotonic() + wait
+            while time.monotonic() < end:
+                try:
+                    os.killpg(pid, 0)
+                except ProcessLookupError:
+                    entry["result"] = f"terminated by {sig.name}"
+                    break
+                time.sleep(0.05)
+            if "result" in entry:
+                break
+        entry.setdefault("result", "still alive")
+        reaped.append(entry)
+    record.update(reaped=reaped, reaped_ns=time.monotonic_ns(),
+                  all_gone=all(e["result"] != "still alive" for e in reaped))
+    return record
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="mode", required=True)
@@ -176,6 +224,7 @@ def main():
     live.add_argument("--context", type=Path, required=True)
     live.add_argument("--player", type=Path, required=True)
     live.add_argument("--build-record", type=Path, required=True)
+    live.add_argument("--f1-case", default=None, help="S1-06 F1 fault case (M1 protocol v0.1; stage m6)")
     rec = sub.add_parser("recorded")
     rec.add_argument("--results", type=Path, required=True, help="existing runner results directory")
     rec.add_argument("--build-record", type=Path)
@@ -195,15 +244,21 @@ def main():
                    "--build-record", str(args.build_record), "--results", str(args.results),
                    "--profile", "p0-creep", "--provenance", "--guard", "calibration",
                    "--motion-stage", args.stage, "--reply-delay", "0.05", "--runs", "1",
-                   "--duration", str(args.duration)]
+                   "--duration", str(args.duration), *(["--f1-case", args.f1_case] if args.f1_case else [])]
         invocation["runner_argv"] = command
         print(json.dumps({"runner": "started", "manual_step": "review ui-before-connect.png, then run review.py"}),
               flush=True)
         args.results.parent.mkdir(parents=True, exist_ok=True)
         with open(f"{args.results}-console.log", "w") as log:
-            runner_exit = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT).returncode
+            runner = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT)
+            if args.f1_case == "f1-8":
+                invocation["f1_8"] = kill_runner_when_requested(runner, args.results)
+            runner_exit = runner.wait()
     episode = export(args.results, args.geometry, args.output, args.mode, invocation, runner_exit,
                      args.build_record, getattr(args, "player", None))
+    if invocation.get("f1_8"):
+        episode["f1_8"] = invocation["f1_8"]
+        (args.output / "episode.json").write_text(json.dumps(episode, indent=1) + "\n")
     print(json.dumps({k: episode[k] for k in ("stage", "outcome", "completed_laps", "contact_free_and_on_track")}
                      | {"progress_m": episode["score"]["progress_m"], "min_clearance_m": episode["score"]["min_clearance_m"]}))
     return 0 if runner_exit in (None, 0) else 1

@@ -265,10 +265,17 @@ def bridge(args):
         # Only a confirmed motion stage runs a motion-authorized player; the mode is checked per frame.
         guard_tracker = GuardTracker(require_interlock=not args.motion_stage)
         driver = ScenarioDriver(inbox, lambda number: str(number) in read(out / "actions-done.json"),
-                                mode=args.guard, duration_ns=int(args.duration * 1e9))
+                                mode=args.guard, duration_ns=int(args.duration * 1e9),
+                                trigger=lambda: read(out / "guard-trigger.json"), case=args.f1_case)
         state.update(guard_mode=args.guard, guard_socket=socket_name(os.getpid()))
 
     def freeze_request():
+        if args.freeze_test and args.freeze_trigger:
+            # F1-1: freeze only inside the window the AVLite stage requested (monotonic ns).
+            window = read(out / "freeze-request.json")
+            now = time.monotonic_ns()
+            inside = window and window["start_ns"] <= now < window["start_ns"] + int(window["duration_s"] * 1e9)
+            return args.freeze_test if inside else ""
         if args.freeze_test:
             start, end = args.freeze_window
             elapsed = (time.monotonic_ns() - first_frame_ns) / 1e9 if first_frame_ns else -1
@@ -1302,6 +1309,9 @@ M4_BLACKOUT_AT_S = 12.0     # stale-feedback case: inside the last 0.2 m/s step
 M4_TRAVEL_ABORT_M = 2.5
 M5_DISTANCE_M, M5_TIME_S = 6.0, 40.0
 M6_DISTANCE_M, M6_TIME_S = 33.0, 200.0  # D10: one lap plus the opening straight, or 200 s
+# S1-06 M1 protocol v0.1 (D14): F1 injection at 6.0 s of run time; the case ends 8 s later.
+F1_CASES = ("f1-1", "f1-2", "f1-3", "f1-4", "f1-5", "f1-6", "f1-7", "f1-8", "f1-9")
+F1_INJECT_S, F1_END_S, F1_FAULT_S, F1_REARM_S = 6.0, 8.0, 5.0, 3.0
 STOP_HOLD_S = 1.5           # zero requests before going silent (lease then expires at zero)
 
 
@@ -1321,7 +1331,10 @@ class StackStage:
         self.last_seq, self.last_new = None, time.monotonic()
         self.blackout_written = False
         self.info = {}
-        state.update(stage_phase=self.phase, abort=None, finish_reason=None, precheck=None)
+        self.f1 = getattr(args, "f1_case", None)
+        self.injected_at = None
+        self.scan_fault_until_ns = 0
+        state.update(stage_phase=self.phase, abort=None, finish_reason=None, precheck=None, f1_case=self.f1)
         self._request(0.0)
 
     def _request(self, speed):
@@ -1370,6 +1383,23 @@ class StackStage:
                 else:
                     self._set("stopping", abort="workspace precheck")
             return True
+        if self.phase == "hang":
+            # F1-3: the process stays alive but AVLite is not stepped, so no request is generated.
+            if now - self.injected_at >= F1_END_S:
+                self._set("finished", finish_reason="f1 case end")
+            return False
+        if self.phase == "run" and self.f1:
+            if self.injected_at is None and elapsed >= F1_INJECT_S:
+                self._inject(now, snap, speed)
+                if self.phase == "hang":
+                    return False
+            elif self.injected_at is not None and now - self.injected_at >= F1_END_S:
+                if self.f1 == "f1-5":  # re-armed and driving again: the normal zero-request stop
+                    self._request(0.0)
+                    self._set("stopping", finish_reason="f1 case end")
+                    return True
+                self._set("finished", finish_reason="f1 case end")  # guard already stopped: no requests
+                return False
         if self.phase == "run":
             reason = self._abort_reason(now, snap, speed, guard_state)
             if reason:
@@ -1402,6 +1432,72 @@ class StackStage:
                 return False
             return True
         return False  # finished: no further requests; the guard lease expires
+
+    def _inject(self, now, snap, speed):
+        """S1-06 F1 injection (M1 protocol v0.1, D14). Test-only; selected on the command line."""
+        results = self.args.results
+        self.injected_at = now
+        record = {"case": self.f1, "injected_ns": time.monotonic_ns(), "run_elapsed_s": now - self.phase_start,
+                  "encoder_speed": speed, "path_m": self.path_m,
+                  "pose": [snap.pose.x, snap.pose.y, snap.pose.yaw] if snap is not None else None}
+        if self.f1 == "f1-1":
+            save(results / "freeze-request.json", {"kind": "lidar", "start_ns": record["injected_ns"],
+                                                   "duration_s": F1_FAULT_S})
+        elif self.f1 == "f1-2":
+            self._install_scan_fault(record["injected_ns"] + int(F1_FAULT_S * 1e9))
+        elif self.f1 == "f1-3":
+            self._set("hang")
+        elif self.f1 == "f1-4":
+            record["direct_nan"] = self._install_nonfinite()
+        elif self.f1 == "f1-5":
+            save(results / "guard-trigger.json", {"disarm": True, "rearm_after_s": F1_REARM_S, "source": "f1-5"})
+        elif self.f1 == "f1-6":
+            save(results / "kill-stack-request.json", {"requested_ns": record["injected_ns"]})
+        elif self.f1 == "f1-7":
+            save(results / "runner-heartbeat-pause.json", {"requested_ns": record["injected_ns"]})
+        elif self.f1 == "f1-8":
+            save(results / "kill-runner-request.json", {"requested_ns": record["injected_ns"]})
+        elif self.f1 == "f1-9":
+            save(results / "runner-error-request.json", {"requested_ns": record["injected_ns"]})
+        save(results / "fault-inject.json", record)
+        self.state["f1_injected_ns"] = record["injected_ns"]
+
+    def _install_scan_fault(self, until_ns):
+        """F1-2: incoming LiDAR messages carry NaN ranges until `until_ns` (wraps this bridge
+        instance's intake; the plugin source is unchanged)."""
+        import copy
+        bridge, original = self.bridge, self.bridge._offer
+
+        def offer(topic, message):
+            if topic == "lidar" and time.monotonic_ns() < until_ns:
+                message = copy.copy(message)
+                message.ranges = [math.nan] * len(message.ranges)
+                self.state["f1_corrupted_scans"] = self.state.get("f1_corrupted_scans", 0) + 1
+            return original(topic, message)
+
+        bridge._offer = offer
+
+    def _install_nonfinite(self):
+        """F1-4: (a) the controller's output becomes a NaN target speed (the plugin must refuse it);
+        (b) one NaN request goes straight to the supervisor socket (the supervisor must reject it)."""
+        controller, original = self.controller, self.controller.control
+
+        def control(*positional, **keywords):
+            command = original(*positional, **keywords)
+            return type(command)(target_speed=math.nan, steer=command.steer)
+
+        controller.control = control
+        bridge = self.bridge
+        snapshot = bridge.latest()
+        bridge._request_seq += 1
+        message = {"kind": "request", "origin": "avlite", "seq": bridge._request_seq, "gen_ns": time.monotonic_ns(),
+                   "target_speed": math.nan, "steer": 0.0,
+                   "observation": {"telemetry_seq": snapshot.telemetry_seq, "session": snapshot.session,
+                                   "episode": snapshot.episode, "stamp_ns": int(round(snapshot.pose.stamp * 1e9)),
+                                   "lidar_stamp_ns": int(round(snapshot.lidar.stamp * 1e9))}}
+        sock, name = bridge._supervisor
+        sock.sendto(json.dumps(message).encode(), "\0" + name)  # json writes NaN as the bare token NaN
+        return {"seq": message["seq"], "gen_ns": message["gen_ns"]}
 
     def _abort_reason(self, now, snap, speed, guard_state):
         if guard_state == "fault":
@@ -1634,6 +1730,31 @@ def sample_gpu(path, stop, period_s=1.0):
             stop.wait(period_s)
 
 
+def runner_error_stop(out, wait_s=2.0):
+    """D16 (M1 protocol v0.1): before any owned process is terminated after a runner error, ask the
+    bridge's guard driver to disarm, then wait up to `wait_s` for the guard to report it and for the
+    wheels to stop (encoder angles unchanged across the last two frames). Result is recorded."""
+    started = time.monotonic_ns()
+    save(out / "guard-trigger.json", {"disarm": True, "rearm_after_s": None, "source": "runner-error"})
+    result = {"requested_ns": started, "disarmed": False, "stopped": False}
+    while time.monotonic_ns() - started < wait_s * 1e9:
+        frames = []
+        try:
+            lines = (out / "bridge-frames.jsonl").read_text().splitlines()[-3:]
+            frames = [json.loads(line) for line in lines if line.strip()]
+        except (OSError, ValueError):
+            pass
+        guard = [f.get("guard", {}).get("state") for f in frames]
+        angles = [tuple(f["motion"]["Encoder Angles"]) for f in frames if "motion" in f]
+        result["disarmed"] = bool(guard) and guard[-1] == "disarmed"
+        result["stopped"] = len(angles) >= 2 and max(abs(a - b) for a, b in zip(angles[-1], angles[-2])) < 1e-3
+        if result["disarmed"] and result["stopped"]:
+            break
+        time.sleep(0.05)
+    result["waited_s"] = (time.monotonic_ns() - started) / 1e9
+    return result
+
+
 def trial(args, context, out):
     import threading
     from Xlib import X, display
@@ -1664,7 +1785,7 @@ def trial(args, context, out):
               "provenance": args.provenance, "freeze_test": args.freeze_test,
               "freeze_window_seconds_after_first_frame": args.freeze_window if args.freeze_test else None,
               "guard": args.guard, "guard_actions": [], "plugin_observer": args.plugin_observer,
-              "plugin_stack": args.plugin_stack}
+              "plugin_stack": args.plugin_stack, "f1_case": args.f1_case}
     heartbeat = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
     heartbeat.setblocking(False)
     heartbeat_seq = 0
@@ -1694,6 +1815,10 @@ def trial(args, context, out):
         sim1 = ["--provenance"] if args.provenance else []
         if args.freeze_test:
             sim1 += ["--freeze-test", args.freeze_test, "--freeze-window", ",".join(map(str, args.freeze_window))]
+            if args.freeze_trigger:
+                sim1 += ["--freeze-trigger"]
+        if args.f1_case:
+            sim1 += ["--f1-case", args.f1_case]
         if args.guard:
             sim1 += ["--guard", args.guard, "--duration", str(args.duration)]
         if args.motion_stage:
@@ -1737,7 +1862,8 @@ def trial(args, context, out):
                 if args.motion_stage in AVLITE_MOTION_STAGES:
                     spawn("plugin-stack", [context["avlite_python"], "-B", own_script, "plugin-observe",
                                            "--results", str(out), "--plugin", str(PLUGIN_DIRECTORY),
-                                           "--supervisor", supervisor_name, "--stack-profile", args.motion_stage],
+                                           "--supervisor", supervisor_name, "--stack-profile", args.motion_stage,
+                                           *(["--f1-case", args.f1_case] if args.f1_case else [])],
                           plugin_environment)
                     status_name = "plugin-observer-status.json"
                 elif args.motion_stage:
@@ -2106,8 +2232,21 @@ def trial(args, context, out):
                         if sample:
                             metrics.write(json.dumps(dict(label=entry["label"], **sample)) + "\n")
                     sample_at = time.monotonic() + 1
-                if args.motion_stage == "m2" and "heartbeat_paused_ns" not in record and \
-                        (out / "runner-heartbeat-pause.json").exists():
+                if args.f1_case == "f1-6" and "f1_stack_killed_ns" not in record and \
+                        (out / "kill-stack-request.json").exists():
+                    # F1-6 algorithm exit: SIGKILL the AVLite stack; expected, so observation continues.
+                    for process, _, entry in children:
+                        if entry["label"] == "plugin-stack" and process.poll() is None:
+                            entry["expected_kill"] = True
+                            os.killpg(process.pid, signal.SIGKILL)
+                            entry["termination"] = "SIGKILL (F1-6 algorithm exit)"
+                    record["f1_stack_killed_ns"] = time.monotonic_ns()
+                    checkpoint()
+                if args.f1_case == "f1-9" and (out / "runner-error-request.json").exists():
+                    record["f1_error_raised_ns"] = time.monotonic_ns()
+                    raise RuntimeError("F1-9 injected runner error")
+                if (args.motion_stage == "m2" or args.f1_case == "f1-7") and "heartbeat_paused_ns" not in record \
+                        and (out / "runner-heartbeat-pause.json").exists():
                     # M2 case b: the calibration source asks the runner to stop heartbeating; the
                     # supervisor must inhibit itself within its runner lease. Never resumed.
                     record["heartbeat_paused_ns"] = time.monotonic_ns()
@@ -2130,9 +2269,12 @@ def trial(args, context, out):
     finally:
         gpu_stop.set()
         cleanup_started = time.monotonic()
+        heartbeat.close()  # D16: no further runner heartbeats from here on
+        if record.get("error") and args.guard == "calibration" and args.motion_stage:
+            record["d16"] = runner_error_stop(out)
+            checkpoint()
         if connection is not None:
             connection.close()
-        heartbeat.close()
         for process, log, entry in reversed(children):
             if process.poll() is None:
                 os.killpg(process.pid, signal.SIGTERM)
@@ -2197,6 +2339,9 @@ def main():
                              "observe forwards zero requests for --duration, scenario runs the disarmed P1a cases; "
                              "calibration forwards a confirmed motion stage's requests (requires --motion-stage)")
     parser.add_argument("--stack-profile", choices=sorted(AVLITE_MOTION_STAGES), default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--f1-case", choices=F1_CASES, default=None,
+                        help="S1-06 F1 fault case (M1 protocol v0.1); motion stage m6 only")
+    parser.add_argument("--freeze-trigger", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--motion-stage", choices=sorted(MOTION_STAGES) + sorted(AVLITE_MOTION_STAGES),
                         help="Confirmed motion-protocol stage (v0.1: m0 only, steering with throttle 0). Passes "
                              "-roboracerMotionAuthorized; requires the approval record and a SIM1-03 build record")
@@ -2225,6 +2370,14 @@ def main():
                         help="Fresh output directory for offline kinematics plots in analyze mode")
     args = parser.parse_args()
     args.results = args.results.resolve()
+    if args.f1_case:
+        # S1-06 M1 protocol v0.1 (D14): F1 cases run only in the approved M6 envelope.
+        if args.mode == "run" and args.motion_stage != "m6":
+            parser.error("--f1-case requires --motion-stage m6")
+        if args.f1_case == "f1-1":
+            args.freeze_test, args.freeze_trigger = "lidar", True  # stage-triggered LiDAR freeze
+    elif args.freeze_trigger:
+        parser.error("--freeze-trigger is only for F1-1")
     if args.runs < 1 or not all(math.isfinite(v) and v > 0 for v in (args.duration, args.startup_timeout, args.reply_delay)):
         parser.error("Positive finite bounds are required")
     if args.profile == "drift-diagnostic" and (args.runs > 2 or args.duration > 60):
@@ -2238,7 +2391,7 @@ def main():
         parser.error("SIM1 provenance runs use the amended neutral p0-creep profile without diagnostic probes")
     if args.freeze_test and not args.provenance:
         parser.error("Freeze tests require --provenance")
-    if args.guard and (not args.provenance or args.freeze_test or
+    if args.guard and (not args.provenance or (args.freeze_test and not args.freeze_trigger) or
                        not all(math.isfinite(v) and v > 0 for v in (args.guard_timeout, args.disconnect_wait))):
         parser.error("Guard trials require --provenance, no freeze test, and positive finite bounds")
     if args.freeze_test and not (len(args.freeze_window) == 2 and 0 < args.freeze_window[0] < args.freeze_window[1]

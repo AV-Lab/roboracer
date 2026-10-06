@@ -280,7 +280,8 @@ class SimInbox:
         self.next_ns = self.clock()
 
 
-def simulate(mode="scenario", defect=None, duration_s=5, max_frames=4000, stop_requests_after_s=None):
+def simulate(mode="scenario", defect=None, duration_s=5, max_frames=4000, stop_requests_after_s=None,
+             trigger=None, case=None):
     """Lock-step bridge/player loop on simulated time; returns (driver, model).
     ``stop_requests_after_s``: the request source goes silent then (calibration expiry case)."""
     bridge_now = [10_000 * MS]
@@ -290,7 +291,8 @@ def simulate(mode="scenario", defect=None, duration_s=5, max_frames=4000, stop_r
     inbox = SimInbox(lambda: bridge_now[0])
     done = set()
     driver = ScenarioDriver(inbox, lambda number: number in done, mode=mode, duration_ns=duration_s * 1000 * MS,
-                            clock=lambda: bridge_now[0])
+                            clock=lambda: bridge_now[0],
+                            trigger=(lambda: trigger(bridge_now[0] - start_ns)) if trigger else None, case=case)
     session, episode, step, seq = "c" * 32, 1, 0, 0
     tracker = GuardTracker()
     killed = False

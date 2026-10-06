@@ -9,7 +9,12 @@
   "D3": "approved",
   "D9": "approved (A-lap: GapFollowController with LAP_PARAMS)",
   "D10": "approved (M6: M5 limits, end 33 m or 200 s, containment box x[-4.23,2.12] y[-9.04,7.65])",
-  "D11": "approved (up to 3 trials, stop at the first abort/contact/off-track)"
+  "D11": "approved (up to 3 trials, stop at the first abort/contact/off-track)",
+  "D12": "approved (the three M6 laps of 2026-10-06 count as M1's three bounded-circuit runs)",
+  "D13": "approved (five M6 timing laps, window 10 s + 120 s, GPU sampling)",
+  "D14": "approved (F1-1..F1-9, each x3, injection at 6.0 s run time, end 8 s later)",
+  "D15": "approved (F1 stop: < 0.02 m/s within 1.5 s and <= 0.40 m travel after injection; no contact/off-track)",
+  "D16": "approved (runner error: disarm, observe stop up to 2 s, then terminate children)"
  },
  "stages": [
   "M0",
@@ -90,6 +95,13 @@
    "user_reply": "approve D9, D10, D11; run M6",
    "proposal": "docs/planning/s1-05-lap-proposal.md",
    "proposal_version": "0.1"
+  },
+  {
+   "stage": "S1-06 M1 run set (M6 envelope: timing laps and F1-1..F1-9)",
+   "date": "2026-10-06",
+   "user_reply": "approve D12, D13, D14, D15, D16; run M1",
+   "proposal": "docs/planning/s1-06-m1-protocol.md",
+   "proposal_version": "0.1"
   }
  ],
  "not_authorized": [
@@ -99,6 +111,7 @@
   "more than one lap per episode",
   "steering beyond 0.35 rad while moving",
   "steering while moving outside M5/M6",
-  "unattended reset"
+  "unattended reset",
+  "fault cases other than F1-1..F1-9"
  ]
 }

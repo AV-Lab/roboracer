@@ -2167,6 +2167,19 @@ def trial(args, context, out):
                         record["actions"].append({"action": "Connect only", "xy": [x, y], "monotonic_ns": time.monotonic_ns()})
                         record["manual_mode_review"] = approval
                         checkpoint()
+                        if args.record_video and "video" not in record:
+                            # Only the reviewed AutoDRIVE window (x11grab -window_id), not the screen.
+                            # Optional evidence: its exit never aborts the run; spawned last, so cleanup
+                            # stops it (SIGTERM, which finalizes the file) before the player.
+                            spawn("recorder", ["ffmpeg", "-hide_banner", "-loglevel", "warning", "-nostdin",
+                                               "-f", "x11grab", "-framerate", "15", "-draw_mouse", "0",
+                                               "-window_id", str(window.id), "-i", os.environ.get("DISPLAY", ":1"),
+                                               "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
+                                               "-pix_fmt", "yuv420p", str(out / "player-window.mp4")], dict(os.environ))
+                            record["children"][-1]["expected_kill"] = True  # same entry object as in `children`
+                            record["video"] = {"path": str(out / "player-window.mp4"), "window_id": window.id,
+                                               "fps": 15, "started_ns": time.monotonic_ns()}
+                            checkpoint()
                     elif connected and not bridge_state.get("transport_requests") and connect_retries < 2 and \
                             time.monotonic_ns() - record["actions"][-1]["monotonic_ns"] > 8_000_000_000:
                         # Unity intermittently drops the synthetic click (no handshake at all). Click the
@@ -2342,6 +2355,8 @@ def main():
     parser.add_argument("--f1-case", choices=F1_CASES, default=None,
                         help="S1-06 F1 fault case (M1 protocol v0.1); motion stage m6 only")
     parser.add_argument("--freeze-trigger", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--record-video", action="store_true",
+                        help="Record only the AutoDRIVE window (ffmpeg x11grab) from Connect to cleanup")
     parser.add_argument("--motion-stage", choices=sorted(MOTION_STAGES) + sorted(AVLITE_MOTION_STAGES),
                         help="Confirmed motion-protocol stage (v0.1: m0 only, steering with throttle 0). Passes "
                              "-roboracerMotionAuthorized; requires the approval record and a SIM1-03 build record")

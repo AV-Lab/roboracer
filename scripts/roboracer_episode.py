@@ -225,6 +225,7 @@ def main():
     live.add_argument("--player", type=Path, required=True)
     live.add_argument("--build-record", type=Path, required=True)
     live.add_argument("--f1-case", default=None, help="S1-06 F1 fault case (M1 protocol v0.1; stage m6)")
+    live.add_argument("--record-video", action="store_true", help="record only the AutoDRIVE window")
     rec = sub.add_parser("recorded")
     rec.add_argument("--results", type=Path, required=True, help="existing runner results directory")
     rec.add_argument("--build-record", type=Path)
@@ -244,7 +245,8 @@ def main():
                    "--build-record", str(args.build_record), "--results", str(args.results),
                    "--profile", "p0-creep", "--provenance", "--guard", "calibration",
                    "--motion-stage", args.stage, "--reply-delay", "0.05", "--runs", "1",
-                   "--duration", str(args.duration), *(["--f1-case", args.f1_case] if args.f1_case else [])]
+                   "--duration", str(args.duration), *(["--f1-case", args.f1_case] if args.f1_case else []),
+                   *(["--record-video"] if args.record_video else [])]
         invocation["runner_argv"] = command
         print(json.dumps({"runner": "started", "manual_step": "review ui-before-connect.png, then run review.py"}),
               flush=True)

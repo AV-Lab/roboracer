@@ -1,6 +1,6 @@
 # S1-06 — M1 Run Protocol (F1 Fault Matrix and Timing Windows) — Proposal for Confirmation
 
-Version **0.1**, 2026-10-06. [Chinese version](s1-06-m1-protocol.zh-CN.md). Plan item S1-06: *Run M1, preserve failures and publish first timing/resource/episode measurements against the frozen S1 operational limits. Propose later performance budgets for review before S2 acceptance.* The run matrix defines M1 as: C0; A; GT-labelled; three independent bounded-circuit runs; each F1 case three times; five timing windows under the sampling protocol; duration, bounds and tolerances frozen before the runs. **Nothing here runs until you confirm it.**
+Version **0.1**, 2026-10-06. Plan item S1-06: *Run M1, preserve failures and publish first timing/resource/episode measurements against the frozen S1 operational limits. Propose later performance budgets for review before S2 acceptance.* The run matrix defines M1 as: C0; A; GT-labelled; three independent bounded-circuit runs; each F1 case three times; five timing windows under the sampling protocol; duration, bounds and tolerances frozen before the runs. **Nothing here runs until you confirm it.**
 
 ## 1. Already measured (no new motion)
 

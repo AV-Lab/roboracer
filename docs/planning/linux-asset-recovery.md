@@ -1,6 +1,6 @@
 # SIM0 — Linux-only Track Asset Recovery Proposal
 
-Date: **2026-09-29**, execution status updated **2026-10-01**. **Approved by the user’s explicit “confirmed”.** [中文报告](linux-asset-recovery.zh-CN.md). Feasibility evidence: `20260929T102620Z`; [execution report](../stages/SIM0-linux-recovery-attempt.md): `20260929T122535Z`.
+Date: **2026-09-29**, execution status updated **2026-10-01**. **Approved by the user’s explicit “confirmed”.** Feasibility evidence: `20260929T102620Z`; [execution report](../stages/SIM0-linux-recovery-attempt.md): `20260929T122535Z`.
 
 **LNX-01/02/03/04 pass (2026-10-05).** SIM0-B06 was closed by the user's option A as inherited simulator creep, with the P0 position rule amended to an inclusive 10 mm bound; both amended-P0 neutral runs then passed ([SIM0 report](../stages/SIM0-completion.md)). No physics repair adopted; full PRE before S1 remains required.
 

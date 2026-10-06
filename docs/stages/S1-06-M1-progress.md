@@ -1,6 +1,6 @@
 # S1-06 — M1 progress: five timing windows pass; F1-1 trial 1 fails a frozen timing criterion (run stopped)
 
-Date: **2026-10-06**. Approval: "approve D12, D13, D14, D15, D16; run M1" ([record](../planning/s1-motion-approval.json); [protocol v0.1](../planning/s1-06-m1-protocol.md)). [Chinese report](S1-06-M1-progress.zh-CN.md).
+Date: **2026-10-06**. Approval: "approve D12, D13, D14, D15, D16; run M1" ([record](../planning/s1-motion-approval.json); [protocol v0.1](../planning/s1-06-m1-protocol.md)).
 
 **Summary:**
 - **D12 (circuit runs):** recorded. The three M6 laps count as M1's circuit demonstrations.

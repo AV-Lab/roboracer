@@ -3,7 +3,7 @@
 **Update, 2026-09-29:** the user confirmed the six-asset recovery below. It was applied only to a separate qualification worktree, removing the targeted failures. Further review found required SketchUp track objects unavailable on Linux; see the [current blocker report](SIM0-sketchup-blocker.md). The original findings/scope below remain historical, with the omitted OpenCAV diagnostics corrected in the new report. Acceptance remains pending. Evidence: `artifacts/simulator-build/20260929T100424Z/`.
 
 
-Date: **2026-09-29**. Run: `20260929T085557Z`. [Chinese report](SIM0-import-review.zh-CN.md). **SIM0-01 passed. SIM0-02 is blocked by initial asset-import failures; the proposed asset-scope change awaits user confirmation. No player build or neutral run has started.**
+Date: **2026-09-29**. Run: `20260929T085557Z`. **SIM0-01 passed. SIM0-02 is blocked by initial asset-import failures; the proposed asset-scope change awaits user confirmation. No player build or neutral run has started.**
 
 ## Actual outcomes
 

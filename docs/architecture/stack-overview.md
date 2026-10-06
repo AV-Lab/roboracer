@@ -1,6 +1,6 @@
 # Autonomous stack overview — what AVLite runs, what the roboracer plugin provides
 
-Status as of **2026-10-06** (S1-06, M1 in progress). [Chinese version](stack-overview.zh-CN.md). This page describes the stack used in the M4–M6 runs, the D13 timing laps and the F1 fault cases. It was checked against the AVLite source (`avlite/c60_apps/c62_factory.py`, `avlite/c40_execution/c44_sync_executer.py`, `avlite/c40_execution/c42_execution_strategy.py`) and the recorded runs.
+Status as of **2026-10-06** (S1-06, M1 in progress). This page describes the stack used in the M4–M6 runs, the D13 timing laps and the F1 fault cases. It was checked against the AVLite source (`avlite/c60_apps/c62_factory.py`, `avlite/c40_execution/c44_sync_executer.py`, `avlite/c40_execution/c42_execution_strategy.py`) and the recorded runs.
 
 **Short answer.** At S1 only control runs (see §6). AVLite really runs, as the framework: its plugin loader, `executor_factory`, the `SyncExecuter` 10 Hz tick loop, and its interfaces and data model. **No AVLite algorithm runs.** Perception, localization, mapping and planning are not instantiated, and the controller is the plugin's. All driving logic is roboracer plugin code. The supervisor is plugin code in a separate process; the guard lives in the simulator.
 

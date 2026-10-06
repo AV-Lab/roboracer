@@ -1,6 +1,6 @@
 # SIM1-01 — Source provenance and acquisition identity
 
-Date: **2026-10-05**. Run: `20261005T053316Z-sim1`. [Chinese report](SIM1-provenance.zh-CN.md). Protocol: [roboracer.sim1/1](../../integration/autodrive/sim1/PROTOCOL.md).
+Date: **2026-10-05**. Run: `20261005T053316Z-sim1`. Protocol: [roboracer.sim1/1](../../integration/autodrive/sim1/PROTOCOL.md).
 
 **SIM1-01 passes.** The instrumented player sends a versioned handshake, process session and episode identity, and per-source acquisition stamps with every telemetry frame. The isolated Devkit validates them, restamps ROS headers to acquisition time using a measured clock-offset bound, and publishes a provenance topic. Two clean 60-second observations and three source-freeze trials completed with zero commands and no telemetry gaps. Overhead could not be distinguished from SIM0. **No motion, receiver guard or arming exists yet**; those are SIM1-02/03.
 

@@ -2,7 +2,7 @@
 
 **Historical attempt:** the startup blocker described here is now resolved by the [verified recovery](SIM0-startup-recovery.md). The current incomplete SIM0 item concerns [source asset import](SIM0-import-review.md).
 
-Date: **2026-09-29**. Run: `20260929T063510Z`. [Chinese report](SIM0-toolchain-attempt.zh-CN.md). **SIM0 is incomplete.** The pinned source, Editor and Linux IL2CPP module are acquired; the Editor's runtime entitlement handoff failed before project creation/import. Full PRE remains required before S1.
+Date: **2026-09-29**. Run: `20260929T063510Z`. **SIM0 is incomplete.** The pinned source, Editor and Linux IL2CPP module are acquired; the Editor's runtime entitlement handoff failed before project creation/import. Full PRE remains required before S1.
 
 ## Delivered preparation and measured outcomes
 

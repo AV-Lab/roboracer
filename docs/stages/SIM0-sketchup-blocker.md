@@ -1,6 +1,6 @@
 # SIM0 — Linux SketchUp Import Blocker
 
-Date: **2026-09-29**. Run: `20260929T100424Z`. [Chinese report](SIM0-sketchup-blocker.zh-CN.md).
+Date: **2026-09-29**. Run: `20260929T100424Z`.
 
 **Subsequent decision:** the user cannot provide a Windows build host. The local read-only feasibility investigation is now complete; see the [bounded Linux recovery proposal](../planning/linux-asset-recovery.md). Its native track reconstruction and exact OpenCAV isolation are awaiting approval. The choices below preserve the earlier decision context; Windows is no longer an available recommendation.
 

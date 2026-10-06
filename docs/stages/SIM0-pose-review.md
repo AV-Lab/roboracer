@@ -1,6 +1,6 @@
 # SIM0 — Pose-update source and retained-trace review
 
-Date: **2026-10-01**. Review: `20261001T114229Z-pose-review`. [Chinese report](SIM0-pose-review.zh-CN.md).
+Date: **2026-10-01**. Review: `20261001T114229Z-pose-review`.
 
 **The approved read-only review is complete. The drift cause is not yet proven, and SIM0/PRE remains blocked by SIM0-B06.** The strongest lead is the repeated update of physical wheel-mesh transforms and the resulting synchronization with the Rigidbody. The four retained runs show about one float32 Z-position increment per physics callback; integrating the sampled Z velocity accounts for only **0.287–0.299%** of their displacement. This warrants locating the change inside the controller callback before choosing a physics repair.
 

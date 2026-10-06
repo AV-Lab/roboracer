@@ -1,6 +1,6 @@
 # S1 motion stage M2 — stops under motion: algorithm hang and runner loss
 
-Date: **2026-10-05**. Run: `20261005T122018Z-m2`. [Chinese report](S1-M2-stops.zh-CN.md). Protocol: [s1-motion-protocol.md v0.1](../planning/s1-motion-protocol.md) §3–§4. Approval: "yes run M2" ([record](../planning/s1-motion-approval.json)).
+Date: **2026-10-05**. Run: `20261005T122018Z-m2`. Protocol: [s1-motion-protocol.md v0.1](../planning/s1-motion-protocol.md) §3–§4. Approval: "yes run M2" ([record](../planning/s1-motion-approval.json)).
 
 **M2 passes in both cases.** The vehicle was driven at throttle 0.01 with steering 0. In each case it was then stopped by the independent mechanisms alone; no zero command was ever sent to stop it:
 

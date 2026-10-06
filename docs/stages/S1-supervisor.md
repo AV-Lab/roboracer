@@ -1,6 +1,6 @@
 # S1 — Supervisor skeleton and the full no-motion command path
 
-Date: **2026-10-05**. Run: `20261005T110210Z-s1-supervisor`. [Chinese report](S1-supervisor.zh-CN.md). Plan: [amendment 1.2](../planning/s1-first-amendment.md), order of work step 3. Next: [motion protocol draft](../planning/s1-motion-protocol.md).
+Date: **2026-10-05**. Run: `20261005T110210Z-s1-supervisor`. Plan: [amendment 1.2](../planning/s1-first-amendment.md), order of work step 3. Next: [motion protocol draft](../planning/s1-motion-protocol.md).
 
 **The S1 supervisor skeleton passes, with no motion.** The approved command architecture now runs end to end with real components:
 

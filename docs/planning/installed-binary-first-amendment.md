@@ -1,6 +1,6 @@
 # Installed AutoDRIVE First — Proposed SIM1 Deferral
 
-Version: **1.1-B, not adopted — decision history only**, 2026-09-29. [Chinese explanation](../stages/SIM1-deferral.zh-CN.md). Related: [approved v1.0](development-plan.md), [source-build route 1.1-A](simulator-build-amendment.md), [observed interface limits](../stages/PRE-interface-qualification.md).
+Version: **1.1-B, not adopted — decision history only**, 2026-09-29. Related: [approved v1.0](development-plan.md), [source-build route 1.1-A](simulator-build-amendment.md), [observed interface limits](../stages/PRE-interface-qualification.md).
 
 **User decision:** continue the original plan, completing PRE before S1. This S1a dependency exception is not adopted. The four todos below are inactive proposal history and remain unchecked; do not implement them or include them in active-stage completion counts. The proposal text and former confirmation request below are retained for traceability.
 

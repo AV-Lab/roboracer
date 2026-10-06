@@ -1,6 +1,6 @@
 # S1 motion stage M0 — steering only, wheels braked
 
-Date: **2026-10-05**. Run: `20261005T113714Z-m0`. [Chinese report](S1-M0-steering.zh-CN.md). Protocol: [s1-motion-protocol.md v0.1](../planning/s1-motion-protocol.md). Approval: "approve D1 A, D2, D3; run M0 only" ([record](../planning/s1-motion-approval.json)).
+Date: **2026-10-05**. Run: `20261005T113714Z-m0`. Protocol: [s1-motion-protocol.md v0.1](../planning/s1-motion-protocol.md). Approval: "approve D1 A, D2, D3; run M0 only" ([record](../planning/s1-motion-approval.json)).
 
 **M0 passes.** The first commands that could actuate anything were sent: steering only, with throttle exactly 0 and the brakes on. They went through the full chain (calibration source → supervisor → guard), on a motion-authorized player.
 

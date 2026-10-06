@@ -1,6 +1,6 @@
 # SIM0 — Project Creation and Batch Startup Recovery
 
-Date: **2026-09-29**. Run: `20260929T085557Z`. [Chinese report](SIM0-startup-recovery.zh-CN.md). **Template registration and actual batch startup are recovered. SIM0-01 passes; full SIM0/PRE acceptance remains pending.**
+Date: **2026-09-29**. Run: `20260929T085557Z`. **Template registration and actual batch startup are recovered. SIM0-01 passes; full SIM0/PRE acceptance remains pending.**
 
 ## Verified results
 

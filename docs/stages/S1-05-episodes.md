@@ -1,6 +1,6 @@
 # S1-05 — Single-episode runner, independent scoring and manifest (non-motion part)
 
-Date: **2026-10-06**. Evidence: `artifacts/s1/20261006T051902Z-s1-05/` (27-file manifest). [Chinese report](S1-05-episodes.zh-CN.md). Request: "go on with S1-05". **No motion was run.** Laps need the [M6 lap proposal](../planning/s1-05-lap-proposal.md), which awaits confirmation.
+Date: **2026-10-06**. Evidence: `artifacts/s1/20261006T051902Z-s1-05/` (27-file manifest). Request: "go on with S1-05". **No motion was run.** Laps need the [M6 lap proposal](../planning/s1-05-lap-proposal.md), which awaits confirmation.
 
 Plan item: *Deliver the parameterized single-episode runner, independent lap/contact/off-track bookkeeping and manifest export. Record initial-state setup, including any manual step; do not call it unattended reset.*
 

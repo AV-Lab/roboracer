@@ -1,6 +1,6 @@
 # SIM1-02 — Receiver guard and lease at the actuation hook
 
-Date: **2026-10-05**. Run: `20261005T063753Z-sim1-02`. [Chinese report](SIM1-guard.zh-CN.md). Protocol: [roboracer.guard/1](../../integration/autodrive/sim1/PROTOCOL.md#roboracerguard1--receiver-guard-sim1-02).
+Date: **2026-10-05**. Run: `20261005T063753Z-sim1-02`. Protocol: [roboracer.guard/1](../../integration/autodrive/sim1/PROTOCOL.md#roboracerguard1--receiver-guard-sim1-02).
 
 **SIM1-02 passes.** The guard runs in the simulator immediately before each actuation step. It validates every command against an arming epoch, an origin, an ordered sequence, a lifetime and a clock bound it computes from its own timestamps. It applies a command only while that command's lease is live. In guard mode the legacy, manual and GUI control paths are closed, and every accept, reject, apply and state change is acknowledged.
 

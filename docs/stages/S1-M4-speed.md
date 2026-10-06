@@ -1,6 +1,6 @@
 # S1-03 stage M4 — closed-loop speed
 
-Date: **2026-10-05**. Run: `20261005T152922Z-m4`. [Chinese report](S1-M4-speed.zh-CN.md). Proposal: [s1-03-controller-proposal.md](../planning/s1-03-controller-proposal.md), v0.3. Approvals: "yes run M4 and M5"; v0.3 thresholds, "yes rerun M4"; GPU freed, "You can kill the Python processes to free the GPU memory" ([record](../planning/s1-motion-approval.json)).
+Date: **2026-10-05**. Run: `20261005T152922Z-m4`. Proposal: [s1-03-controller-proposal.md](../planning/s1-03-controller-proposal.md), v0.3. Approvals: "yes run M4 and M5"; v0.3 thresholds, "yes rerun M4"; GPU freed, "You can kill the Python processes to free the GPU memory" ([record](../planning/s1-motion-approval.json)).
 
 **M4 passes (trial 5).** For the first time the car is driven by AVLite through the target-speed path:
 - AVLite `SpeedStepController` requests target speeds;

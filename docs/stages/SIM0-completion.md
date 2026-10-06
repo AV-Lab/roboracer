@@ -1,6 +1,6 @@
 # SIM0 — Amended P0 neutral acceptance and baseline report
 
-Date: **2026-10-05**. Run: `20261005T052025Z-p0`. [Chinese report](SIM0-completion.zh-CN.md).
+Date: **2026-10-05**. Run: `20261005T052025Z-p0`.
 
 **SIM0-03 and LNX-04 pass under the amended P0. SIM0-B06 is closed as a documented, inherited simulator characteristic, not a repaired defect.** The source-built F1TENTH player completed both fresh-process 60-second zero-command observations, with full eight-topic delivery, matching first scan/image content and clean owned-process shutdown. This report is the SIM0-04 baseline publication; **SIM0-04 is checked only after your stage review**, which is also the SIM1 entry gate.
 

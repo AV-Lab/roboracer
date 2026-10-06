@@ -1,6 +1,6 @@
 # SIM0 — Full-Precision Neutral-Drift Diagnosis
 
-Date: **2026-10-01**. Study: `20261001T060743Z-kinematics`. [中文报告](SIM0-kinematics.zh-CN.md). Predecessor: [four-window passive-drift comparison](SIM0-neutral-drift.md).
+Date: **2026-10-01**. Study: `20261001T060743Z-kinematics`. Predecessor: [four-window passive-drift comparison](SIM0-neutral-drift.md).
 
 **Subsequent authorization:** the user's next “yes” approved the contact A/B scope proposed at the end of this report. The isolated study is `20261001T073103Z-contacts`; its [approval record](../../artifacts/simulator-build/20261001T073103Z-contacts/approval.json) preserves the exact boundary. Historical results and frozen evidence below remain unchanged. This does not authorize P0 acceptance, production adoption, SIM1 or S1.
 

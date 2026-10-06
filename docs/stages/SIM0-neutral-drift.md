@@ -1,6 +1,6 @@
 # SIM0 — Approved Passive-Drift Diagnostic
 
-Date: **2026-10-01**. Study: `20261001T054121Z-drift`. [中文报告](SIM0-neutral-drift.zh-CN.md). Predecessor: [Linux recovery and original P0 stop](SIM0-linux-recovery-attempt.md).
+Date: **2026-10-01**. Study: `20261001T054121Z-drift`. Predecessor: [Linux recovery and original P0 stop](SIM0-linux-recovery-attempt.md).
 
 **Follow-up approval, 2026-10-01:** the user replied “yes” to the read-only kinematics build and two bounded observations. That narrow SIM0 instrumentation exception has now been executed; see the [completed kinematics report and next decision](SIM0-kinematics.md). Execution evidence: `artifacts/simulator-build/20261001T060743Z-kinematics/`. The proposal below remains the historical scope record.
 

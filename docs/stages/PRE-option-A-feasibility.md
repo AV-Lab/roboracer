@@ -1,6 +1,6 @@
 # PRE — Option A Feasibility and Amendment Handoff
 
-Date: **2026-09-29**. Run: `20260929T051932Z`. [Chinese report](PRE-option-A-feasibility.zh-CN.md). [Proposed plan amendment](../planning/simulator-build-amendment.md). [Current PRE status](PRE.md).
+Date: **2026-09-29**. Run: `20260929T051932Z`. [Proposed plan amendment](../planning/simulator-build-amendment.md). [Current PRE status](PRE.md).
 
 **Outcome: preparing a separate instrumented AutoDRIVE build is feasible enough to recommend a bounded build-qualification stage. It is not yet a verified build or a completed PRE.** The user confirmed option A: source/toolchain investigation and a reviewable amendment. This run performed that preparation. No editor installation, activation, simulator implementation, simulator launch, vehicle command or plugin feature implementation occurred.
 

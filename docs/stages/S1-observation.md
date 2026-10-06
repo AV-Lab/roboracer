@@ -1,6 +1,6 @@
 # S1-02 (part 1) — Bridge observation path on the guarded player
 
-Date: **2026-10-05**. Run: `20261005T102231Z-s1-02-live`. [Chinese report](S1-observation.zh-CN.md). Plan: [amendment 1.2](../planning/s1-first-amendment.md), order of work step 2.
+Date: **2026-10-05**. Run: `20261005T102231Z-s1-02-live`. Plan: [amendment 1.2](../planning/s1-first-amendment.md), order of work step 2.
 
 **The observation half of S1-02 passes.** The plugin's `AutoDriveBridge` now subscribes to the provenance-enabled Devkit topics. It assembles each telemetry frame into one checked snapshot and serves AVLite `SensorFrame`s and a labelled ground-truth pose from it.
 

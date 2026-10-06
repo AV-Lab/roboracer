@@ -1,6 +1,6 @@
 # SIM0 — Contact Controls and Treatment Gate
 
-Date: **2026-10-01**. Study: `20261001T073103Z-contacts`. [中文报告](SIM0-contacts.zh-CN.md). Predecessor: [full-precision drift diagnosis](SIM0-kinematics.md).
+Date: **2026-10-01**. Study: `20261001T073103Z-contacts`. Predecessor: [full-precision drift diagnosis](SIM0-kinematics.md).
 
 **Subsequent execution:** the Floor-only proposal below was approved with “approve” and completed as [a separate A/B study](SIM0-floor-contacts.md). Both treatments ran after the revised gate passed; filtering removed contacts but did not resolve drift. This report and its frozen evidence preserve the earlier stop-before-B checkpoint.
 

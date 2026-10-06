@@ -1,6 +1,6 @@
 # SIM0 — Hub Template Loading Recovery
 
-Date: **2026-09-29**. Run: `20260929T084707Z`. [Chinese report](SIM0-template-loading.zh-CN.md). **Historical diagnosis; subsequent corrected registration, project creation and batch startup are verified in the [recovery report](SIM0-startup-recovery.md). SIM0/PRE remain incomplete.** The observations below retain the original failed retries and handoff.
+Date: **2026-09-29**. Run: `20260929T084707Z`. **Historical diagnosis; subsequent corrected registration, project creation and batch startup are verified in the [recovery report](SIM0-startup-recovery.md). SIM0/PRE remain incomplete.** The observations below retain the original failed retries and handoff.
 
 ## Verified cause
 

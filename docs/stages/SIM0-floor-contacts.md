@@ -1,8 +1,8 @@
 # SIM0 — Approved Floor-only contact A/B diagnostic
 
-**Subsequent status:** the user approved the read-only review proposed below; its completed [English report](SIM0-pose-review.md) / [中文报告](SIM0-pose-review.zh-CN.md) now records the current decision. This document and its frozen evidence preserve the Floor A/B result; its final review-approval request is historical.
+**Subsequent status:** the user approved the read-only review proposed below; its completed [English report](SIM0-pose-review.md) now records the current decision. This document and its frozen evidence preserve the Floor A/B result; its final review-approval request is historical.
 
-Date: **2026-10-01**. Run: `20261001T102325Z-floor`. [Chinese report](SIM0-floor-contacts.zh-CN.md). **The approved diagnostic is complete; SIM0/PRE is still blocked by SIM0-B06.**
+Date: **2026-10-01**. Run: `20261001T102325Z-floor`. **The approved diagnostic is complete; SIM0/PRE is still blocked by SIM0-B06.**
 
 **Result.** Filtering the four verified wheel-mesh/Floor pairs removed their post-activation contact points, but body drift remained **3.372 / 3.414 mm** in the two treatments, compared with **3.431 / 3.413 mm** in the controls. All four 60-second windows completed under the unchanged zero-command/encoder/10 mm diagnostic guards. This does not support adopting the filter as a repair. No P0 qualification trial or SIM1/S1 work was started.
 

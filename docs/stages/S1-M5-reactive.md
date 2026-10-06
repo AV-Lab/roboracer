@@ -1,6 +1,6 @@
 # S1-03 stage M5 — reactive baseline A on the track segment
 
-Date: **2026-10-05**. Run: `20261005T160657Z-m5`. [Chinese report](S1-M5-reactive.zh-CN.md). Proposal: [s1-03-controller-proposal.md](../planning/s1-03-controller-proposal.md), v0.3 (D6, D8). Approval: "yes run M4 and M5", run after M4 passed ([record](../planning/s1-motion-approval.json)).
+Date: **2026-10-05**. Run: `20261005T160657Z-m5`. Proposal: [s1-03-controller-proposal.md](../planning/s1-03-controller-proposal.md), v0.3 (D6, D8). Approval: "yes run M4 and M5", run after M4 passed ([record](../planning/s1-motion-approval.json)).
 
 **M5 passes on the first trial.** This is the S1-03 demonstration: the reactive baseline A, AVLite's `GapFollowController`, drives the car along the track segment through AVLite's own execution path:
 - the `SyncExecuter` runs at 10 Hz on pinned snapshots, with ground-truth pose labelled and used only for monitoring;

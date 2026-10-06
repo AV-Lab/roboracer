@@ -1,6 +1,6 @@
 # SIM0 — Approved Linux Recovery Attempt
 
-Updated: **2026-10-01**. Run: `20260929T122535Z` (continued across three dates). [中文报告](SIM0-linux-recovery-attempt.zh-CN.md). Approved scope: [native-track recovery](../planning/linux-asset-recovery.md).
+Updated: **2026-10-01**. Run: `20260929T122535Z` (continued across three dates). Approved scope: [native-track recovery](../planning/linux-asset-recovery.md).
 
 **Subsequent result:** the approved [Floor-only A/B diagnostic](SIM0-floor-contacts.md) completed two controls and two treatments. Filtering removed the selected contact points after activation, but treatment body drift remains **3.372 / 3.414 mm**. P0 and SIM0-B06 remain unresolved; no repair adopted. Proposed read-only source/trace review awaits confirmation. The body below preserves the preceding build/P0 checkpoint.
 

@@ -1,6 +1,5 @@
 # RoboRacer Community Plugin Research Report
 
-Chinese translation: [简体中文](report.zh-CN.md).
 
 Latest execution, 2026-10-05: full PRE before S1 remains confirmed. SIM0 complete ([report](../stages/SIM0-completion.md)); SIM1 entered and SIM1-01 passes: the source-built simulator now reports per-sensor acquisition identity and the Devkit stamps ROS headers at acquisition time ([SIM1-01 report](../stages/SIM1-provenance.md)); SIM1-02 passes: a receiver guard and lease immediately before actuation reject all disarmed P1a command/clock/failure cases ([SIM1-02 report](../stages/SIM1-guard.md)). The user then postponed the remaining PRE work and started S1 on that build ([amendment 1.2](../planning/s1-first-amendment.md)). The numerical motion protocol is still the gate before any motion.
 

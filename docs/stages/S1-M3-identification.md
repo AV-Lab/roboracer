@@ -1,6 +1,6 @@
 # S1-03 stage M3 — open-loop throttle identification
 
-Date: **2026-10-05**. Run: `20261005T123651Z-m3`. [Chinese report](S1-M3-identification.zh-CN.md). Proposal: [s1-03-controller-proposal.md v0.1](../planning/s1-03-controller-proposal.md), D8. Approval: "approve D4 A, D5, D6, D7; run M3 only" ([record](../planning/s1-motion-approval.json)).
+Date: **2026-10-05**. Run: `20261005T123651Z-m3`. Proposal: [s1-03-controller-proposal.md v0.1](../planning/s1-03-controller-proposal.md), D8. Approval: "approve D4 A, D5, D6, D7; run M3 only" ([record](../planning/s1-motion-approval.json)).
 
 > **Correction (2026-10-05, from [M3b](S1-M3b-identification.md)):** the steady-state gain below (4.89–4.91) was biased low by an analysis window that included the first post-hold (already braking) frame. Re-analysed, M3 gives **5.02 / 5.03 / 5.02 m/s per unit throttle** (steady speeds 0.0251 / 0.0503 / 0.1005 m/s). All other results stand. The original analysis is retained in the evidence.
 

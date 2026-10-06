@@ -1,6 +1,6 @@
 # S1 motion stage M1 — throttle sign and minimal straight pulses
 
-Date: **2026-10-05**. Run: `20261005T115944Z-m1`. [Chinese report](S1-M1-throttle.zh-CN.md). Protocol: [s1-motion-protocol.md v0.1](../planning/s1-motion-protocol.md) §3–§4. Approval: "approve M1 as drafted" ([record](../planning/s1-motion-approval.json)).
+Date: **2026-10-05**. Run: `20261005T115944Z-m1`. Protocol: [s1-motion-protocol.md v0.1](../planning/s1-motion-protocol.md) §3–§4. Approval: "approve M1 as drafted" ([record](../planning/s1-motion-approval.json)).
 
 **M1 passes.** These were the first commands that moved the vehicle: four forward throttle pulses with steering exactly 0, each from rest and followed by zero throttle (brakes).
 

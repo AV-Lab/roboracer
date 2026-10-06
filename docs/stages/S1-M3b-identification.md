@@ -1,6 +1,6 @@
 # S1-03 stage M3b — throttle identification up to 0.3 m/s
 
-Date: **2026-10-05**. Run: `20261005T133323Z-m3b`. [Chinese report](S1-M3b-identification.zh-CN.md). Proposal: [s1-03-controller-proposal.md v0.2](../planning/s1-03-controller-proposal.md), D8. Approval: "comfirm", the reply to "confirm or change revised D5 and whether to run M3b" ([record](../planning/s1-motion-approval.json)).
+Date: **2026-10-05**. Run: `20261005T133323Z-m3b`. Proposal: [s1-03-controller-proposal.md v0.2](../planning/s1-03-controller-proposal.md), D8. Approval: "comfirm", the reply to "confirm or change revised D5 and whether to run M3b" ([record](../planning/s1-motion-approval.json)).
 
 **M3b passes on the first trial.** The throttle-to-speed relation stays linear up to the M4 range, and it corrects M3's number. Speed settles within one frame at
 

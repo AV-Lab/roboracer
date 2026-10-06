@@ -1,6 +1,6 @@
 # S1-06 — First timing, resource and episode measurements (from the M6 laps)
 
-Date: **2026-10-06**. Evidence: `artifacts/s1/20261006T064500Z-s1-06/`. [Chinese report](S1-06-measurements.zh-CN.md). Request: "go on with S1-06". **No motion was run for this report.** The rest of M1 (F1 fault matrix, five dedicated timing windows) awaits the [M1 protocol](../planning/s1-06-m1-protocol.md).
+Date: **2026-10-06**. Evidence: `artifacts/s1/20261006T064500Z-s1-06/`. Request: "go on with S1-06". **No motion was run for this report.** The rest of M1 (F1 fault matrix, five dedicated timing windows) awaits the [M1 protocol](../planning/s1-06-m1-protocol.md).
 
 ## Method
 

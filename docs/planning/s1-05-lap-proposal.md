@@ -1,6 +1,6 @@
 # S1-05 Stage M6 — One Bounded Lap of C0 — Proposal for Confirmation
 
-Version **0.1**, 2026-10-06. [Chinese version](s1-05-lap-proposal.zh-CN.md). Builds on the [S1 motion protocol](s1-motion-protocol.md) and the confirmed [S1-03 controller proposal v0.3](s1-03-controller-proposal.md). **Nothing here is authorized until you confirm it.** Laps are still listed as not authorized in the [approval record](s1-motion-approval.json).
+Version **0.1**, 2026-10-06. Builds on the [S1 motion protocol](s1-motion-protocol.md) and the confirmed [S1-03 controller proposal v0.3](s1-03-controller-proposal.md). **Nothing here is authorized until you confirm it.** Laps are still listed as not authorized in the [approval record](s1-motion-approval.json).
 
 ## 1. Why a new stage
 

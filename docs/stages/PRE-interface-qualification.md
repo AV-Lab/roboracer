@@ -1,6 +1,6 @@
 # PRE — Continuous Interface Qualification and Capability Decision
 
-Date: **2026-09-28**. Run: **20260928T124339Z**. Status: **PRE-02 passed for the pinned disarmed interface; PRE-03/04 remain blocked. PRE is not complete.** No motion command or S1 feature implementation occurred. [Chinese version](PRE-interface-qualification.zh-CN.md).
+Date: **2026-09-28**. Run: **20260928T124339Z**. Status: **PRE-02 passed for the pinned disarmed interface; PRE-03/04 remain blocked. PRE is not complete.** No motion command or S1 feature implementation occurred.
 
 **Subsequent decision, 2026-09-29:** the user selected option A preparation. See the [feasibility report](PRE-option-A-feasibility.md) and [draft amendment](../planning/simulator-build-amendment.md). The pending-choice language below is historical; source compilation and instrumentation are still unperformed, and PRE acceptance is unchanged.
 

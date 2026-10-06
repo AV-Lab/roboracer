@@ -1,6 +1,6 @@
 # S1-05 stage M6 — one bounded lap of C0 with A-lap
 
-Date: **2026-10-06**. Evidence: `artifacts/s1/20261006T054031Z-m6/` (114-file manifest). [Chinese report](S1-M6-lap.zh-CN.md). Proposal: [s1-05-lap-proposal.md](../planning/s1-05-lap-proposal.md) v0.1. Approval: "approve D9, D10, D11; run M6" ([record](../planning/s1-motion-approval.json)). Code: commit `8a8fa7e`, clean.
+Date: **2026-10-06**. Evidence: `artifacts/s1/20261006T054031Z-m6/` (114-file manifest). Proposal: [s1-05-lap-proposal.md](../planning/s1-05-lap-proposal.md) v0.1. Approval: "approve D9, D10, D11; run M6" ([record](../planning/s1-motion-approval.json)). Code: commit `8a8fa7e`, clean.
 
 **All three permitted trials (D11) completed one lap without contact or off-track.** Each trial ran through the single-episode entrypoint in live mode, `scripts/roboracer_episode.py live --stage m6`:
 1. a fresh player at the scene spawn;

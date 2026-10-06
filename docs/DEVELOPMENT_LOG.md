@@ -587,3 +587,30 @@
   - The offline rollout predicted 0.105 m clearance. Steering clamps at 0.35 rad in the tightest hairpin, as predicted.
 - **Records.** 107 script tests and 41 plugin tests pass. Evidence `artifacts/s1/20261006T054031Z-m6/` (114 files). Bilingual [report](stages/S1-M6-lap.md).
 - **Next.** The S1-02 to S1-05 check boxes await user review. S1-06 and S1 acceptance are not claimed.
+
+## 2026-10-06 — S1-06: first timing/resource/episode measurements; M1 protocol drafted
+
+- **Request.** "go on with S1-06". In the plan's run matrix, M1 means: three circuit runs, each F1 fault case ×3, and five timing windows (10 s warm-up + 120 s), frozen before the runs. No motion was run.
+- **Tool.** `scripts/roboracer_timing.py` measures, per window and per clock domain:
+  - telemetry and source rates and ages, observation and feedback age at request, and clock bound;
+  - tick and request rates;
+  - the latency chain, including command → first observation acquired after it applied;
+  - per-process CPU/RSS and GPU;
+  - stop and episode results.
+  It checks each value against the frozen S1 limits.
+  - Two first-pass errors, both caught on the real traces and fixed: guard event text starts with an event number, and only the first runner heartbeat is traced, so the runner lease is checked through inhibited decisions instead.
+- **Runner.** GPU sampling via `nvidia-smi` once per second in a separate thread (`gpu.jsonl`), so a query (~22 ms) never delays heartbeats. Checked on this host.
+- **First measurements** (M6 laps, preliminary, 3 × 120 s windows, all complete):
+  - telemetry 5.8 Hz (period p95 212 ms, max 248 ms); real-time factor 1.000;
+  - observation age at request p95 ~270 ms, max 334 ms; command → observed p95 ~225 ms;
+  - ticks 100.0 ms with 0 overruns; supervisor decision 0.15 ms;
+  - CPU: player 138 %, bridge 28 %, stack 3 % of one core.
+  - All frozen limits held. Steering sits at its clamp by design.
+- **Protocol.** [s1-06-m1-protocol.md](planning/s1-06-m1-protocol.md) v0.1 asks for:
+  - D12: count the M6 laps as the circuit demos;
+  - D13: five M6 timing laps;
+  - D14: nine F1 cases ×3, injected at 6 s on the straight;
+  - D15: F1 stop within 1.5 s and ≤ 0.40 m after injection at 0.3 m/s;
+  - D16: runner error cleanup disarms and observes the stop before killing processes.
+  It also drafts S2 budgets.
+- **Records.** 111 script tests and 41 plugin tests pass. Evidence `artifacts/s1/20261006T064500Z-s1-06/`. Bilingual [report](stages/S1-06-measurements.md).

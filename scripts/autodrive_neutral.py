@@ -1611,7 +1611,31 @@ def analyze(args):
                       "output": str(output)}))
 
 
+def sample_gpu(path, stop, period_s=1.0):
+    """S1-06: device-level GPU utilization/memory once per second, from a thread so a slow
+    nvidia-smi never delays the runner's heartbeats. Not attributable per process (the player
+    renders through OpenGL, which compute-app queries do not list)."""
+    query = ["nvidia-smi", "--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu",
+             "--format=csv,noheader,nounits"]
+    with open(path, "w", buffering=1) as f:
+        while not stop.is_set():
+            before = time.monotonic_ns()
+            try:
+                done = subprocess.run(query, capture_output=True, text=True, timeout=5)
+                row = {"monotonic_ns": before, "query_ms": (time.monotonic_ns() - before) / 1e6}
+                if done.returncode == 0 and done.stdout.strip():
+                    util, used, total, temp = (float(v) for v in done.stdout.strip().splitlines()[0].split(","))
+                    row.update(utilization_pct=util, memory_used_mib=used, memory_total_mib=total, temperature_c=temp)
+                else:
+                    row["error"] = done.stderr.strip()[:200] or f"exit {done.returncode}"
+            except (OSError, subprocess.TimeoutExpired, ValueError) as exc:
+                row = {"monotonic_ns": before, "error": type(exc).__name__}
+            f.write(json.dumps(row) + "\n")
+            stop.wait(period_s)
+
+
 def trial(args, context, out):
+    import threading
     from Xlib import X, display
     from Xlib.ext import xtest
     from Xlib.protocol import event
@@ -1619,6 +1643,8 @@ def trial(args, context, out):
     from autodrive_build import process_sample
 
     out.mkdir()
+    gpu_stop = threading.Event()
+    threading.Thread(target=sample_gpu, args=(out / "gpu.jsonl", gpu_stop), daemon=True).start()
     here = Path(context["scratch"])
     environment = dict(os.environ, **context["environment"], ROS_DOMAIN_ID="87", ROS_LOCALHOST_ONLY="1")
     bridge_environment = dict(environment,
@@ -2102,6 +2128,7 @@ def trial(args, context, out):
         record["error"] = type(exc).__name__ + ": " + str(exc)
         raise
     finally:
+        gpu_stop.set()
         cleanup_started = time.monotonic()
         if connection is not None:
             connection.close()

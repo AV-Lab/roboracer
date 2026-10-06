@@ -2,7 +2,7 @@
 
 Status as of **2026-10-06** (S1-06, M1 in progress). [Chinese version](stack-overview.zh-CN.md). This page describes the stack used in the M4–M6 runs, the D13 timing laps and the F1 fault cases. It was checked against the AVLite source (`avlite/c60_apps/c62_factory.py`, `avlite/c40_execution/c44_sync_executer.py`, `avlite/c40_execution/c42_execution_strategy.py`) and the recorded runs.
 
-**Short answer.** AVLite really runs, as the framework: its plugin loader, `executor_factory`, the `SyncExecuter` 10 Hz tick loop, and its interfaces and data model. **No AVLite algorithm runs.** Perception, localization, mapping and planning are not instantiated, and the controller is the plugin's. All driving logic is roboracer plugin code. The supervisor is plugin code in a separate process; the guard lives in the simulator.
+**Short answer.** At S1 only control runs (see §6). AVLite really runs, as the framework: its plugin loader, `executor_factory`, the `SyncExecuter` 10 Hz tick loop, and its interfaces and data model. **No AVLite algorithm runs.** Perception, localization, mapping and planning are not instantiated, and the controller is the plugin's. All driving logic is roboracer plugin code. The supervisor is plugin code in a separate process; the guard lives in the simulator.
 
 ## 1. Data and command path
 
@@ -59,7 +59,20 @@ Guard (C# inside the simulator, roboracer patch): arming epoch, lease ≤ 1 s, l
 - **Its hold behaviour shows.** AVLite re-applies the held command every tick. The bridge counts these repeats as `held_resend` and does not resend them, matching `_simulate_step`.
 - **The ego state is labelled ground truth,** through the `LOCALIZATION` capability. A-lap never reads it.
 
-## 6. Limits of what has been exercised
+## 6. Capabilities at S1
+
+At S1, **only control runs**, by design. The plan specifies S1 as a reactive baseline (A), and no perception, localization or planning module is loaded, from AVLite or elsewhere.
+
+| Function | At S1 | Planned |
+| --- | --- | --- |
+| Perception | None. The snapshot assembler only validates and packages sensor data. Gap-follow's own LiDAR processing (obstacle-edge padding, deepest-gap choice) lives inside the controller. | S4: scan-derived static-obstacle representation |
+| Localization | None. AVLite's ego pose is simulator ground truth (IPS), labelled as such and never read by the controller. Only the runner's monitors and the scorer use it. | S3: ICP scan-to-map matching through AVLite's localization contract (reused/extended), with ground truth kept out of the driving stack |
+| Planning | None. No map, reference path or trajectory; the heading is chosen each tick from the current scan. | S3: Pure Pursuit along an imported reference; S4: corridor-constrained avoidance and a blocked-track stop |
+| Control | Running: gap-follow (target speed + steering, 10 Hz) and the supervisor's speed loop (target speed → throttle, encoder feedback). AVLite controllers are not used. | S3: controller B with Pure Pursuit and bounded target-speed control |
+
+The S1 laps therefore demonstrate the AVLite ↔ plugin ↔ AutoDRIVE plumbing, the safety chain and a reactive driver, **not map-based autonomy**.
+
+## 7. Limits of what has been exercised
 
 - **AVLite algorithms:** none of its perception, localization, mapping, planning or control has been used yet.
 - **AVLite app and GUI:** not running. The stack process (`plugin_observe` in `scripts/autodrive_neutral.py`) builds the executer through AVLite's own factory, then calls `executer.step()` every 100 ms itself. That is AVLite's headless execution path, not the AVLite application.

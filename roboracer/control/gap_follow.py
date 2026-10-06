@@ -12,6 +12,7 @@ d_front is the nearest return within +-10 deg.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import math
 
 import numpy as np
@@ -63,19 +64,52 @@ def extend_disparities(ranges: np.ndarray) -> np.ndarray:
     return out
 
 
-def gap_follow(points) -> tuple[float, float, dict]:
+@dataclass(frozen=True)
+class GapFollowParams:
+    """Defaults are the approved baseline A (D6). Non-default sets are proposals only.
+
+    centering_gain: adds atan2(gain * (d_left - d_right) / 2, l_d) to the gap heading, with
+    d_left/d_right the nearest returns within 80..100 deg either side (0 = A, no centering).
+    side_speed_gain: also caps speed at gain * (min(d_left, d_right) - side_floor_m) (0 = off).
+    """
+    max_steer_rad: float = MAX_STEER_RAD
+    max_speed_mps: float = MAX_SPEED_MPS
+    steer_slowdown_rad: float = 0.6
+    centering_gain: float = 0.0
+    side_speed_gain: float = 0.0
+    side_floor_m: float = 0.15
+
+
+def side_minima(angles: np.ndarray, ranges: np.ndarray) -> tuple[float, float]:
+    left = ranges[(angles >= math.radians(80)) & (angles <= math.radians(100))]
+    right = ranges[(angles <= math.radians(-80)) & (angles >= math.radians(-100))]
+    return float(left.min()), float(right.min())
+
+
+def gap_follow(points, params: GapFollowParams = GapFollowParams()) -> tuple[float, float, dict]:
     """(target speed m/s, steer rad, details) from a LiDAR cloud in the vehicle-aligned frame."""
     angles, ranges = ranges_from_points(points)
     extended = extend_disparities(ranges)
     best = np.flatnonzero(extended == extended.max())
     target = best[np.argmin(np.abs(angles[best]))]   # deepest; ties -> straightest
     alpha = float(angles[target])
+    left, right = side_minima(angles, ranges)
+    if params.centering_gain:
+        alpha += math.atan2(params.centering_gain * (min(left, 2.0) - min(right, 2.0)) / 2, LOOKAHEAD_M)
     steer = math.atan2(2 * WHEELBASE_M * math.sin(alpha), LOOKAHEAD_M)
-    steer = max(-MAX_STEER_RAD, min(MAX_STEER_RAD, steer))
+    steer = max(-params.max_steer_rad, min(params.max_steer_rad, steer))
     front = float(ranges[np.abs(angles) <= math.radians(FRONT_DEG)].min())
-    speed = min(MAX_SPEED_MPS, MAX_SPEED_MPS * (1 - abs(steer) / 0.6), 0.25 * (front - 0.5))
+    speed = min(params.max_speed_mps, params.max_speed_mps * (1 - abs(steer) / params.steer_slowdown_rad),
+                0.25 * (front - 0.5))
+    if params.side_speed_gain:
+        speed = min(speed, params.side_speed_gain * (min(left, right) - params.side_floor_m))
     speed = max(0.0, speed)
-    return speed, steer, {"alpha_rad": alpha, "depth_m": float(extended[target]), "front_m": front}
+    return speed, steer, {"alpha_rad": alpha, "depth_m": float(extended[target]), "front_m": front,
+                          "left_m": left, "right_m": right}
+
+
+# Lap candidate (S1-05 proposal; not approved for motion). Tuned only in the offline rollout.
+LAP_PARAMS = GapFollowParams(max_steer_rad=0.35, steer_slowdown_rad=0.8, centering_gain=0.5, side_speed_gain=1.0)
 
 
 class GapFollowController(ControlStrategy):

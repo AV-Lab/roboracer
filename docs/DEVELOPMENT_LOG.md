@@ -550,3 +550,23 @@
   - Finding: A does not center; right clearance shrank 0.54 → 0.28 m as the corridor widened. Noted for laps.
 - **Records.** All 604 player files unchanged. 94 script tests and 39 plugin tests pass. Evidence `artifacts/s1/20261005T152922Z-m4/` (159 files) and `artifacts/s1/20261005T160657Z-m5/` (39 files); bilingual reports [M4](stages/S1-M4-speed.md) and [M5](stages/S1-M5-reactive.md).
 - **Next.** The S1-02/03/04 check boxes await user review. Laps (S1-05/06) and higher speeds are not authorized.
+
+## 2026-10-06 — S1-05 non-motion parts: independent scorer, episode entrypoint, manifest; M6 lap proposal
+
+- **Request.** "go on with S1-05". No motion was run.
+- **Scorer** (`scripts/roboracer_scoring.py`).
+  - C0 geometry comes from the player's own collider export: centerline 31.33 m, width 1.14–2.55 m, footprint x −0.101..0.425 / y −0.145..0.143 m about the rear axle.
+  - Laps need cumulative progress ≥ k·L with ordered 25/50/75 % gates. Contact and off-track use the swept footprint, with de-duplicated events.
+  - Two fixture expectations were wrong, not the scorer: lap time is resolved to one frame, and on a curve the front-outer footprint corner is the closest point.
+  - Added a `plot` subcommand (walls drawn with holes) and a max single-frame progress audit value. Inside a hairpin the projection legitimately outruns the car, by up to 0.59 m per frame in rollouts.
+- **Episode entrypoint** (`scripts/roboracer_episode.py`).
+  - `live`: m4/m5 only, through the existing runner. `recorded`: re-scores existing results. Both use the shared `roboracer.episode/1` schema plus `roboracer.episode-manifest/1`.
+  - The initialization is recorded as a manual pre-Connect review, with `unattended_reset: false`.
+  - Recorded M5 trial 1: 6.06 m, clean, min clearance 0.123 m. Recorded M4 trial 5: 2.26 m, clean. Binaries match the SIM1-03 build record.
+- **Lap check** (`scripts/roboracer_rollout.py`, offline).
+  - The 2-D cast matches recorded scans: full scan p95 7.9 mm, side sectors ≤ 4 mm.
+  - Over one lap, A comes within 6–11 mm of a wall. A-lap (`LAP_PARAMS`: centering 0.5, side speed cap, slowdown /0.8, same 0.35 rad / 0.3 m/s) keeps 0.105 m and is insensitive to 0.25–0.6 s of latency.
+  - `GapFollowParams` defaults are exactly A, and a test pins this.
+- **Proposal.** [s1-05-lap-proposal.md](planning/s1-05-lap-proposal.md) v0.1 asks for D9 (A-lap), D10 (M6: M5 limits, end at 33 m or 200 s, fail-closed track bounding-box containment instead of the start radius) and D11 (≤ 3 trials, stop at the first failure).
+- **Records.** 106 script tests and 41 plugin tests pass. Evidence `artifacts/s1/20261006T051902Z-s1-05/` (27 files). Bilingual [report](stages/S1-05-episodes.md).
+- **Next.** M6 awaits confirmation. S1-02 to S1-05 check boxes are unticked.

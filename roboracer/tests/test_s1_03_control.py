@@ -170,6 +170,24 @@ class GapFollowTests(unittest.TestCase):
         speed, steer, _ = self.gf.gap_follow(self.corridor(left=5.0, right=-0.3, front=0.6, extra=side))
         self.assertLessEqual(abs(steer), 0.35 + 1e-12)
 
+    def test_default_params_are_baseline_a(self):
+        p = self.gf.GapFollowParams()
+        self.assertEqual((0.35, 0.3, 0.6, 0.0, 0.0), (p.max_steer_rad, p.max_speed_mps, p.steer_slowdown_rad,
+                                                      p.centering_gain, p.side_speed_gain))
+        for cloud in (self.corridor(), self.corridor(front=1.0)):
+            self.assertEqual(self.gf.gap_follow(cloud)[:2], self.gf.gap_follow(cloud, p)[:2])
+
+    def test_lap_candidate_centers_and_slows_near_a_side(self):
+        lap = self.gf.LAP_PARAMS
+        self.assertLessEqual(lap.max_steer_rad, 0.35)  # the proposal keeps the approved limit
+        # Closer to the right wall: centering adds a left component relative to A.
+        _, steer_a, _ = self.gf.gap_follow(self.corridor())
+        _, steer_lap, _ = self.gf.gap_follow(self.corridor(), lap)
+        self.assertGreater(steer_lap, steer_a)
+        # 0.25 m from the right wall: the side rule caps speed at 1.0 * (0.25 - 0.15).
+        speed, _, _ = self.gf.gap_follow(self.corridor(left=1.0, right=-0.25), lap)
+        self.assertLessEqual(speed, 0.1 + 1e-9)
+
 
 if __name__ == "__main__":
     unittest.main()

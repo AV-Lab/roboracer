@@ -31,8 +31,8 @@ import roboracer_scoring as rs  # noqa: E402
 REPO = Path(__file__).resolve().parents[1]
 AVLITE = Path("/home/a2rl/avlite")
 APPROVAL = REPO / "docs/planning/s1-motion-approval.json"
-# Only the AVLite motion stages already approved; new stages (laps) need a new approval first.
-LIVE_STAGES = ("m4", "m5")
+# Only the approved AVLite motion stages (M6: lap proposal v0.1, "approve D9, D10, D11; run M6").
+LIVE_STAGES = ("m4", "m5", "m6")
 
 
 def utc_now():

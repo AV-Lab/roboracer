@@ -122,6 +122,7 @@ class GapFollowController(ControlStrategy):
         super().__init__(*args, **kwargs)
         self.last = None
         self.enabled = True  # a runner may hold it at standstill (e.g. before/after a test window)
+        self.params = GapFollowParams()  # baseline A; a confirmed stage may select another set (M6: LAP_PARAMS)
 
     def control(self, ego, plan=None, control_dt=None, perception_model=None, sensors=None):
         lidar = sensors.lidar if sensors is not None else None
@@ -130,7 +131,7 @@ class GapFollowController(ControlStrategy):
         elif lidar is None or lidar.points is None:
             speed, steer, detail = 0.0, 0.0, {"reason": "no lidar"}
         else:
-            speed, steer, detail = gap_follow(lidar.points)
+            speed, steer, detail = gap_follow(lidar.points, self.params)
         self.last = dict(detail, target_speed=speed, steer=steer)
         self.cmd = ControlCommand(steer=steer, acceleration=0.0)  # gauge mirror
         return TargetSpeedSteeringCommand(target_speed=speed, steer=steer)

@@ -39,13 +39,14 @@ class RunnerStageTests(unittest.TestCase):
     def test_stage_tables_agree_and_approval_names_only_m0(self):
         self.assertEqual(core.STAGES, MOTION_STAGES)
         approval = json.loads(MOTION_APPROVAL.read_text())
-        self.assertEqual(("0.1", ["M0", "M1", "M2", "M3", "M3B", "M4", "M5"], "A"),
+        self.assertEqual(("0.1", ["M0", "M1", "M2", "M3", "M3B", "M4", "M5", "M6"], "A"),
                          (approval["version"], approval["stages"], approval["decisions"]["D1"]))
         for throttle in (0.03, 0.045, 0.06):
             check_guard_request(f"1 sup-1 3 10 20 {throttle} 0 cal.3.t9", "m3b")
         with self.assertRaises(ValueError):
             check_guard_request("1 sup-1 3 10 20 0.07 0 cal.3.t9", "m3b")
-        for item in ("AVLite motion outside M4/M5", "speeds above 0.3 m/s", "steering while moving outside M5"):
+        for item in ("AVLite motion outside M4/M5/M6", "speeds above 0.3 m/s", "more than one lap per episode",
+                     "steering while moving outside M5/M6", "unattended reset"):
             self.assertIn(item, approval["not_authorized"])
 
     def test_m4_m5_ranges_match_supervisor(self):
@@ -66,6 +67,19 @@ class RunnerStageTests(unittest.TestCase):
         for args in ((frame(steering="0.010"), "m4"), (frame(throttle="0.080"), "m5"), (frame(steering="0.400"), "m5")):
             with self.subTest(args=args[1:]), self.assertRaises(ValueError):
                 motion_fields(*args)
+
+    def test_m6_box_containment_and_m5_radius(self):
+        from autodrive_neutral import outside_containment
+        spawn = [0.741, 3.158, 0.059]
+        self.assertFalse(outside_containment("m6", spawn, [-2.0, -8.0, 0.06]))   # far from spawn, on the track
+        for position in ([-4.3, 0.0, 0.06], [2.2, 0.0, 0.06], [0.0, -9.1, 0.06], [0.0, 7.7, 0.06]):
+            with self.subTest(position=position):
+                self.assertTrue(outside_containment("m6", spawn, position))
+        self.assertTrue(outside_containment("m5", spawn, [-2.0, -8.0, 0.06]))    # M5 keeps its 7 m radius
+        self.assertFalse(outside_containment("m5", spawn, [0.741, 0.0, 0.059]))
+        check_guard_request("1 sup-1 3 10 20 0.03 -0.668451 avlite.3.t9", "m6")
+        with self.assertRaises(ValueError):
+            check_guard_request("1 sup-1 3 10 20 0.03 0.67 avlite.3.t9", "m6")
 
     def test_m3_bounds(self):
         for throttle in (0, 0.005, 0.01, 0.02):

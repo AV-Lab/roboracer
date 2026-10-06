@@ -43,7 +43,9 @@ STAGES = {"m0": {"throttle": (0.0,), "steering": (0.0, 0.1, -0.1, 0.5, -0.5, 1.0
 # Confirmed S1-03 stages where AVLite target-speed requests drive the vehicle through the
 # speed loop (s1-03-controller-proposal.md v0.2, D5/D8; approved "yes run M4 and M5").
 AVLITE_STAGES = {"m4": {"max_speed_mps": 0.3, "max_steer_rad": 0.0},
-                 "m5": {"max_speed_mps": 0.3, "max_steer_rad": 0.35}}
+                 "m5": {"max_speed_mps": 0.3, "max_steer_rad": 0.35},
+                 # S1-05 lap proposal v0.1 (D10; approved "approve D9, D10, D11; run M6"): M5 limits.
+                 "m6": {"max_speed_mps": 0.3, "max_steer_rad": 0.35}}
 STEER_LIMIT_RAD = 0.5235987755982988  # normalized steering 1.0 (M0)
 
 

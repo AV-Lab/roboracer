@@ -150,8 +150,8 @@ def analyze(directory: Path) -> dict:
         steers = [t["controller"]["steer"] for t in run_ticks if t.get("controller") and "steer" in t["controller"]]
         result["requested_steer_rad_min_max"] = [min(steers), max(steers)] if steers else None
         result["max_speed_mps"] = max((v for t, v, _ in series), default=0.0)
-        if result["finish_reason"] not in ("distance", "time"):
-            failures.append(f"M5 did not complete: {result['finish_reason']}")
+        if result["finish_reason"] not in (("distance",) if profile == "m6" else ("distance", "time")):
+            failures.append(f"{profile.upper()} did not complete: {result['finish_reason']}")
 
     # Final stop: from the first zero request of the stopping phase.
     stop_tick = next((t for t in ticks if t.get("phase") == "stopping"), None)
@@ -161,7 +161,7 @@ def analyze(directory: Path) -> dict:
         at = next((t for t, v in after if v < 0.02 and all(w < 0.02 for u, w in after if u >= t)), None)
         final_stop = mono_of_sim(at) - stop_tick["start_ns"] / 1e9 if at is not None else None
     result["final_stop_s"] = final_stop
-    if profile == "m5" and (final_stop is None or final_stop > 1.5):
+    if profile in ("m5", "m6") and (final_stop is None or final_stop > 1.5):
         failures.append(f"final stop took {final_stop}")
 
     # D7 latency chain: request generation -> supervisor decision (mono); accept -> applied (sim).

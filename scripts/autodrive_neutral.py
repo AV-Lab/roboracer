@@ -123,7 +123,21 @@ MOTION_STAGES = {"m0": {"throttle": (0.0,), "steering": (0.0, 0.1, -0.1, 0.5, -0
 AVLITE_MOTION_STAGES = {"m4": {"throttle_max": 0.07, "steering_max": 0.0, "steer_feedback_rad": 0.0,
                                "containment_m": 3.0},
                         "m5": {"throttle_max": 0.07, "steering_max": round(0.35 / 0.5235987755982988, 6),
-                               "steer_feedback_rad": 0.3505, "containment_m": 7.0}}
+                               "steer_feedback_rad": 0.3505, "containment_m": 7.0},
+                        # S1-05 lap proposal v0.1 (D10, approved "approve D9, D10, D11; run M6"): M5 limits;
+                        # a lap returns to the start, so containment is the qualified C0 wall extent + 0.3 m.
+                        "m6": {"throttle_max": 0.07, "steering_max": round(0.35 / 0.5235987755982988, 6),
+                               "steer_feedback_rad": 0.3505, "containment_box": (-4.23, 2.12, -9.04, 7.65)}}
+
+
+def outside_containment(stage, reference, position):
+    """Hard bridge containment for motion stages (fails closed): a radius from the first frame,
+    or for M6 an axis-aligned box (x_min, x_max, y_min, y_max) in IPS coordinates."""
+    limits = AVLITE_MOTION_STAGES.get(stage, {})
+    if "containment_box" in limits:
+        x_min, x_max, y_min, y_max = limits["containment_box"]
+        return not (x_min <= position[0] <= x_max and y_min <= position[1] <= y_max)
+    return math.dist(reference, position) >= limits.get("containment_m", M1_CONTAINMENT_M)
 # M1 hard containment in the bridge (fails closed): four pulses at the 0.5 m per-pulse cap.
 # The calibration source applies the finer protocol abort rules (speed, travel, yaw, lateral, clearance).
 M1_CONTAINMENT_M = 2.0
@@ -363,8 +377,8 @@ def bridge(args):
             changed = rejected_motion_fields(reference, motion, args.profile)
             if args.motion_stage in ("m1", "m2", "m3", "m3b") or args.motion_stage in AVLITE_MOTION_STAGES:
                 # Motion is intended: only the hard containment bound stops the bridge here.
-                bound = AVLITE_MOTION_STAGES.get(args.motion_stage, {}).get("containment_m", M1_CONTAINMENT_M)
-                changed = ["Position"] if math.dist(reference["Position"], motion["Position"]) >= bound else []
+                changed = ["Position"] if outside_containment(args.motion_stage, reference["Position"],
+                                                              motion["Position"]) else []
             displacement = math.dist(reference["Position"], motion["Position"])
             row = {"index": state["processed"], "received_monotonic_ns": received,
                    "motion": motion, "position_displacement_m": displacement,
@@ -527,8 +541,8 @@ def plugin_observe(args):
         from avlite.c60_apps.c69_settings import AppSettings
         AppSettings.c62_default_plugins = []
         AppSettings.c62_community_plugins = {"roboracer": str(args.plugin)}
-        controller_name = {"m4": "SpeedStepController", "m5": "GapFollowController"}.get(args.stack_profile,
-                                                                                          "HoldController")
+        controller_name = {"m4": "SpeedStepController", "m5": "GapFollowController",
+                           "m6": "GapFollowController"}.get(args.stack_profile, "HoldController")
         executer = executor_factory(
             executer_type="SyncExecuter", bridge="AutoDriveBridge", perception_strategy_name="",
             localization_strategy_name="", mapping_strategy_name="", global_planner_strategy_name="",
@@ -537,8 +551,11 @@ def plugin_observe(args):
         plugin = sys.modules["avlite.plugins.roboracer"]
         bridge = executer.world
         if args.stack_profile:
-            # Proposal v0.2 §4: 0.3 m/s for M4/M5, in this process only (the shipped default stays 0).
+            # Proposal v0.2 §4: 0.3 m/s for M4/M5/M6, in this process only (the shipped default stays 0).
             plugin.PluginSettings.max_target_speed_mps = 0.3
+        if args.stack_profile == "m6":
+            # D9 (lap proposal v0.1): A-lap = GapFollowController with LAP_PARAMS.
+            executer.controller.params = sys.modules[type(executer.controller).__module__].LAP_PARAMS
     else:
         import_plugin_modules(str(args.plugin), pkg_name="roboracer")
         plugin = sys.modules["avlite.plugins.roboracer"]
@@ -549,6 +566,9 @@ def plugin_observe(args):
              "max_target_speed_mps": plugin.PluginSettings.max_target_speed_mps, "ready": False, "snapshots": 0,
              "stack": bool(executer), "supervisor": args.supervisor, "ticks": 0, "tick_overruns": 0,
              "stack_profile": args.stack_profile}
+    params = getattr(executer.controller, "params", None) if executer else None
+    if params is not None:
+        state["controller_params"] = dict(params.__dict__)  # audit: A (M5) or A-lap (M6)
     stage = StackStage(args, executer, bridge, state) if args.stack_profile else None
     stop = []
 
@@ -1281,6 +1301,7 @@ M4_SCHEDULE = ((0.0, 3.0, 0.1), (3.0, 6.0, 0.2), (6.0, 9.0, 0.3), (9.0, 11.0, 0.
 M4_BLACKOUT_AT_S = 12.0     # stale-feedback case: inside the last 0.2 m/s step
 M4_TRAVEL_ABORT_M = 2.5
 M5_DISTANCE_M, M5_TIME_S = 6.0, 40.0
+M6_DISTANCE_M, M6_TIME_S = 33.0, 200.0  # D10: one lap plus the opening straight, or 200 s
 STOP_HOLD_S = 1.5           # zero requests before going silent (lease then expires at zero)
 
 
@@ -1367,9 +1388,10 @@ class StackStage:
                     self.blackout_written = True
                     self.state["blackout_written_ns"] = time.monotonic_ns()
             else:
-                if self.path_m >= M5_DISTANCE_M or elapsed >= M5_TIME_S:
+                distance, limit = (M6_DISTANCE_M, M6_TIME_S) if self.profile == "m6" else (M5_DISTANCE_M, M5_TIME_S)
+                if self.path_m >= distance or elapsed >= limit:
                     self._request(0.0)
-                    self._set("stopping", finish_reason="distance" if self.path_m >= M5_DISTANCE_M else "time")
+                    self._set("stopping", finish_reason="distance" if self.path_m >= distance else "time")
                     return True
                 self._request(1.0)
             return True

@@ -1,30 +1,104 @@
 {
-  "protocol": "docs/planning/s1-motion-protocol.md",
-  "version": "0.1",
-  "approved_date": "2026-10-05",
-  "user_reply": "approve D1 A, D2, D3; run M0 only",
-  "decisions": {"D1": "A", "D2": "approved", "D3": "approved"},
-  "stages": ["M0", "M1", "M2", "M3", "M3B", "M4", "M5"],
-  "stage_approvals": [
-    {"stage": "M0", "date": "2026-10-05", "user_reply": "approve D1 A, D2, D3; run M0 only"},
-    {"stage": "M1", "date": "2026-10-05", "user_reply": "approve M1 as drafted"},
-    {"stage": "M2", "date": "2026-10-05", "user_reply": "yes run M2"},
-    {"stage": "M3", "date": "2026-10-05", "user_reply": "approve D4 A, D5, D6, D7; run M3 only",
-     "proposal": "docs/planning/s1-03-controller-proposal.md", "proposal_version": "0.1",
-     "decisions": {"D4": "A", "D5": "approved", "D6": "approved", "D7": "approved"}},
-    {"stage": "M3B", "date": "2026-10-05", "user_reply": "comfirm",
-     "context": "reply to: confirm or change revised D5 and whether to run M3b (proposal v0.2)",
-     "proposal": "docs/planning/s1-03-controller-proposal.md", "proposal_version": "0.2",
-     "decisions": {"D5": "revised v0.2 confirmed"}},
-    {"stage": "M4", "date": "2026-10-05", "user_reply": "yes run M4 and M5",
-     "proposal": "docs/planning/s1-03-controller-proposal.md", "proposal_version": "0.2"},
-    {"stage": "M4", "date": "2026-10-05", "user_reply": "yes rerun M4",
-     "context": "reply to: approve v0.3 (stale 0.6 s / loss 0.9 s) and rerun M4, then M5 if M4 passes",
-     "proposal": "docs/planning/s1-03-controller-proposal.md", "proposal_version": "0.3"},
-    {"stage": "M5", "date": "2026-10-05", "user_reply": "yes run M4 and M5",
-     "proposal": "docs/planning/s1-03-controller-proposal.md", "proposal_version": "0.2",
-     "note": "run only after M4 passes"}
-  ],
-  "not_authorized": ["AVLite motion outside M4/M5", "speeds above 0.3 m/s", "reverse", "laps",
-                     "steering while moving outside M5"]
+ "protocol": "docs/planning/s1-motion-protocol.md",
+ "version": "0.1",
+ "approved_date": "2026-10-05",
+ "user_reply": "approve D1 A, D2, D3; run M0 only",
+ "decisions": {
+  "D1": "A",
+  "D2": "approved",
+  "D3": "approved",
+  "D9": "approved (A-lap: GapFollowController with LAP_PARAMS)",
+  "D10": "approved (M6: M5 limits, end 33 m or 200 s, containment box x[-4.23,2.12] y[-9.04,7.65])",
+  "D11": "approved (up to 3 trials, stop at the first abort/contact/off-track)"
+ },
+ "stages": [
+  "M0",
+  "M1",
+  "M2",
+  "M3",
+  "M3B",
+  "M4",
+  "M5",
+  "M6"
+ ],
+ "stage_approvals": [
+  {
+   "stage": "M0",
+   "date": "2026-10-05",
+   "user_reply": "approve D1 A, D2, D3; run M0 only"
+  },
+  {
+   "stage": "M1",
+   "date": "2026-10-05",
+   "user_reply": "approve M1 as drafted"
+  },
+  {
+   "stage": "M2",
+   "date": "2026-10-05",
+   "user_reply": "yes run M2"
+  },
+  {
+   "stage": "M3",
+   "date": "2026-10-05",
+   "user_reply": "approve D4 A, D5, D6, D7; run M3 only",
+   "proposal": "docs/planning/s1-03-controller-proposal.md",
+   "proposal_version": "0.1",
+   "decisions": {
+    "D4": "A",
+    "D5": "approved",
+    "D6": "approved",
+    "D7": "approved"
+   }
+  },
+  {
+   "stage": "M3B",
+   "date": "2026-10-05",
+   "user_reply": "comfirm",
+   "context": "reply to: confirm or change revised D5 and whether to run M3b (proposal v0.2)",
+   "proposal": "docs/planning/s1-03-controller-proposal.md",
+   "proposal_version": "0.2",
+   "decisions": {
+    "D5": "revised v0.2 confirmed"
+   }
+  },
+  {
+   "stage": "M4",
+   "date": "2026-10-05",
+   "user_reply": "yes run M4 and M5",
+   "proposal": "docs/planning/s1-03-controller-proposal.md",
+   "proposal_version": "0.2"
+  },
+  {
+   "stage": "M4",
+   "date": "2026-10-05",
+   "user_reply": "yes rerun M4",
+   "context": "reply to: approve v0.3 (stale 0.6 s / loss 0.9 s) and rerun M4, then M5 if M4 passes",
+   "proposal": "docs/planning/s1-03-controller-proposal.md",
+   "proposal_version": "0.3"
+  },
+  {
+   "stage": "M5",
+   "date": "2026-10-05",
+   "user_reply": "yes run M4 and M5",
+   "proposal": "docs/planning/s1-03-controller-proposal.md",
+   "proposal_version": "0.2",
+   "note": "run only after M4 passes"
+  },
+  {
+   "stage": "M6",
+   "date": "2026-10-06",
+   "user_reply": "approve D9, D10, D11; run M6",
+   "proposal": "docs/planning/s1-05-lap-proposal.md",
+   "proposal_version": "0.1"
+  }
+ ],
+ "not_authorized": [
+  "AVLite motion outside M4/M5/M6",
+  "speeds above 0.3 m/s",
+  "reverse",
+  "more than one lap per episode",
+  "steering beyond 0.35 rad while moving",
+  "steering while moving outside M5/M6",
+  "unattended reset"
+ ]
 }

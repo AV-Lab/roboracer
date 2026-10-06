@@ -38,5 +38,5 @@ The [M6 proposal](../planning/s1-05-lap-proposal.md) asks you to confirm D9–D1
 ## Status
 
 - The non-motion S1-05 deliverables are complete and qualified on recorded inputs.
-- The live entrypoint has not yet run an episode itself. Its first live use will be either an approved M5 trial or M6.
-- I am not ticking S1-05. A lap episode under a confirmed M6 is still needed to show lap bookkeeping on a real run.
+- **Update (same day):** M6 was confirmed and run through the live entrypoint. All 3 trials completed one lap with no contact or off-track ([M6 report](S1-M6-lap.md)).
+- I am not ticking S1-05; it awaits your review.

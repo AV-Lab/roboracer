@@ -570,3 +570,20 @@
 - **Proposal.** [s1-05-lap-proposal.md](planning/s1-05-lap-proposal.md) v0.1 asks for D9 (A-lap), D10 (M6: M5 limits, end at 33 m or 200 s, fail-closed track bounding-box containment instead of the start radius) and D11 (≤ 3 trials, stop at the first failure).
 - **Records.** 106 script tests and 41 plugin tests pass. Evidence `artifacts/s1/20261006T051902Z-s1-05/` (27 files). Bilingual [report](stages/S1-05-episodes.md).
 - **Next.** M6 awaits confirmation. S1-02 to S1-05 check boxes are unticked.
+
+## 2026-10-06 — M6 confirmed and run: A-lap completes one C0 lap in 3/3 trials
+
+- **Approval.** "approve D9, D10, D11; run M6". The approval record gains M6, D9–D11, and a narrowed not-authorized list.
+- **Wiring** (commit `8a8fa7e`).
+  - M6 stage in the supervisor and runner (M5 limits).
+  - Fail-closed box containment in the bridge (`outside_containment`) instead of the start radius.
+  - The stack selects `LAP_PARAMS` and records `controller_params`; it ends at 33 m or 200 s.
+  - `roboracer_episode.py live --stage m6`.
+  - Offline smoke run: the supervisor accepts M6, and the stack loads A-lap.
+- **Trials** (fresh player each time; visual pre-Connect review; GPU free at 858 MiB). All 3 finished on distance with one lap each by the independent scorer, and no contact or off-track.
+  - Clearance 0.105 / 0.104 / 0.104 m; lap 122.7 / 123.3 / 122.8 s; final stop 0.21 / 0.21 / 0.32 s.
+  - Supervisor forwarded everything; one final lease expiry per trial; no guard fault.
+  - Generation → guard accept p50 about 105 ms; all children exited 0; the player is unchanged.
+  - The offline rollout predicted 0.105 m clearance. Steering clamps at 0.35 rad in the tightest hairpin, as predicted.
+- **Records.** 107 script tests and 41 plugin tests pass. Evidence `artifacts/s1/20261006T054031Z-m6/` (114 files). Bilingual [report](stages/S1-M6-lap.md).
+- **Next.** The S1-02 to S1-05 check boxes await user review. S1-06 and S1 acceptance are not claimed.

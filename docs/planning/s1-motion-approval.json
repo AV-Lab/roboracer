@@ -102,6 +102,14 @@
    "user_reply": "approve D12, D13, D14, D15, D16; run M1",
    "proposal": "docs/planning/s1-06-m1-protocol.md",
    "proposal_version": "0.1"
+  },
+  {
+   "stage": "M6 (one extra lap, AutoDRIVE-window video recording)",
+   "date": "2026-10-06",
+   "user_reply": "run a lap and record a video",
+   "proposal": "docs/planning/s1-05-lap-proposal.md",
+   "proposal_version": "0.1",
+   "note": "one fresh-process M6 lap under the unchanged D9/D10 envelope with --record-video; not a D13 timing window (recording adds CPU load)"
   }
  ],
  "not_authorized": [

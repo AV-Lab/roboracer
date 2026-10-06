@@ -67,8 +67,13 @@ def render(run: Path, geometry_path: Path, output: Path, fps: int = 15, speedup:
         i = bisect.bisect_right(tick_t, t) - 1
         return ticks[i] if i >= 0 else {}
 
-    t_first = sim[0] if start_s is None else start_s
-    t_last = sim[-1] if end_s is None else min(end_s, sim[-1])
+    # Default window: 3 s before the stage's run phase to 3 s after it finished (no long parked tail).
+    run_t = [tick_t[i] for i, t in enumerate(ticks) if t["phase"] == "run"]
+    done_t = [tick_t[i] for i, t in enumerate(ticks) if t["phase"] == "finished"]
+    auto_start = max(sim[0], run_t[0] - 3.0) if run_t else sim[0]
+    auto_end = min(sim[-1], done_t[0] + 3.0) if done_t else sim[-1]
+    t_first = auto_start if start_s is None else start_s
+    t_last = auto_end if end_s is None else min(end_s, sim[-1])
     step = speedup / fps
     times = [t_first + k * step for k in range(int((t_last - t_first) / step) + 1)]
 
@@ -154,13 +159,15 @@ def main():
     parser.add_argument("--output", type=Path, required=True, help="fresh .mp4")
     parser.add_argument("--fps", type=int, default=15)
     parser.add_argument("--speedup", type=float, default=1.0)
-    parser.add_argument("--start", type=float, help="seconds after the first frame")
-    parser.add_argument("--end", type=float)
+    parser.add_argument("--start", type=float, help="seconds after the first frame (default: run phase - 3 s)")
+    parser.add_argument("--end", type=float, help="default: stage finished + 3 s")
+    parser.add_argument("--full", action="store_true", help="whole recording, no trimming")
     parser.add_argument("--title")
     args = parser.parse_args()
     if args.output.exists():
         parser.error("Output must be fresh")
-    print(json.dumps(render(args.run, args.geometry, args.output, args.fps, args.speedup, args.start, args.end,
+    start, end = (0.0, 1e9) if args.full else (args.start, args.end)
+    print(json.dumps(render(args.run, args.geometry, args.output, args.fps, args.speedup, start, end,
                             args.title)))
     return 0
 

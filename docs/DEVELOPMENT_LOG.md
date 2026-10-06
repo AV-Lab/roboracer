@@ -651,3 +651,10 @@
 - **Request.** "remove all Chinese version docs".
 - **Done.** Deleted all 38 `*.zh-CN.md` files and removed every link to them from the English docs (88 lines). `SIM1-deferral.zh-CN.md` had no English counterpart; its subject, the not-adopted 1.1-B amendment, remains in English (`planning/installed-binary-first-amendment.md`). Historical mentions of past Chinese reports in this log and in review notes are kept as history.
 - **From now on** reports and proposals are English only.
+
+## 2026-10-06 — Lap video: replay renderer and AutoDRIVE-window recording
+
+- **Request.** "do both and only record AutoDRIVE window area not entire screen".
+- **Replay.** `scripts/roboracer_replay.py` draws a top-down replay from the recorded truth over the C0 geometry: footprint, trail, speed/target/steering traces, clearance and progress. It is a reconstruction, not simulator footage; LiDAR scans are not shown, because runs keep only per-scan hashes. Default window: run phase − 3 s to finished + 3 s. Timing lap 5: `artifacts/s1/20261006T061501Z-m1-timing/replay/timing5-replay.mp4` (147 s, 1280×720, 15 fps).
+- **Recording.** `--record-video` (runner and `roboracer_episode.py live`) starts `ffmpeg x11grab -window_id <AutoDRIVE client window>` right after Connect: only the AutoDRIVE window, 15 fps, libx264 ultrafast, written to `run-01/player-window.mp4`. It is optional (its exit never aborts a run), and cleanup stops it before the player.
+- **Checks.** Single-window capture was verified on a test window: exact size, window content only, no desktop. Capturing the decoration frame fails on odd heights, so the client window is used. Not yet exercised live: the first use will be the next approved M1 run (enabled in the F1 run script). Its CPU appears in `resources.jsonl` as `recorder`.

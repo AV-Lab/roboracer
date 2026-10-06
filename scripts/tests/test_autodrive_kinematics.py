@@ -13,7 +13,7 @@ class KinematicsSerializationTests(unittest.TestCase):
     def setUpClass(cls):
         cls.root = Path(__file__).resolve().parents[2]
         data = Path(os.environ.get("ROBORACER_UNITY_DATA",
-                    "/tmp/roboracer-work/toolchains/2021.3.9f1/Editor/Data"))
+                    str(Path("~/roboracer-work/toolchains/2021.3.9f1/Editor/Data").expanduser())))
         cls.mono = data / "MonoBleedingEdge/bin/mono"
         compiler = data / "MonoBleedingEdge/lib/mono/4.5/csc.exe"
         if not cls.mono.is_file() or not compiler.is_file():

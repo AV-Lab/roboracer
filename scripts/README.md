@@ -12,22 +12,22 @@ Example using the current isolated SIM0 paths:
 
 ```bash
 python3 scripts/autodrive_build.py \
-  --editor /tmp/roboracer-work/toolchains/2021.3.9f1/Editor/Unity \
-  --project /tmp/roboracer-work/autodrive-635dbb6d-baseline \
-  --output /tmp/roboracer-work/autodrive-builds/baseline-example \
+  --editor ~/roboracer-work/toolchains/2021.3.9f1/Editor/Unity \
+  --project ~/roboracer-work/autodrive-635dbb6d-baseline \
+  --output ~/roboracer-work/autodrive-builds/baseline-example \
   --results artifacts/simulator-build/example/build \
   --timeout 3600
 ```
 
 Choose fresh output/result paths for each recorded attempt. Add `--import-only` to qualify package resolution/initial import separately; this mode does not create a player. The timeout is an execution bound, not an accepted build-performance target. `-nographics` applies to Editor compilation/import only and does not qualify camera sensing without a display.
 
-On this Ubuntu 22.04 host, the pinned Editor's bundled .NET 5.0.3 compiler failed with `No usable version of libssl was found`. A fresh empty-project batch check passed after extracting Ubuntu's authenticated `libssl1.1` package into private scratch. Add `--native-library-dir /tmp/roboracer-work/sim0-20260929T085557Z/openssl-compat/extracted/usr/lib/x86_64-linux-gnu` to the command above for this qualified dependency setup. The tool records library hashes and changes the environment only for its Editor subprocess. It does not install system packages, modify Hub or affect projects launched directly from Hub. Package origin/signature/hash evidence is in `artifacts/simulator-build/20260929T085557Z/openssl-compatibility-dependency.json`. This is a tested compatibility configuration, not a general supported-host claim.
+On this Ubuntu 22.04 host, the pinned Editor's bundled .NET 5.0.3 compiler failed with `No usable version of libssl was found`. A fresh empty-project batch check passed after extracting Ubuntu's authenticated `libssl1.1` package into private scratch. Add `--native-library-dir ~/roboracer-work/sim0-20260929T085557Z/openssl-compat/extracted/usr/lib/x86_64-linux-gnu` to the command above for this qualified dependency setup. The tool records library hashes and changes the environment only for its Editor subprocess. It does not install system packages, modify Hub or affect projects launched directly from Hub. Package origin/signature/hash evidence is in `artifacts/simulator-build/20260929T085557Z/openssl-compatibility-dependency.json`. This is a tested compatibility configuration, not a general supported-host claim.
 
 After invocation, inspect the private diagnostics and `source-after.patch`; unresolved references, compilation/build errors or unapproved scene/physics/package changes block acceptance. SIM0 also requires two fresh-process, 60-second neutral observations through the qualified Humble/AVLite environments and their cleanup/geometry comparison. Follow the [stage contract](../docs/planning/simulator-build-amendment.md) and [current PRE status](../docs/stages/PRE.md).
 
 Use `--audit-scene` instead of `--import-only` for a bounded dependency inspection. The wrapper stages `SceneDependencyAudit.cs` temporarily under the separate checkout's `Assets/Editor/`, invokes its explicit static method, writes `scene-audit.json` and removes the owned probe/metadata afterward. It does not enter Play mode, save the scene or build a player. The dependency set is static evidence; dynamic loading and actual sensor behavior still need runtime qualification. The first audited import illustrates why exit 0 alone is insufficient: see the [import review](../docs/stages/SIM0-import-review.md).
 
-The toolchain, complete third-party project, Unity `Library`, caches, binaries and raw run artifacts stay outside versioned plugin code. `/tmp/roboracer-work/` is disposable scratch and may need reconstruction after cleanup or reboot. Preserve code/dependency fingerprints and notices with the evidence; do not commit downloaded Unity or simulator assets.
+The toolchain, complete third-party project, Unity `Library`, caches, binaries and raw run artifacts stay outside versioned plugin code. `~/roboracer-work/` holds this host's environments and builds (moved from `/tmp`, which Ubuntu clears at boot, on 2026-10-06); runs read their paths from `~/roboracer-work/run-context.json`. Preserve code/dependency fingerprints and notices with the evidence; do not commit downloaded Unity or simulator assets.
 
 ## Approved SIM0 source preparation
 
@@ -35,9 +35,9 @@ The toolchain, complete third-party project, Unity `Library`, caches, binaries a
 
 ```bash
 python3 scripts/autodrive_prepare.py \
-  --source /tmp/roboracer-work/autodrive-635dbb6d-baseline \
-  --project /tmp/roboracer-work/autodrive-635dbb6d-qualified-example \
-  --quarantine /tmp/roboracer-work/autodrive-excluded-example \
+  --source ~/roboracer-work/autodrive-635dbb6d-baseline \
+  --project ~/roboracer-work/autodrive-635dbb6d-qualified-example \
+  --quarantine ~/roboracer-work/autodrive-excluded-example \
   --results artifacts/simulator-build/example/preparation \
   --dependency-report artifacts/simulator-build/20260929T085557Z/scene-audit/scene-audit.json
 ```

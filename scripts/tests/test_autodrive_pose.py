@@ -19,7 +19,7 @@ class PoseTests(unittest.TestCase):
         import numpy as np
         cls.np=np
         cls.temp=tempfile.TemporaryDirectory();cls.addClassCleanup(cls.temp.cleanup)
-        data=Path('/tmp/roboracer-work/toolchains/2021.3.9f1/Editor/Data')
+        data=Path('~/roboracer-work/toolchains/2021.3.9f1/Editor/Data').expanduser()
         cls.mono=data/'MonoBleedingEdge/bin/mono';cls.exe=Path(cls.temp.name)/'pose.exe'
         if not cls.mono.is_file():raise unittest.SkipTest('Pinned compiler unavailable; not validated')
         sources=[ROOT/'integration/autodrive/diagnostics'/s for s in ['KinematicsProbe.cs','ContactProbe.cs','ContactRelay.cs','PoseTrace.cs']]
@@ -67,7 +67,7 @@ class PoseTests(unittest.TestCase):
         self.assertFalse(status['pose_window_complete'])
 
     def test_exact_vendor_lines_remain_and_markers_bracket_the_setters(self):
-        source=Path('/tmp/roboracer-work/autodrive-native-20260929T122535Z-authoring/Assets/Scripts/VehicleController.cs')
+        source=Path('~/roboracer-work/autodrive-native-20260929T122535Z-authoring/Assets/Scripts/VehicleController.cs').expanduser()
         if not source.exists():self.skipTest('Pinned source unavailable')
         original=source.read_bytes();patched=pose.patch_controller(original)
         stripped=b''.join(l for l in patched.splitlines(keepends=True) if not l.rstrip().endswith(pose.MARKER.encode()))

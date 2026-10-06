@@ -14,7 +14,7 @@ from autodrive_guard import (COUNTERS, SCENARIO_PHASES, SCHEMA, GuardError, Guar
 from autodrive_neutral import check_zero_reply
 
 ROOT = Path(__file__).resolve().parents[2]
-MONO = Path("/tmp/roboracer-work/toolchains/2021.3.9f1/Editor/Data/MonoBleedingEdge")
+MONO = Path("~/roboracer-work/toolchains/2021.3.9f1/Editor/Data/MonoBleedingEdge").expanduser()
 MS = 1_000_000
 
 

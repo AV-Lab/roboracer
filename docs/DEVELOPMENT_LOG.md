@@ -639,3 +639,9 @@
   - My abort check (≤ 0.6 s) also ignored the 100 ms tick.
 - **Stopped** per protocol. D17 asks for (A, recommended) onset-referenced timing with an abort bound of ≤ 0.7 s, or (B) a widened F1-1/F1-2 bound. Trial 1 stays a recorded failure either way.
 - **Records.** 122 script tests and 41 plugin tests pass. Evidence `artifacts/s1/20261006T061501Z-m1-timing/` and `artifacts/s1/20261006T064801Z-m1-f1/`. Bilingual [progress report](stages/S1-06-M1-progress.md).
+
+## 2026-10-06 — Stack overview written
+
+- **Request.** "explain the current autonomous software stack ... is AVLite actually running?" followed by "write this down".
+- **Doc.** Bilingual [stack overview](architecture/stack-overview.md): AVLite runs as the framework (plugin loader, `executor_factory`, the `SyncExecuter` 10 Hz tick, interfaces); no AVLite algorithm runs; all driving logic is roboracer plugin code (bridge, snapshot assembler, gap-follow, supervisor); the guard is in the simulator. Includes the evidence and the limits of what has been exercised.
+- **Status.** M1 F1 runs remain paused for D17.

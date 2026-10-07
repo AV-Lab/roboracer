@@ -709,3 +709,17 @@
 - **Draft.** [Amendment 1.3](planning/official-simulator-amendment.md), PRE option B. The official player (`AutoDRIVE Simulator [Linux]`, Nov 2023) is present and unchanged.
   - Proposals: D19, a bridge-side command lease plus a simulator-kill watchdog for bridge loss; D20, explicitly revised S1 acceptance (receipt-age freshness, bridge loss as containment, SIM1-03–06 withdrawn); D21, the requalification order on the official build.
   - Existing patched-build evidence stays valid for that build. No motion on the official build without per-stage approval.
+
+## 2026-10-07 — D18: patch 04 built and requalified; SIM1-03 passes 3/3; simulator frozen
+
+- **Decision.** "D18, please" (after the comparison with the official-simulator route; amendment 1.3 is not adopted).
+- **Patch.** `vendor-sim1-04.patch` (static `RRTelemetrySeq`) plus `Guard.cs` clearing `emits` on scene load (`2eac698`). Repaired the source repository's git worktree links broken by the move.
+- **Build.** Derived copy 86 s; Unity build 321 s; the scene is equal to the SIM1-03 player in every section. Player `~/roboracer-work/autodrive-builds/20261007T-sim1-04/AutoDRIVE.x86_64/AutoDRIVE.x86_64`, GameAssembly `44f9e735…`.
+- **Requalification (no motion).**
+  - Guard scenario: 16/16 phases, 0 nonzero output steps, Devkit-loss lease cleared in 35 ms.
+  - LiDAR freeze: pass.
+  - **SIM1-03 reset 3/3** (19/19 checks each; spawn offset 0.000 m).
+  - Player unchanged.
+  - One reset attempt failed on my tooling (no heartbeats during the Reset click inhibited the supervisor); fixed in `0ac6c29`.
+- **Policy.** The simulator is frozen: no further vendor patches.
+- **Next.** Motion on the new player needs approval; I propose one M6 regression lap. SIM1-04 to SIM1-06 remain for S1 acceptance. [Report](stages/SIM1-03-reset.md); evidence `artifacts/simulator-build/20261007T-sim1-04/`.

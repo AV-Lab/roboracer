@@ -64,6 +64,27 @@ No physics, actuation, sensor or scene change. Then:
 
 **Alternative:** keep the current player and record SIM1-03 as blocked by the defect. S1 acceptance would then remain blocked.
 
-## 5. Also done today
+## 5. D18 approved ("D18, please"): patch 04, rebuild, requalification — **SIM1-03 passes 3/3**
+
+- **Patch:** [`vendor-sim1-04.patch`](../../integration/autodrive/sim1/vendor-sim1-04.patch) makes `RRTelemetrySeq` static (process-wide). `Guard.cs` clears its emit map on scene load. Series level `04` in `autodrive_build.py` (`2eac698`).
+- **Fixing the move first:** the `/tmp` → `~/roboracer-work` move had broken the git worktree links of the pinned source repository. `git worktree repair` relinked the four existing derived projects; the base resolves to `635dbb6d`.
+- **Build:** a fresh derived copy (86 s, tracked diff `4965e4fa…` equal to the base), then Unity 2021.3.9f1 through patch 04 in **321 s**.
+  - Player: `~/roboracer-work/autodrive-builds/20261007T-sim1-04/AutoDRIVE.x86_64/AutoDRIVE.x86_64`, `GameAssembly.so` sha256 `44f9e735…`.
+  - The scene comparison with the SIM1-03 player is equal in every section: collider meshes, 662 transforms, settings, track geometry, script identities.
+  - Evidence: `artifacts/simulator-build/20261007T-sim1-04/`.
+- **No-motion requalification** (`…/requal/`, 208-file manifest; no motion authorization in any run):
+
+| Check | Result |
+| --- | --- |
+| SIM1-02 guard scenario (all P1a phases) | **16/16 phases pass**; trace clean; **0 nonzero output steps**; Devkit loss cleared the lease 35 ms after the kill, with 0 steps applied afterwards. Matches the qualified SIM1-02 run. |
+| SIM1-01 LiDAR freeze | **pass**: 22 frozen frames, all carrying the reused identity; age monotonic to 4.86 s; other sources fresh; telemetry sequence advancing; resumed after 1 frame. |
+| SIM1-03 reset ×3 | **3/3 pass, 19/19 checks each**: `scene-load` disarm; episode 1 → 2; C0 start at the spawn (offset 0.000 m, wheels still); `not-armed`, `wrong-episode`, new epoch 2, `stale-epoch` for the old-epoch and replayed requests; fresh requests accepted and applied; no fault; all processes exit 0; one Reset click and one Connect click each. |
+| Player integrity | 604 files unchanged after all runs |
+
+- **Failed attempt, retained:** reset attempt 1 on the new player failed because of my tooling. The Reset click's window-focus waits (about 0.7 s) sent no runner heartbeats, so the 500 ms runner lease inhibited the supervisor. The driver then waited about 3 min for a request, until the known passive creep (about 3.4 mm/min) reached the 10 mm stationary bound and the bridge stopped the run. Fixed in `0ac6c29` (heartbeats during window targeting); the patch itself was confirmed working in that attempt (episode 2 frames accepted).
+- **Simulator frozen:** per D18 there are no further vendor patches. Future problems are solved in the bridge, supervisor or plugin, or recorded as known limitations.
+- **Not yet done:** no motion has run on the new player. All motion evidence (M0–M6, M1) is on the SIM1-03 player. Moving motion to the new player needs your approval; I'd propose one M6 regression lap first.
+
+## 6. Also done today
 
 - **Player shutdown-hang check, no motion.** Two stationary interlocked sessions, with and without recording, both shut down cleanly. That's too few to settle the cause, so the runner now captures the player's thread states if it is still alive 10 s after SIGTERM (`7aeb6eb`). Evidence `artifacts/s1/20261007T065223Z-hang-check/`.

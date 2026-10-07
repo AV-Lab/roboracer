@@ -2313,7 +2313,9 @@ def trial(args, context, out):
                 os.killpg(process.pid, signal.SIGTERM)
                 entry["termination"] = "SIGTERM owned process group"
                 try:
-                    process.wait(timeout=5)
+                    # The player can spend > 5 s in its WebSocket close handshake while the bridge is still
+                    # up (seen once, M1 v0.2 F1-5 trial 1, after the car had stopped and been disarmed).
+                    process.wait(timeout=15 if entry["label"] == "player" else 5)
                 except subprocess.TimeoutExpired:
                     os.killpg(process.pid, signal.SIGKILL)
                     process.wait()

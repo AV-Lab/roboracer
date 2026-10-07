@@ -673,3 +673,17 @@
 - **Run context.** New `~/roboracer-work/run-context.json`: the original `artifacts/preflight/20260928T124339Z/run-context.json` (sha256 `e252740b…`, kept unchanged as evidence) with only the path prefix changed, plus a `relocation` note. Runs now pass this context.
 - **Repo.** Tests that use the Unity toolchain or the authoring source now resolve `~/roboracer-work` (they had silently skipped while the path was missing); the `scripts/README.md` examples are updated. Historical evidence and stage reports keep their original `/tmp` paths.
 - **Checks.** 122 script tests (none skipped) and 41 plugin tests pass. The Devkit bridge imports from the new install, with the runner's environment. The offline M6 stack + supervisor smoke run passes. The player is byte-identical (604 files).
+
+## 2026-10-07 — D17 A; M1 F1 matrix 27/27 under protocol v0.2
+
+- **Decision.** "resume D17" → the user chose **A** (time F1 stops from the fault onset). Recorded as D17 plus a v0.2 stage approval; protocol §8.
+- **Analysis.** `roboracer_f1.py --criteria v0.1|v0.2`. v0.1 still reproduces trial 1's failure exactly.
+  - Fix: the abort and F1-5 final-stop references are the tick *before* the first "stopping" row, because the row is written before the phase switch. This corrects a 100 ms error; trial 1 still fails v0.1.
+- **Pre-motion refusal.** The motion build-record check compared the recorded `/tmp` player path. It now maps the documented relocation and checks both player binaries by hash (`68edb7f`).
+- **Runs.** 27 fresh-process F1 episodes with window recording, all reviewed before Connect. **All pass v0.2.**
+  - Stop after onset: 0.37–1.33 s. Travel after injection: 0.05–0.33 m. Clearance ≥ 0.30 m.
+  - No guard fault; the player is unchanged.
+  - Results per case in the [M1 results](stages/S1-06-M1-results.md).
+- **Open.** Player shutdown hang in 4/27 runs: SIGKILL after SIGTERM, even with the grace raised to 15 s (`83aa1a9`). It happened after stop and disarm, and the guard traces are complete. All four were recording runs (correlation only); a no-motion check is proposed.
+  - F1-8 recordings end when the runner is killed.
+- **Records.** 123 script tests and 41 plugin tests pass. Evidence `artifacts/s1/20261007T051931Z-m1-f1-v02/` (1,009 files).

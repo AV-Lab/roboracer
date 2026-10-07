@@ -130,6 +130,19 @@ AVLITE_MOTION_STAGES = {"m4": {"throttle_max": 0.07, "steering_max": 0.0, "steer
                                "steer_feedback_rad": 0.3505, "containment_box": (-4.23, 2.12, -9.04, 7.65)}}
 
 
+# Recorded build/evidence paths stay as written. The working environments moved once, by rename on the
+# same filesystem (2026-10-06, user request), so a recorded path is compared after this prefix mapping;
+# player identity is still checked by content hashes against the build record.
+PATH_RELOCATIONS = (("/tmp/roboracer-work/", str(Path.home() / "roboracer-work") + "/"),)
+
+
+def relocated_path(path):
+    for old, new in PATH_RELOCATIONS:
+        if path and path.startswith(old):
+            return new + path[len(old):]
+    return path
+
+
 def outside_containment(stage, reference, position):
     """Hard bridge containment for motion stages (fails closed): a radius from the first frame,
     or for M6 an axis-aligned box (x_min, x_max, y_min, y_max) in IPS coordinates."""
@@ -2438,11 +2451,13 @@ def main():
         argv = build.get("argv", [])
         built = argv[argv.index("-buildLinux64Player") + 1] if "-buildLinux64Player" in argv else None
         if build.get("exit_code") != 0 or build.get("sim1_patch", {}).get("through", "") < "03" or \
-                not args.player or built != str(args.player.resolve()):
+                not args.player or relocated_path(built) != str(args.player.resolve()):
             parser.error("Motion stages need the player's own build record with vendor-sim1-03 (D1)")
-        library = args.player.resolve().parent / "GameAssembly.so"
-        if hashlib.sha256(library.read_bytes()).hexdigest() != build["output_files"].get("GameAssembly.so", {}).get("sha256"):
-            parser.error("Player GameAssembly.so differs from its build record")
+        for name, path in (("GameAssembly.so", args.player.resolve().parent / "GameAssembly.so"),
+                           ("AutoDRIVE.x86_64", args.player.resolve())):
+            # Identity by content; this also covers a relocated player (see relocated_path).
+            if hashlib.sha256(path.read_bytes()).hexdigest() != build["output_files"].get(name, {}).get("sha256"):
+                parser.error(f"Player {name} differs from its build record")
     if args.contact_target and not args.contact_mode:
         parser.error("Contact target requires contact mode")
     if args.pose_trace and (not args.kinematics_probe or args.mode!="run" or args.contact_mode!="control" or

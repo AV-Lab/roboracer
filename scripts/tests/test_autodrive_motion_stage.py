@@ -68,6 +68,14 @@ class RunnerStageTests(unittest.TestCase):
             with self.subTest(args=args[1:]), self.assertRaises(ValueError):
                 motion_fields(*args)
 
+    def test_relocated_path_maps_only_the_documented_move(self):
+        from autodrive_neutral import relocated_path
+        home = str(Path.home())
+        self.assertEqual(f"{home}/roboracer-work/autodrive-builds/x/AutoDRIVE.x86_64",
+                         relocated_path("/tmp/roboracer-work/autodrive-builds/x/AutoDRIVE.x86_64"))
+        for path in ("/tmp/other/AutoDRIVE.x86_64", f"{home}/roboracer-work/a", None, "/tmp/roboracer-workX/a"):
+            self.assertEqual(path, relocated_path(path))
+
     def test_m6_box_containment_and_m5_radius(self):
         from autodrive_neutral import outside_containment
         spawn = [0.741, 3.158, 0.059]

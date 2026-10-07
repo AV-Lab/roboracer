@@ -702,3 +702,10 @@
 - **Live r0 on the current player.** The Reset produced `state disarmed scene-load`, the scene reloaded at the spawn, and the reconnect succeeded. Then the bridge rejected the first new frame: `Duplicate or out-of-order telemetry seq 1 after 14`, and failed closed. All processes exited 0; no motion.
 - **Cause.** `RRTelemetrySeq` is an instance field of the in-scene Socket (`Socket.cs:34`) and restarts after a scene reload, contrary to `PROTOCOL.md`. `Guard.emits` is not cleared on scene load either.
 - **Proposal (D18).** Patch `vendor-sim1-03b` (static sequence; clear `emits` on scene load), rebuild into a new player directory, requalify without motion (SIM1-01/02 once, reset ×3). Motion on the new build would need separate approval. [SIM1-03 report](stages/SIM1-03-reset.md).
+
+## 2026-10-07 — Direction: official simulator (amendment 1.3 draft)
+
+- **User.** "It takes a lot of time to build a patched simulator. I think we shouldn't struggle on this; we should use the official simulator to integrate." D18 (patch and rebuild) is therefore not pursued.
+- **Draft.** [Amendment 1.3](planning/official-simulator-amendment.md), PRE option B. The official player (`AutoDRIVE Simulator [Linux]`, Nov 2023) is present and unchanged.
+  - Proposals: D19, a bridge-side command lease plus a simulator-kill watchdog for bridge loss; D20, explicitly revised S1 acceptance (receipt-age freshness, bridge loss as containment, SIM1-03–06 withdrawn); D21, the requalification order on the official build.
+  - Existing patched-build evidence stays valid for that build. No motion on the official build without per-stage approval.

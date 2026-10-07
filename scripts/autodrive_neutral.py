@@ -1750,6 +1750,31 @@ def sample_gpu(path, stop, period_s=1.0):
             stop.wait(period_s)
 
 
+def thread_snapshot(pid):
+    """Per-thread name, scheduler state and kernel wait channel of a live process (same user, no ptrace)."""
+    base = Path(f"/proc/{pid}")
+    snapshot = {"pid": pid, "monotonic_ns": time.monotonic_ns(), "threads": []}
+    try:
+        snapshot["status"] = {k: v.strip() for k, v in (line.split(":", 1) for line in
+                              (base / "status").read_text().splitlines() if ":" in line)
+                              if k in ("State", "Threads", "VmRSS", "voluntary_ctxt_switches")}
+        for task in sorted(base.glob("task/*"), key=lambda p: int(p.name)):
+            row = {"tid": int(task.name)}
+            for name in ("comm", "wchan"):
+                try:
+                    row[name] = (task / name).read_text().strip()
+                except OSError as exc:
+                    row[name] = f"<{type(exc).__name__}>"
+            try:
+                row["state"] = (task / "stat").read_text().rsplit(")", 1)[1].split()[0]
+            except (OSError, IndexError):
+                row["state"] = "?"
+            snapshot["threads"].append(row)
+    except OSError as exc:
+        snapshot["error"] = f"{type(exc).__name__}: {exc}"
+    return snapshot
+
+
 def runner_error_stop(out, wait_s=2.0):
     """D16 (M1 protocol v0.1): before any owned process is terminated after a runner error, ask the
     bridge's guard driver to disarm, then wait up to `wait_s` for the guard to report it and for the
@@ -2313,9 +2338,16 @@ def trial(args, context, out):
                 os.killpg(process.pid, signal.SIGTERM)
                 entry["termination"] = "SIGTERM owned process group"
                 try:
-                    # The player can spend > 5 s in its WebSocket close handshake while the bridge is still
-                    # up (seen once, M1 v0.2 F1-5 trial 1, after the car had stopped and been disarmed).
-                    process.wait(timeout=15 if entry["label"] == "player" else 5)
+                    # The player can hang at shutdown (4/27 M1 v0.2 runs, after stop and disarm). If it is
+                    # still alive after 10 s, record its threads (name, state, kernel wait channel) before
+                    # the remaining wait and SIGKILL; ptrace_scope 1 rules out an attached debugger.
+                    if entry["label"] == "player":
+                        try:
+                            process.wait(timeout=10)
+                        except subprocess.TimeoutExpired:
+                            entry["hang_diagnostics"] = str(out / "player-hang-diagnostics.json")
+                            save(out / "player-hang-diagnostics.json", thread_snapshot(process.pid))
+                    process.wait(timeout=5)
                 except subprocess.TimeoutExpired:
                     os.killpg(process.pid, signal.SIGKILL)
                     process.wait()

@@ -149,6 +149,27 @@ class RunnerHookTests(unittest.TestCase):
             self.assertEqual("terminated by SIGTERM", record["reaped"][0]["result"])
 
 
+class ThreadSnapshotTests(unittest.TestCase):
+    def test_snapshot_lists_threads_of_a_live_process(self):
+        child = subprocess.Popen(["sleep", "30"])
+        try:
+            time.sleep(0.1)
+            snap = an.thread_snapshot(child.pid)
+        finally:
+            child.kill()
+            child.wait()
+        self.assertEqual(child.pid, snap["pid"])
+        self.assertEqual(1, len(snap["threads"]))
+        self.assertEqual("sleep", snap["threads"][0]["comm"])
+        self.assertIn(snap["threads"][0]["state"], ("S", "R", "D"))
+        self.assertIn("Threads", snap["status"])
+
+    def test_snapshot_of_a_gone_process_reports_the_error(self):
+        child = subprocess.Popen(["true"])
+        child.wait()
+        self.assertIn("error", an.thread_snapshot(child.pid))
+
+
 class StopDetectorTests(unittest.TestCase):
     def test_stop_time_and_travel(self):
         series = [(int(t * 1e9), t, 0.3 * min(t, 1.0), 0.0) for t in [i * 0.2 for i in range(15)]]

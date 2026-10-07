@@ -687,3 +687,10 @@
 - **Open.** Player shutdown hang in 4/27 runs: SIGKILL after SIGTERM, even with the grace raised to 15 s (`83aa1a9`). It happened after stop and disarm, and the guard traces are complete. All four were recording runs (correlation only); a no-motion check is proposed.
   - F1-8 recordings end when the runner is killed.
 - **Records.** 123 script tests and 41 plugin tests pass. Evidence `artifacts/s1/20261007T051931Z-m1-f1-v02/` (1,009 files).
+
+## 2026-10-07 — Player shutdown hang: stationary check and diagnostics
+
+- **Check (no motion).** Two stationary, interlocked S1-stack sessions (guard observe, HoldController zeros, player without motion authorization, 30 s), one with window recording and one without. Both shut down cleanly: player exit 0, cleanup 2.2 s. Evidence `artifacts/s1/20261007T065223Z-hang-check/`.
+- **Reading.** At the observed ~15 % hang rate, two clean sessions neither confirm nor rule out the recorder; the hangs so far were all driving runs. A stationary A/B large enough to tell would need dozens of reviewed sessions, so I stopped at two.
+- **Diagnostics instead.** If the player is alive 10 s after SIGTERM, the runner now writes `player-hang-diagnostics.json` (per-thread name, state and kernel wait channel, plus process status) before the remaining 5 s and SIGKILL. `ptrace_scope` = 1 rules out attaching gdb. The next hang will show where the player is blocked.
+- **Tests.** 125 script tests pass.

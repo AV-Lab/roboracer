@@ -223,7 +223,8 @@ class ScenarioDriver:
         self.complete = False
         self.started = False
         self.current = None
-        self.script = {"observe": self._observe, "calibration": self._calibration}.get(mode, self._scenario)()
+        self.script = {"observe": self._observe, "calibration": self._calibration,
+                       "reset": self._reset}.get(mode, self._scenario)()
 
     # Bridge interface -------------------------------------------------------------
     def on_frame(self, record, session, episode):
@@ -445,6 +446,52 @@ class ScenarioDriver:
             stops = [text for _, text, _ in self.events[since:] if text.startswith("state stopped")]
             self._check("one final lease expiry", len(stops) == 1 and stops[0].startswith("state stopped lease-expired"),
                         stops=stops)
+        yield from self._disarm()
+
+    def _reset(self):
+        """SIM1-03 (P1a, disarmed or interlocked): GUI Reset reloads the scene. Required: the guard leaves
+        `armed` with reason scene-load; the episode advances; the runner reviews the reloaded scene and
+        reconnects; then a request while disarmed is rejected not-armed, an arm naming the old episode is
+        rejected wrong-episode, re-arming in the new episode opens a new epoch, an old-epoch request and a
+        replay of a pre-reset request are rejected stale-epoch, and fresh requests are accepted and applied."""
+        yield from self._warmup()
+        self._open_phase("reset")
+        yield from self._arm()
+        old_epoch, old_episode = self.record["epoch"], self.episode
+        before = yield from self._next_fresh()
+        replay_text = self._text(before)
+        mark = self._mark()
+        yield Reply(request=replay_text)
+        yield from self._expect("pre-reset request accepted", mark, rf"^accept {before['seq']} ")
+        yield from self._forward_and_expect(1)
+        since = self._mark()
+        self.reset_info = {"old_epoch": old_epoch, "old_episode": old_episode, "since_event": since}
+        done = yield from self._act("gui-reset", frames=900)
+        if not done:
+            return
+        self._check("guard disarmed by the scene load", self._find(since, r"^state disarmed scene-load$") is not None,
+                    event=self._find(since, r"^state disarmed scene-load$"))
+        self._check("episode advanced by one", self.episode == old_episode + 1, before=old_episode, after=self.episode)
+        yield from self._idle(5)  # clock exchanges after the reconnect, before any arm
+        request = yield from self._next_fresh()
+        mark = self._mark()
+        yield Reply(request=self._text(request))
+        yield from self._expect("request while disarmed rejected not-armed", mark, rf"^reject {request['seq']} not-armed$")
+        mark = self._mark()
+        yield Reply(arm=f"arm {self.session} {old_episode} {self._origin()}")
+        yield from self._expect("arm naming the old episode rejected", mark, r"^reject arm wrong-episode$")
+        armed = yield from self._arm("re-armed in the new episode")
+        self._check("new epoch after re-arm", bool(armed) and int(armed[1].split()[3]) == old_epoch + 1, event=armed)
+        request = yield from self._next_fresh()
+        mark = self._mark()
+        yield Reply(request=self._text(request, epoch=old_epoch))
+        yield from self._expect("old-epoch request rejected stale-epoch", mark, rf"^reject {request['seq']} stale-epoch$")
+        mark = self._mark()
+        yield Reply(request=replay_text)
+        yield from self._expect("replayed pre-reset request rejected stale-epoch", mark,
+                                rf"^reject {before['seq']} stale-epoch$")
+        yield from self._forward_and_expect(2)
+        self._forbid("no fault", since, r"^state fault")
         yield from self._disarm()
 
     def _next_fresh_or_none(self):

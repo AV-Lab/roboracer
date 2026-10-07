@@ -316,6 +316,11 @@ def simulate(mode="scenario", defect=None, duration_s=5, max_frames=4000, stop_r
                 inbox.alive = False
             elif kind == "spawn-supervisor":
                 inbox.respawn()
+            elif kind == "gui-reset":
+                # Scene reload: the static guard disarms (scene-load) and clears its clock; episode advances.
+                model.samples = []
+                model.leave("disarmed", "scene-load", bridge_now[0] + offset)
+                episode += 1
             elif kind == "manual-input":
                 model.counters["manual_ignored"] += 50
                 model.counters["gui_blocked"] += 1
@@ -393,6 +398,18 @@ class ScenarioDriverTests(unittest.TestCase):
         checks = {c["name"]: c["ok"] for c in driver.phases[0]["checks"]}
         self.assertFalse(checks["one final lease expiry"])
         self.assertFalse(driver.summary()["passed"])
+
+    def test_reset_mode_scene_load_epoch_and_stale_rejections(self):
+        driver, model, killed = simulate(mode="reset", duration_s=5)
+        self.assertFalse(killed)
+        checks = {c["name"]: c["ok"] for c in driver.phases[0]["checks"]}
+        self.assertTrue(driver.summary()["passed"], [c for c in driver.phases[0]["checks"] if not c["ok"]])
+        for name in ("guard disarmed by the scene load", "episode advanced by one",
+                     "request while disarmed rejected not-armed", "arm naming the old episode rejected",
+                     "new epoch after re-arm", "old-epoch request rejected stale-epoch",
+                     "replayed pre-reset request rejected stale-epoch"):
+            self.assertTrue(checks[name], name)
+        self.assertIn("state disarmed scene-load", model.events)
 
     def test_trace_analysis_flags_torque_and_unaccepted_application(self):
         rows = [{"k": "start", "schema": SCHEMA},

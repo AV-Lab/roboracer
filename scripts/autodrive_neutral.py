@@ -372,7 +372,7 @@ def bridge(args):
     @incoming.sio.on("connect")
     def connected(sid, environ):
         state["connections"] += 1
-        if state["connections"] != 1:
+        if state["connections"] > (2 if args.guard == "reset" else 1):
             state["errors"].append("Unexpected reconnection in a fresh-process trial")
         checkpoint()
 
@@ -664,6 +664,7 @@ def plugin_observe(args):
 
 
 M0_SPAWN_XY = (0.741, 3.158)  # recorded spawn IPS (S1-02)
+RESET_XY = (52, 606)  # GUI "Reset" button in the 1280x720 player window (SceneReset reloads the scene)
 M0_HOLD_S = 1.0
 M0_SETTLE_S = 3.0
 M0_EXPIRY_WAIT_S = 4.0
@@ -1838,6 +1839,15 @@ def trial(args, context, out):
     def checkpoint():
         save(out / "run.json", record)
 
+    def beat():
+        """Runner heartbeat for the supervisor lease (also from long GUI actions, e.g. SIM1-03 reset)."""
+        nonlocal heartbeat_seq
+        heartbeat_seq += 1
+        try:
+            heartbeat.sendto(json.dumps({"kind": "heartbeat", "seq": heartbeat_seq}).encode(), "\0" + supervisor_name)
+        except (BlockingIOError, ConnectionRefusedError, FileNotFoundError):
+            record["heartbeat_failures"] = record.get("heartbeat_failures", 0) + 1
+
     def spawn(label, argv, env):
         log = (out / (label + ".log")).open("w")
         process = subprocess.Popen(argv, cwd=here, env=env, stdout=log, stderr=subprocess.STDOUT,
@@ -2014,8 +2024,102 @@ def trial(args, context, out):
             if connection.get_input_focus().focus != window or (local.win_x, local.win_y) != (x, y):
                 raise RuntimeError("Guard input is not targeting the reviewed owned window")
 
+        def click(window, x, y):
+            target_window(window, x, y)
+            xtest.fake_input(connection, X.ButtonPress, 1)
+            connection.sync()
+            time.sleep(0.1)  # press and release on separate rendered frames
+            xtest.fake_input(connection, X.ButtonRelease, 1)
+            connection.sync()
+            return time.monotonic_ns()
+
+        def wait_beating(seconds, until=None):
+            end = time.monotonic() + seconds
+            while time.monotonic() < end:
+                beat()
+                if until is not None and until():
+                    return True
+                time.sleep(0.1)
+            return until() if until is not None else True
+
+        def gui_reset(window, approval):
+            """SIM1-03: click GUI Reset (scene reload), confirm the guard's scene-load disarm, then require a
+            second visual review of the reloaded scene before reconnecting with the Connect button. Heartbeats
+            continue throughout so the supervisor lease reflects runner liveness, not this wait."""
+            if window is None:
+                raise RuntimeError("Owned player window unavailable for the reset action")
+            trace_path = out / "guard/guard-trace.jsonl"
+            offset = trace_path.stat().st_size
+
+            def scene_load_seen():
+                with open(trace_path, "rb") as f:
+                    f.seek(offset)
+                    return b"state disarmed scene-load" in f.read()
+
+            def bridge_errors():
+                return read(out / "bridge-status.json").get("errors")
+
+            result = {"clicks": [], "reset": False}
+            pointer, focus = root.query_pointer(), connection.get_input_focus().focus
+            capture(window, "ui-before-reset")
+            for _ in range(3):
+                result["clicks"].append(click(window, *RESET_XY))
+                if wait_beating(5, scene_load_seen):
+                    result["reset"] = True
+                    break
+            root.warp_pointer(pointer.root_x, pointer.root_y)
+            if hasattr(focus, "set_input_focus"):
+                focus.set_input_focus(X.RevertToParent, X.CurrentTime)
+            connection.sync()
+            if not result["reset"]:
+                return result
+            wait_beating(4)
+            capture(window, "ui-after-reset")
+            record["ui_reset_review_required"] = {"pid": player.pid, "window_id": window.id,
+                                                  "screenshot": str(out / "ui-after-reset.png"),
+                                                  "review_file": str(out / "ui-review-reset.json")}
+            checkpoint()
+            if not wait_beating(900, lambda: (out / "ui-review-reset.json").exists()):
+                raise TimeoutError("No review of the reloaded scene")
+            review = read(out / "ui-review-reset.json")
+            if review.get("pid") != player.pid or review.get("window_id") != window.id or \
+                    review.get("screenshot_sha256") != hashlib.sha256((out / "ui-after-reset.png").read_bytes()).hexdigest():
+                raise RuntimeError("Reset review does not match this window or screenshot")
+            result["review"] = review
+            before = read(out / "bridge-status.json").get("connections", 0)
+            pointer, focus = root.query_pointer(), connection.get_input_focus().focus
+            for _ in range(3):
+                result.setdefault("connect_clicks", []).append(click(window, *approval["connect_xy"]))
+                if wait_beating(8, lambda: read(out / "bridge-status.json").get("connections", 0) > before or bridge_errors()):
+                    break
+            root.warp_pointer(pointer.root_x, pointer.root_y)
+            if hasattr(focus, "set_input_focus"):
+                focus.set_input_focus(X.RevertToParent, X.CurrentTime)
+            connection.sync()
+            result["reconnected"] = read(out / "bridge-status.json").get("connections", 0) > before
+            processed = read(out / "bridge-status.json").get("processed", 0)
+            result["frames_resumed"] = wait_beating(10, lambda: read(out / "bridge-status.json").get("processed", 0)
+                                                    >= processed + 3 or bridge_errors())
+            result["bridge_errors"] = bridge_errors()
+            # Verified single C0 start: the first frames of the new episode are at the spawn and at rest.
+            try:
+                rows = [json.loads(line) for line in (out / "bridge-frames.jsonl").read_text().splitlines()[-40:]]
+                rows = [r for r in rows if "motion" in r and "provenance" in r]
+                newest = max((r["provenance"]["episode"] for r in rows), default=None)
+                new = [r for r in rows if r["provenance"]["episode"] == newest]
+                xy = new[-1]["motion"]["Position"][:2] if new else None
+                result["c0_start"] = {
+                    "episode": newest, "frames_in_episode": len(new), "position": xy,
+                    "offset_m": math.dist(xy, M0_SPAWN_XY) if xy else None,
+                    "encoders_still": len(new) >= 2 and new[-1]["motion"]["Encoder Angles"] == new[-2]["motion"]["Encoder Angles"]}
+            except (OSError, ValueError, KeyError) as exc:
+                result["c0_start"] = {"error": f"{type(exc).__name__}: {exc}"}
+            return result
+
         def guard_action(kind, window, approval):
             now = time.monotonic_ns()
+            if kind == "gui-reset":
+                return dict(gui_reset(window, approval), monotonic_ns=now)
             if kind == "kill-supervisor":
                 process = supervisors[-1]
                 entry = next(e for p, _, e in children if p is process)
@@ -2262,7 +2366,7 @@ def trial(args, context, out):
                         break
                     # Observe and calibration trials end when the bridge-side driver completes
                     # (calibration: after its final checks and disarm; M0 attempt 2 waited for the timeout).
-                    if args.guard in ("observe", "calibration") and bridge_state.get("guard", {}).get("complete"):
+                    if args.guard in ("observe", "calibration", "reset") and bridge_state.get("guard", {}).get("complete"):
                         if window is not None:
                             capture(window, "ui-completed")
                         record.update(completed_observation=True, observation_end_ns=time.monotonic_ns(),
@@ -2312,12 +2416,7 @@ def trial(args, context, out):
                 if (args.plugin_stack or args.motion_stage) and connected and "heartbeat_paused_ns" not in record:
                     # Runner liveness for the supervisor's lease, from this loop only (after the
                     # Connect sequence, whose ~1 s of input handling would otherwise trip it).
-                    heartbeat_seq += 1
-                    try:
-                        heartbeat.sendto(json.dumps({"kind": "heartbeat", "seq": heartbeat_seq}).encode(),
-                                         "\0" + supervisor_name)
-                    except (BlockingIOError, ConnectionRefusedError, FileNotFoundError):
-                        record["heartbeat_failures"] = record.get("heartbeat_failures", 0) + 1
+                    beat()
                 time.sleep(0.1)
         if not (record["completed_observation"] or record["completed_diagnostic_window"]):
             raise TimeoutError("Stationary observation did not complete in its execution bound")
@@ -2401,7 +2500,7 @@ def main():
     parser.add_argument("--freeze-window", default="10,15",
                         type=lambda text: tuple(float(v) for v in text.split(",")),
                         help="Freeze start,end seconds after the bridge's first frame")
-    parser.add_argument("--guard", choices=("observe", "scenario", "calibration"),
+    parser.add_argument("--guard", choices=("observe", "scenario", "calibration", "reset"),
                         help="SIM1-02: launch the guarded interlocked player with a supervisor stand-in; "
                              "observe forwards zero requests for --duration, scenario runs the disarmed P1a cases; "
                              "calibration forwards a confirmed motion stage's requests (requires --motion-stage)")
@@ -2467,7 +2566,7 @@ def main():
     if args.freeze_test and not (len(args.freeze_window) == 2 and 0 < args.freeze_window[0] < args.freeze_window[1]
                                  and args.freeze_window[1] + 5 <= args.duration):
         parser.error("Freeze window must be ordered and end at least 5 s before the observation ends")
-    if args.plugin_stack and (args.guard != "observe" or args.plugin_observer):
+    if args.plugin_stack and (args.guard not in ("observe", "reset") or args.plugin_observer):
         parser.error("The plugin stack runs only with --guard observe and replaces --plugin-observer")
     if args.plugin_observer and not args.provenance:
         parser.error("The plugin observer needs the provenance topic (--provenance)")

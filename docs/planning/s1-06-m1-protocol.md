@@ -1,6 +1,6 @@
 # S1-06 — M1 Run Protocol (F1 Fault Matrix and Timing Windows) — Proposal for Confirmation
 
-Version **0.1**, 2026-10-06. Plan item S1-06: *Run M1, preserve failures and publish first timing/resource/episode measurements against the frozen S1 operational limits. Propose later performance budgets for review before S2 acceptance.* The run matrix defines M1 as: C0; A; GT-labelled; three independent bounded-circuit runs; each F1 case three times; five timing windows under the sampling protocol; duration, bounds and tolerances frozen before the runs. **Nothing here runs until you confirm it.**
+Version **0.2**, 2026-10-07 (v0.1 2026-10-06; v0.2 = D17 A, §8). Plan item S1-06: *Run M1, preserve failures and publish first timing/resource/episode measurements against the frozen S1 operational limits. Propose later performance budgets for review before S2 acceptance.* The run matrix defines M1 as: C0; A; GT-labelled; three independent bounded-circuit runs; each F1 case three times; five timing windows under the sampling protocol; duration, bounds and tolerances frozen before the runs. **Nothing here runs until you confirm it.**
 
 ## 1. Already measured (no new motion)
 
@@ -89,3 +89,24 @@ These are drafted from the measured windows and will be revised after D13's runs
 ## 7. Requested reply
 
 Confirm or change D12–D16. I will then build §4, smoke-test it offline, and run D13 and the F1 matrix in that order. I will stop at the first unexpected outcome.
+
+## 8. v0.2 — D17 A (confirmed 2026-10-07)
+
+After F1-1 trial 1 failed v0.1's timing checks (see the [M1 progress report](../stages/S1-06-M1-progress.md)), the user chose **D17 A**: time F1 stops from the fault's onset, not from the stack's injection request.
+
+- **Onset per case:**
+  - F1-1: the first telemetry frame whose LiDAR is reused (frozen);
+  - F1-2: the first corrupted scan, recorded by the hook;
+  - F1-5: the guard's `disarm-request`;
+  - all other cases: the injection.
+- **Stop:** speed < 0.02 m/s within **1.5 s of onset**. The stop time is the first telemetry frame at rest, so it can include up to one frame (~0.2 s).
+- **Throttle deadline:** no nonzero throttle applied after **onset + 1.1 s**, up to any approved re-arm (F1-5).
+- **Travel:** ≤ 0.40 m, still counted from the **injection** (stricter).
+- **Abort check (F1-1, F1-2):** the stack aborts ≤ **0.7 s** after the last good snapshot (its 0.5 s rule plus two 100 ms ticks).
+- **Reporting:** the injection-to-onset delay is reported for every case.
+- **Unchanged:** every other check.
+
+Applying the rules:
+- F1-1 trial 1 stays a recorded **v0.1 failure**. F1-1 restarts with three fresh trials, then F1-2 to F1-9, three each.
+- The analysis (`scripts/roboracer_f1.py --criteria v0.1|v0.2`) reproduces both versions.
+- **Analysis fix found while preparing v0.2:** the stage switches to "stopping" inside a tick whose log row still says "run", so the abort and F1-5 final-stop references are the tick *before* the first "stopping" row. This corrects a 100 ms measurement error. Trial 1 still fails v0.1 with the correction (gap 0.656 s > 0.6 s).

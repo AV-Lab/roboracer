@@ -1479,6 +1479,7 @@ class StackStage:
                 message = copy.copy(message)
                 message.ranges = [math.nan] * len(message.ranges)
                 self.state["f1_corrupted_scans"] = self.state.get("f1_corrupted_scans", 0) + 1
+                self.state.setdefault("f1_first_corrupted_ns", time.monotonic_ns())  # D17: F1-2 onset
             return original(topic, message)
 
         bridge._offer = offer

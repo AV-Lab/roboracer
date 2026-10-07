@@ -14,7 +14,8 @@
   "D13": "approved (five M6 timing laps, window 10 s + 120 s, GPU sampling)",
   "D14": "approved (F1-1..F1-9, each x3, injection at 6.0 s run time, end 8 s later)",
   "D15": "approved (F1 stop: < 0.02 m/s within 1.5 s and <= 0.40 m travel after injection; no contact/off-track)",
-  "D16": "approved (runner error: disarm, observe stop up to 2 s, then terminate children)"
+  "D16": "approved (runner error: disarm, observe stop up to 2 s, then terminate children)",
+  "D17": "approved A (M1 protocol v0.2): F1 stop <= 1.5 s and no throttle after onset + 1.1 s, measured from the fault onset (F1-1 first reused-LiDAR frame, F1-2 first corrupted scan, F1-5 disarm, otherwise injection); travel <= 0.40 m from the injection; abort <= 0.7 s after the last good snapshot; F1-1 trial 1 stays a v0.1 failure and F1-1 restarts with 3 fresh trials"
  },
  "stages": [
   "M0",
@@ -110,6 +111,13 @@
    "proposal": "docs/planning/s1-05-lap-proposal.md",
    "proposal_version": "0.1",
    "note": "one fresh-process M6 lap under the unchanged D9/D10 envelope with --record-video; not a D13 timing window (recording adds CPU load)"
+  },
+  {
+   "stage": "S1-06 M1 F1 matrix under protocol v0.2 (D17 A)",
+   "date": "2026-10-07",
+   "user_reply": "resume D17 \u2192 chose \"A: time from fault onset (Recommended)\"",
+   "proposal": "docs/planning/s1-06-m1-protocol.md",
+   "proposal_version": "0.2"
   }
  ],
  "not_authorized": [

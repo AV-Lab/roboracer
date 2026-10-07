@@ -4,9 +4,9 @@
 Frozen pass criteria, common to every case (D14, D15):
 - the fault was injected (fault-inject.json) at 6.0 s of run time;
 - the case's expected detection is present (per-case rules below);
-- stop: IPS speed < 0.02 m/s within 1.5 s of the injection (for F1-5: of the disarm) and
-  travel after the injection <= 0.40 m until that stop;
-- no nonzero throttle applied by the guard after the detection deadline (injection + 1.1 s:
+- stop: IPS speed < 0.02 m/s within 1.5 s of the fault onset (v0.2, D17 A; v0.1: the injection, F1-5 the disarm) and
+  travel after the injection <= 0.40 m until that stop; the injection-to-onset delay is reported;
+- no nonzero throttle applied by the guard after the detection deadline (onset + 1.1 s in v0.2:
   runner lease 0.5 s + request life 0.5 s + one 0.1 s tick), until any approved re-arm (F1-5);
 - no guard fault; no contact and no off-track (independent scorer) when geometry is given;
 - processes: every owned child reaped (run.json, or the wrapper's F1-8 reaping record).
@@ -73,7 +73,7 @@ def stop_after(series, start_ns, end_ns=None):
             "frames": len(speeds)}
 
 
-def analyze(run: Path, geometry: Path | None = None, episode: Path | None = None) -> dict:
+def analyze(run: Path, geometry: Path | None = None, episode: Path | None = None, criteria: str = "v0.2") -> dict:
     inject = read(run / "fault-inject.json")
     status = read(run / "plugin-observer-status.json")
     run_json = read(run / "run.json")
@@ -98,21 +98,36 @@ def analyze(run: Path, geometry: Path | None = None, episode: Path | None = None
     ticks = rows(run / "plugin-ticks.jsonl")
     stats = status.get("statistics", {})
 
-    # Stop reference: the injection, or for F1-5 the guard's disarm.
-    ref = t0
+    # Stop reference. v0.1: the injection (F1-5: the guard's disarm). v0.2 (D17 A): the fault's
+    # onset — F1-1 first telemetry frame with the LiDAR reused, F1-2 first corrupted scan, F1-5 the
+    # disarm, otherwise the injection. Travel is counted from the injection in v0.2.
+    out["criteria"] = criteria
     rearm_ns = None
+    disarm = None
     if case == "f1-5":
         disarm = next((m for m, t in events if m >= t0 and t == "disarm-request"), None)
-        rearm = next((m for m, t in events if disarm and m > disarm and t.startswith("state armed epoch")), None)
+        rearm_ns = next((m for m, t in events if disarm and m > disarm and t.startswith("state armed epoch")), None)
         check("guard disarm-request after injection", disarm is not None)
+    if criteria == "v0.1":
         ref = disarm or t0
-        rearm_ns = rearm
+    else:
+        onset = {"f1-1": next((f["received_monotonic_ns"] for f in frames if "provenance" in f
+                               and f["received_monotonic_ns"] >= t0
+                               and f["provenance"]["sources"].get("lidar", {}).get("reused")), None),
+                 "f1-2": status.get("f1_first_corrupted_ns"), "f1-5": disarm}.get(case, t0)
+        check("fault onset observed", onset is not None)
+        ref = onset or t0
+        out["details"]["onset_after_injection_s"] = (ref - t0) / 1e9
     stop = stop_after(series, ref, rearm_ns)
     out["details"]["stop"] = stop
-    check("stop within 1.5 s", stop["stop_s"] is not None and stop["stop_s"] <= STOP_WITHIN_S, stop_s=stop["stop_s"])
-    check("travel after injection <= 0.40 m", stop["travel_m"] <= TRAVEL_MAX_M, travel_m=stop["travel_m"])
+    reference = "onset" if criteria == "v0.2" else "injection"
+    check(f"stop within 1.5 s of the {reference}", stop["stop_s"] is not None and stop["stop_s"] <= STOP_WITHIN_S,
+          stop_s=stop["stop_s"])
+    travel = stop["travel_m"] if criteria == "v0.1" else stop_after(series, t0, rearm_ns)["travel_m"]
+    out["details"]["travel_after_injection_m"] = travel
+    check("travel after injection <= 0.40 m", travel <= TRAVEL_MAX_M, travel_m=travel)
 
-    deadline = t0 + int(DETECTION_DEADLINE_S * 1e9)
+    deadline = ref + int(DETECTION_DEADLINE_S * 1e9) if criteria == "v0.2" else t0 + int(DETECTION_DEADLINE_S * 1e9)
     window_end = rearm_ns or float("inf")
     late = [g for g in guard if g.get("k") == "step" and deadline <= g["mono"] < window_end and g["out"][0] != 0]
     if case not in ("f1-8", "f1-9") or guard:
@@ -129,7 +144,10 @@ def analyze(run: Path, geometry: Path | None = None, episode: Path | None = None
                              default=None)
     lease_ok = expiry is not None and last_forwarded is not None and expiry[0] - last_forwarded <= 0.55e9
     abort = status.get("abort") or ""
-    abort_tick = next((t for t in ticks if t.get("phase") == "stopping" and t["start_ns"] >= t0), None)
+    # The stage switches to "stopping" inside a tick whose record (written before the switch) still says
+    # "run"; the abort time is therefore that last "run" tick before the first "stopping" record.
+    first_stopping = next((i for i, t in enumerate(ticks) if t.get("phase") == "stopping" and t["start_ns"] >= t0), None)
+    abort_tick = ticks[first_stopping - 1] if first_stopping else None
 
     if case in ("f1-1", "f1-2"):
         key = "scan/pose skew" if case == "f1-1" else "scan layout differs from the qualified convention"
@@ -139,7 +157,8 @@ def analyze(run: Path, geometry: Path | None = None, episode: Path | None = None
         snaps = [s["committed_monotonic_ns"] for s in rows(run / "plugin-snapshots.jsonl")]
         last_good = max((s for s in snaps if abort_tick and s <= abort_tick["start_ns"]), default=None)
         gap = (abort_tick["start_ns"] - last_good) / 1e9 if abort_tick and last_good else None
-        check("abort <= 0.6 s after the last good snapshot", gap is not None and gap <= 0.6, gap_s=gap)
+        bound = 0.6 if criteria == "v0.1" else 0.7  # v0.2: stack rule 0.5 s + two 100 ms ticks
+        check(f"abort <= {bound} s after the last good snapshot", gap is not None and gap <= bound, gap_s=gap)
         check("supervisor refused stale observations", any(r["decision"] == "stale-observation" for r in after),
               decisions=sorted({r["decision"] for r in after}))
     elif case == "f1-3":
@@ -166,7 +185,9 @@ def analyze(run: Path, geometry: Path | None = None, episode: Path | None = None
               failed=[c for c in phase.get("checks", []) if not c["ok"]])
         moved = stop_after(series, rearm_ns or t0)["travel_m"] if rearm_ns else 0.0
         check("car moved again after re-arm", moved >= 0.1, travel_after_rearm_m=moved)
-        final = next((t for t in ticks if t.get("phase") == "stopping" and t["start_ns"] > (rearm_ns or t0)), None)
+        # The zero request starts in the tick before the first "stopping" record (see abort_tick above).
+        k = next((i for i, t in enumerate(ticks) if t.get("phase") == "stopping" and t["start_ns"] > (rearm_ns or t0)), None)
+        final = ticks[k - 1] if k else None
         final_stop = stop_after(series, final["start_ns"]) if final else None
         check("final stop within 1.5 s of the zero request", final_stop and final_stop["stop_s"] is not None
               and final_stop["stop_s"] <= STOP_WITHIN_S, final_stop=final_stop)
@@ -222,11 +243,13 @@ def main():
     parser.add_argument("--run", type=Path, required=True, help="run-01 directory")
     parser.add_argument("--geometry", type=Path)
     parser.add_argument("--episode", type=Path, help="episode.json (F1-8 reaping record)")
+    parser.add_argument("--criteria", choices=("v0.1", "v0.2"), default="v0.2",
+                        help="M1 protocol criteria: v0.1 (injection-referenced) or v0.2 (D17 A, onset-referenced)")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.output.exists():
         parser.error("Output must be fresh")
-    result = analyze(args.run, args.geometry, args.episode)
+    result = analyze(args.run, args.geometry, args.episode, args.criteria)
     args.output.write_text(json.dumps(result, indent=1, default=str) + "\n")
     print(json.dumps({"case": result["case"], "passed": result["passed"],
                       "failed": [k for k, v in result["checks"].items() if not v["ok"]],

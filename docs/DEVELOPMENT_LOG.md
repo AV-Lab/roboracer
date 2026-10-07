@@ -694,3 +694,11 @@
 - **Reading.** At the observed ~15 % hang rate, two clean sessions neither confirm nor rule out the recorder; the hangs so far were all driving runs. A stationary A/B large enough to tell would need dozens of reviewed sessions, so I stopped at two.
 - **Diagnostics instead.** If the player is alive 10 s after SIGTERM, the runner now writes `player-hang-diagnostics.json` (per-thread name, state and kernel wait channel, plus process status) before the remaining 5 s and SIGKILL. `ptrace_scope` = 1 rules out attaching gdb. The next hang will show where the player is blocked.
 - **Tests.** 125 script tests pass.
+
+## 2026-10-07 — SIM1-03 resumed: reset tooling; current player fails closed after GUI Reset
+
+- **Request.** "go on" after M1. SIM1-03 is required before S1 acceptance (amendment 1.2). All work disarmed or interlocked; no motion authorization.
+- **Tooling** (`56e214d`). Guard-driver `reset` mode (scene-load disarm, episode +1, not-armed / wrong-episode / new epoch / stale-epoch / replay checks), tested against the model guard. Runner `gui-reset` action: Reset click, reviewed reload, reconnect, C0-start check, heartbeats during the wait. Bridge allows one reconnection in reset mode.
+- **Live r0 on the current player.** The Reset produced `state disarmed scene-load`, the scene reloaded at the spawn, and the reconnect succeeded. Then the bridge rejected the first new frame: `Duplicate or out-of-order telemetry seq 1 after 14`, and failed closed. All processes exited 0; no motion.
+- **Cause.** `RRTelemetrySeq` is an instance field of the in-scene Socket (`Socket.cs:34`) and restarts after a scene reload, contrary to `PROTOCOL.md`. `Guard.emits` is not cleared on scene load either.
+- **Proposal (D18).** Patch `vendor-sim1-03b` (static sequence; clear `emits` on scene load), rebuild into a new player directory, requalify without motion (SIM1-01/02 once, reset ×3). Motion on the new build would need separate approval. [SIM1-03 report](stages/SIM1-03-reset.md).

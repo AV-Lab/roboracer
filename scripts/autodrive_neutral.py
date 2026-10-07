@@ -1840,13 +1840,23 @@ def trial(args, context, out):
         save(out / "run.json", record)
 
     def beat():
-        """Runner heartbeat for the supervisor lease (also from long GUI actions, e.g. SIM1-03 reset)."""
+        """Runner heartbeat for the supervisor lease, also from GUI actions (SIM1-03 reset). Only while a
+        supervisor runs, after Connect, and not while heartbeats are deliberately paused (M2 b, F1-7)."""
         nonlocal heartbeat_seq
+        if not ((args.plugin_stack or args.motion_stage) and connected and "heartbeat_paused_ns" not in record):
+            return
         heartbeat_seq += 1
         try:
             heartbeat.sendto(json.dumps({"kind": "heartbeat", "seq": heartbeat_seq}).encode(), "\0" + supervisor_name)
         except (BlockingIOError, ConnectionRefusedError, FileNotFoundError):
             record["heartbeat_failures"] = record.get("heartbeat_failures", 0) + 1
+
+    def pause_beating(seconds):
+        """Sleep in 0.1 s steps with heartbeats, so GUI input handling never outlives the runner lease."""
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            beat()
+            time.sleep(min(0.1, max(0.0, end - time.monotonic())))
 
     def spawn(label, argv, env):
         log = (out / (label + ".log")).open("w")
@@ -2010,7 +2020,7 @@ def trial(args, context, out):
                 data=(32, [2, X.CurrentTime, 0, 0, 0])),
                 event_mask=X.SubstructureRedirectMask | X.SubstructureNotifyMask)
             connection.sync()
-            time.sleep(0.5)
+            pause_beating(0.5)
             frame = window
             while frame.query_tree().parent.id != root.id:
                 frame = frame.query_tree().parent
@@ -2019,7 +2029,7 @@ def trial(args, context, out):
             window.set_input_focus(X.RevertToParent, X.CurrentTime)
             window.warp_pointer(x, y)
             connection.sync()
-            time.sleep(0.2)
+            pause_beating(0.2)
             local = window.query_pointer()
             if connection.get_input_focus().focus != window or (local.win_x, local.win_y) != (x, y):
                 raise RuntimeError("Guard input is not targeting the reviewed owned window")

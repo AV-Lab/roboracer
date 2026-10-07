@@ -1,6 +1,6 @@
 # Amendment 1.3 (draft) — Integrate against the official AutoDRIVE simulator
 
-Date: **2026-10-07**. Status: **draft for confirmation.** Trigger: the user's direction after the SIM1-03 defect ([report](../stages/SIM1-03-reset.md)): *"It takes a lot of time to build a patched simulator. I think we shouldn't struggle on this; we should use the official simulator to integrate."*
+Date: **2026-10-07**. Status: **not adopted.** The user chose D18 (patch and rebuild, then freeze the simulator) after the comparison; this draft is kept as decision history. Trigger: the user's direction after the SIM1-03 defect ([report](../stages/SIM1-03-reset.md)): *"It takes a lot of time to build a patched simulator. I think we shouldn't struggle on this; we should use the official simulator to integrate."*
 
 This is option **B** of the [PRE interface qualification](../stages/PRE-interface-qualification.md): keep the installed official binary and **explicitly revise the acceptance criteria it cannot meet**. It replaces the source-build route ([amendment 1.1-A](simulator-build-amendment.md)) for all future work. No more simulator builds or vendor patches.
 

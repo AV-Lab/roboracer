@@ -77,6 +77,7 @@ namespace RoboRacer
             SceneManager.sceneLoaded += (scene, mode) =>
             {
                 bound = null;
+                emits.Clear(); // patch 04 (SIM1-03 reset): never pair a previous scene's emit time with a new frame
                 if (sceneSeen) Core.SceneLoaded(); // the first load is startup, already disarmed
                 sceneSeen = true;
             };

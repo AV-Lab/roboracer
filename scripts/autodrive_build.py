@@ -23,7 +23,9 @@ VERSION = "2021.3.9f1"
 CHANGESET = "ad3870b89536"
 # SIM1 patch levels and the RoboRacer components each one stages, applied cumulatively.
 SIM1_SERIES = {"01": ("Provenance",), "02": ("GuardCore", "Guard"),
-               "03": ()}  # 03: zero-throttle branch also clears front motor torques (D1, approved 2026-10-05)
+               "03": (),  # 03: zero-throttle branch also clears front motor torques (D1, approved 2026-10-05)
+               "04": ()}  # 04: process-wide telemetry sequence across scene reloads (D18, approved 2026-10-07);
+#                           Guard.cs (staged at 02) also clears its emit map on scene load from this revision on
 
 
 def digest(path):

@@ -1,0 +1,12 @@
+diff --git a/Assets/Scripts/Socket.cs b/Assets/Scripts/Socket.cs
+--- a/Assets/Scripts/Socket.cs
++++ b/Assets/Scripts/Socket.cs
+@@ -31,7 +31,7 @@
+     public TLController[] TrafficLightControllers; // Traffic light controller references
+ 
+     // RoboRacer SIM1-01 provenance/clock-echo state (main thread only)
+-    private long RRTelemetrySeq = 0;
++    private static long RRTelemetrySeq = 0; // RoboRacer patch 04 (SIM1-03 reset): process-wide across scene reloads (PROTOCOL.md)
+     private string RRPingEcho = "";
+     private long RRPingReceiptNs = 0;
+ 

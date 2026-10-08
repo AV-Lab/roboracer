@@ -804,3 +804,15 @@
   - **Automated pre-Connect check.** Comparing only the text pixels of five safe-state regions gives 0 mismatches across 10 screenshots, including one after a GUI Reset. Connected and Manual-mode screens are caught (942 and 810 + 214 px). Raw pixels are not stable, because the HUD is semi-transparent over the 3D view.
   - **Cycle components.** Startup to observation is median 18 s (including review wait); cleanup median 2.2 s.
 - **Found.** Raw scans are not recorded (hashes only), so algorithm replay needs the new recorder (S2-03).
+
+## 2026-10-08 — S2-03 recorder and open-loop replay (no motion)
+
+- **Code** (`f6ba4e2`):
+  - Bridge `message_listener` hook (default off).
+  - `scripts/roboracer_inputs.py`: bounded `InputRecorder`, snapshot and controller replay, analytical fixtures.
+  - Runner `--record-inputs`.
+  - Also: fixed the RESET_XY comment misplaced by the SIM1-05 patch, and repointed the SIM0 pose test to the baseline source after the cleanup.
+- **Fixture correction.** The first fixture set expected straight steering in equal-range rings. Float32 points make that tie noise, so the fixtures were rebuilt with determined outputs: a symmetric corridor, a ring with an opening (closed-form α = 34.25°), and a dead end checked for speed only.
+- **Live check.** A stationary interlocked session with recording on: 918 messages, 1.39 MB. Replay ×3 in fresh processes gives **152/152 snapshots identical**, with the same rejection and drop counts. 0 tick overruns; player unchanged.
+- **Tests.** 138 script tests (7 new, no skip) and 41 plugin tests pass.
+- **Records.** [S2 report](stages/S2.md). Controller replay on a driving recording waits for the first approved lap.

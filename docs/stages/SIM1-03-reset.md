@@ -85,6 +85,19 @@ No physics, actuation, sensor or scene change. Then:
 - **Simulator frozen:** per D18 there are no further vendor patches. Future problems are solved in the bridge, supervisor or plugin, or recorded as known limitations.
 - **Not yet done:** no motion has run on the new player. All motion evidence (M0–M6, M1) is on the SIM1-03 player. Moving motion to the new player needs your approval; I'd propose one M6 regression lap first.
 
-## 6. Also done today
+## 6. Regression lap on the patch-04 player (2026-10-08; "approve one regression lap on the new build")
+
+One fresh-process M6 lap with the unchanged D9/D10 envelope, A-lap and window video (`artifacts/s1/20261008T062420Z-m6-regression/`).
+
+- **Result:** a clean lap of 122.9 s with clearance 0.106 m, finishing on distance with no abort.
+  - Final stop 0.34 s.
+  - The 120 s timing window is within every frozen limit.
+  - Runner exit 0; the player is unchanged.
+- **Comparison with the nine SIM1-03-player laps** (`comparison-with-sim1-03-laps.json`): **10 of 11 measures fall inside the old range.**
+  - Inside the range: lap time, clearance, max speed, steering range, final stop, observation age p95, command → observed p95, telemetry max, and player CPU.
+  - Outside: driven path is 33.147 m against an old maximum of 33.145 m. That is only where the last frame landed past the 33 m end point.
+- **Conclusion:** patch 04 does not change driving behaviour. **The patch-04 player is the qualified player for further work**, and all earlier motion evidence (SIM1-03 player) still stands.
+
+## 7. Also done today
 
 - **Player shutdown-hang check, no motion.** Two stationary interlocked sessions, with and without recording, both shut down cleanly. That's too few to settle the cause, so the runner now captures the player's thread states if it is still alive 10 s after SIGTERM (`7aeb6eb`). Evidence `artifacts/s1/20261007T065223Z-hang-check/`.

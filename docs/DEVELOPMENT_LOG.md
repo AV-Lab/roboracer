@@ -723,3 +723,10 @@
   - One reset attempt failed on my tooling (no heartbeats during the Reset click inhibited the supervisor); fixed in `0ac6c29`.
 - **Policy.** The simulator is frozen: no further vendor patches.
 - **Next.** Motion on the new player needs approval; I propose one M6 regression lap. SIM1-04 to SIM1-06 remain for S1 acceptance. [Report](stages/SIM1-03-reset.md); evidence `artifacts/simulator-build/20261007T-sim1-04/`.
+
+## 2026-10-08 — Regression lap on the patch-04 player: no change
+
+- **Approval.** "approve one regression lap on the new build." Recorded (`ff6b563`).
+- **Lap.** Clean: 1 lap, 122.9 s, clearance 0.106 m, stop 0.34 s, all frozen limits held, exit 0, player unchanged. The runner's motion build-record and hash check accepted the new player.
+- **Comparison.** 10/11 measures inside the range of the nine previous-build laps; the 11th is the path overshoot past 33 m (+1.5 mm). The patch-04 player is now the qualified player.
+- **Evidence.** `artifacts/s1/20261008T062420Z-m6-regression/` (window video included). [Report §6](stages/SIM1-03-reset.md).

@@ -1,5 +1,7 @@
 # PRE — Current Qualification Status
 
+> **2026-10-08 — SIM1-06:** PRE-03 and PRE-04 are **met on evidence and await your review** ([PRE completion report](SIM1-06-PRE-completion.md), [qualified backend](../architecture/qualified-backend.md)). PRE-B05/B07/B08 are closed. PRE-B09 is closed for S1 only; five starts, obstacles and unattended reset stay with S2–S4. The status text below is historical.
+
 Updated: **2026-10-05**. **Complete PRE before S1 remains confirmed.** PRE-01/02, SIM0-01–04 and LNX-01–04 accepted ([SIM0 report](SIM0-completion.md)); SIM1 entered on the user's “go on the development plan”. **SIM1-01 passes:** per-source acquisition identity, clock-offset bounds and acquisition-time ROS headers through the isolated Devkit ([English](SIM1-provenance.md)). **SIM1-02 passes:** a receiver guard and lease immediately before actuation reject every disarmed P1a command/clock/failure case, with legacy/manual/GUI bypasses closed and a zero-output interlock ([English](SIM1-guard.md)). **2026-10-05: the remaining PRE work was postponed by the user ([amendment 1.2](../planning/s1-first-amendment.md)); S1 starts on the SIM1-02 build, and PRE-03/04 now gate S1 acceptance.** PRE-03/04 still require SIM1-03–05; no nonzero command has reached the controller (rejected fault-injection values and ignored legacy-bypass probes only).
 
 ## Reports and evidence

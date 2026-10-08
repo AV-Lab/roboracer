@@ -765,3 +765,15 @@
 - **M0.** All pass. Worst angle error 5.6×10⁻⁶°, the same as trial 1. Signs and slew are identical. Steering returned to 0 ≤ 0.1 ms after lease expiry. Displacement 1 mm.
 - **M3b.** All pass. Per-level gains are 5.018/5.009/4.914 and 5.019/5.007/4.920, against 5.016/5.010/4.921 for trial 1 re-analysed. The representative gain is −0.2 to −0.26 % from 5.02. The 0.06 level is 2 % low in every trial, because that hold has a single settled frame before the speed cap (already reported in M3b). Lateral deviation ≤ 1.4 mm; encoder travel is within 4 mm of IPS over 0.92 m.
 - **Records.** [SIM1-05 report §5](stages/SIM1-05-motion-qualification.md); evidence `artifacts/s1/20261008T070048Z-d19-actuator/`. Every P1b case now has 3 trials. The SIM1-05 check box is left for review.
+
+## 2026-10-08 — SIM1-06: qualified backend published; PRE completion report (no motion)
+
+- **Request.** "go on with SIM1-06".
+- **Backend.** [qualified-backend.md](architecture/qualified-backend.md) records the backend's identity, patches, launch, frozen contracts, costs and limits. The manifest is `artifacts/sim1-06/20261008T070835Z/qualified-backend.json`.
+  - Player: 604 files, matches its build record.
+  - The 4 patches and 7 staged component files are byte-identical to the build record.
+  - The Devkit source tree is hashed; 87 plugin and tool files at clean commit `7badad6`.
+- **PRE.** PRE-03 and PRE-04 are met on evidence. PRE-B05/B07/B08 are closed. PRE-B09 is closed for S1; its S2–S4 parts stay open. No case is waived, and hang containment is not counted as a stop.
+- **Todos.** Text updated for PRE-03/04 and SIM1-06; no box ticked. The review asks the user to accept SIM1-03–06, PRE-03/04 and S1-02–06, which would make 10/34 original and 10/10 amendment.
+- **Tests.** 131 script tests and 41 plugin tests pass.
+- **Records.** [Report](stages/SIM1-06-PRE-completion.md). **Stopped for stage review**; S2 needs entry confirmation.

@@ -795,3 +795,12 @@
   - With the user's approval, the superseded Unity project checkouts `autodrive-20261005T053316Z-sim1`, `-sim1-02`, `-sim1-03` and `autodrive-native-20260929T122535Z-authoring`. Their stale git worktree entries were pruned.
 - **Kept.** All built players (`autodrive-builds/`, including the SIM1-03 player behind earlier evidence); the patch-04 project and the baseline source; the toolchain; the venvs. Also kept, at the user's choice: the other projects' `/tmp` data, including the A2RL launch runs (12 GB).
 - **Result.** 81 % used, 177 GB free. The patch-04 player hash is unchanged (`44f9e735…`). Rebuilding a pre-04 player would now need a fresh prepared checkout; the simulator is frozen, so none is planned.
+
+## 2026-10-08 — S2 entered; proposal v0.1 (no motion)
+
+- **Request.** "go on with S2".
+- **Proposal.** [s2-proposal.md](planning/s2-proposal.md) covers the S1 evidence vs S2 gaps, unattended initialization, the lifecycle and recovery ladder, recording and replay, the F2 catalog (10 cases), and decisions D20–D24.
+- **Feasibility measured** (`artifacts/s2/20261008T092831Z-entry/`):
+  - **Automated pre-Connect check.** Comparing only the text pixels of five safe-state regions gives 0 mismatches across 10 screenshots, including one after a GUI Reset. Connected and Manual-mode screens are caught (942 and 810 + 214 px). Raw pixels are not stable, because the HUD is semi-transparent over the 3D view.
+  - **Cycle components.** Startup to observation is median 18 s (including review wait); cleanup median 2.2 s.
+- **Found.** Raw scans are not recorded (hashes only), so algorithm replay needs the new recorder (S2-03).

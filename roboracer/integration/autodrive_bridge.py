@@ -69,6 +69,9 @@ class AutoDriveBridge(WorldBridge):
         # Optional callable(snapshot), invoked on the transport thread under the bridge lock for
         # every committed snapshot. It must be quick and must not call back into the bridge.
         self.snapshot_listener = None
+        # Optional callable(topic, message, now_ns), invoked under the bridge lock with every raw
+        # message before assembly, in processing order (S2-03 input recording). Same rules.
+        self.message_listener = None
 
     # -- observation path --------------------------------------------------------------------
     def connect(self, timeout_s: float = 0.0, supervisor: str | None = None) -> bool:
@@ -103,6 +106,8 @@ class AutoDriveBridge(WorldBridge):
     def _offer(self, topic: str, message) -> None:
         now = time.monotonic_ns()
         with self._lock:
+            if self.message_listener is not None:
+                self.message_listener(topic, message, now)
             if topic == "provenance":
                 snapshots = self.assembler.offer_provenance(message.data, now)
             else:

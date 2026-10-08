@@ -619,6 +619,14 @@ def plugin_observe(args):
 
     signal.signal(signal.SIGTERM, lambda *_: stop.append(True))
     bridge.snapshot_listener = record
+    recorder = None
+    if args.record_inputs:
+        # S2-03: every raw message the bridge processes, for open-loop replay (roboracer_inputs.py).
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from roboracer_inputs import InputRecorder
+        recorder = InputRecorder(args.results / "plugin-inputs.jsonl")
+        bridge.message_listener = recorder
+        state["input_recording"] = recorder.stats
     bridge.connect(supervisor=args.supervisor)
     state["ready"] = True
     checkpoint()
@@ -656,6 +664,8 @@ def plugin_observe(args):
                 next_checkpoint = time.monotonic() + 0.2
     finally:
         bridge.close()
+        if recorder is not None:
+            recorder.close()
         state["completed"] = True
         checkpoint()
         trace.close()
@@ -664,7 +674,7 @@ def plugin_observe(args):
 
 
 M0_SPAWN_XY = (0.741, 3.158)  # recorded spawn IPS (S1-02)
-RESET_XY = (52, 606)
+RESET_XY = (52, 606)  # GUI "Reset" button in the 1280x720 player window (SceneReset reloads the scene)
 # SIM1-05: simulator-hang containment. Telemetry gaps are ~0.25 s at most (0.65 s under GPU starvation, M4);
 # no frame for this long while the player process exists is treated as a hung simulator.
 SIM_HANG_S = 2.0
@@ -672,7 +682,7 @@ SIM_HANG_S = 2.0
 
 def simulator_hung(last_received_ns, now_ns, threshold_s=SIM_HANG_S):
     """True when the last telemetry frame is older than the hang threshold."""
-    return bool(last_received_ns) and now_ns - last_received_ns > threshold_s * 1e9  # GUI "Reset" button in the 1280x720 player window (SceneReset reloads the scene)
+    return bool(last_received_ns) and now_ns - last_received_ns > threshold_s * 1e9
 M0_HOLD_S = 1.0
 M0_SETTLE_S = 3.0
 M0_EXPIRY_WAIT_S = 4.0
@@ -1936,7 +1946,8 @@ def trial(args, context, out):
                     spawn("plugin-stack", [context["avlite_python"], "-B", own_script, "plugin-observe",
                                            "--results", str(out), "--plugin", str(PLUGIN_DIRECTORY),
                                            "--supervisor", supervisor_name, "--stack-profile", args.motion_stage,
-                                           *(["--f1-case", args.f1_case] if args.f1_case else [])],
+                                           *(["--f1-case", args.f1_case] if args.f1_case else []),
+                                           *(["--record-inputs"] if args.record_inputs else [])],
                           plugin_environment)
                     status_name = "plugin-observer-status.json"
                 elif args.motion_stage:
@@ -1949,7 +1960,8 @@ def trial(args, context, out):
                 else:
                     spawn("plugin-stack", [context["avlite_python"], "-B", own_script, "plugin-observe",
                                            "--results", str(out), "--plugin", str(PLUGIN_DIRECTORY),
-                                           "--supervisor", supervisor_name], plugin_environment)
+                                           "--supervisor", supervisor_name,
+                                           *(["--record-inputs"] if args.record_inputs else [])], plugin_environment)
                     status_name = "plugin-observer-status.json"
                 while not read(out / status_name).get("ready"):
                     if any(p.poll() is not None for p, _, _ in children) or time.monotonic() > deadline:
@@ -1967,7 +1979,8 @@ def trial(args, context, out):
         ready_files = ["bridge-status.json", "observer-status.json"]
         if args.plugin_observer:
             spawn("plugin-observer", [context["avlite_python"], "-B", own_script, "plugin-observe",
-                                      "--results", str(out), "--plugin", str(PLUGIN_DIRECTORY)], plugin_environment)
+                                      "--results", str(out), "--plugin", str(PLUGIN_DIRECTORY),
+                                      *(["--record-inputs"] if args.record_inputs else [])], plugin_environment)
             ready_files.append("plugin-observer-status.json")
         deadline = time.monotonic() + 15
         while not all(read(out / name).get("ready") for name in ready_files):
@@ -2550,6 +2563,8 @@ def main():
     parser.add_argument("--f1-case", choices=F1_CASES, default=None,
                         help="S1-06 F1 fault case (M1 protocol v0.1); motion stage m6 only")
     parser.add_argument("--freeze-trigger", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--record-inputs", action="store_true",
+                        help="S2-03: record every raw message the plugin bridge processes (plugin-inputs.jsonl)")
     parser.add_argument("--sim-hang-test", type=float, default=None,
                         help="Test only (no motion stage): SIGSTOP the player this many seconds after observation start")
     parser.add_argument("--record-video", action="store_true",
@@ -2582,6 +2597,10 @@ def main():
                         help="Fresh output directory for offline kinematics plots in analyze mode")
     args = parser.parse_args()
     args.results = args.results.resolve()
+    if args.record_inputs and args.mode in ("run", "plugin-observe") and \
+            not (args.plugin_stack or args.plugin_observer or args.motion_stage in AVLITE_MOTION_STAGES
+                 or args.mode == "plugin-observe"):
+        parser.error("--record-inputs needs the plugin bridge (--plugin-stack, --plugin-observer or an AVLite stage)")
     if args.sim_hang_test is not None and (args.motion_stage or args.mode != "run" or args.sim_hang_test <= 0):
         parser.error("--sim-hang-test is a stationary (no motion stage) run-mode test with a positive delay")
     if args.f1_case:

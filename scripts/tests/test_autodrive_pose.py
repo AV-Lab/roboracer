@@ -67,7 +67,7 @@ class PoseTests(unittest.TestCase):
         self.assertFalse(status['pose_window_complete'])
 
     def test_exact_vendor_lines_remain_and_markers_bracket_the_setters(self):
-        source=Path('~/roboracer-work/autodrive-native-20260929T122535Z-authoring/Assets/Scripts/VehicleController.cs').expanduser()
+        source=Path('~/roboracer-work/autodrive-635dbb6d-baseline/Assets/Scripts/VehicleController.cs').expanduser()
         if not source.exists():self.skipTest('Pinned source unavailable')
         original=source.read_bytes();patched=pose.patch_controller(original)
         stripped=b''.join(l for l in patched.splitlines(keepends=True) if not l.rstrip().endswith(pose.MARKER.encode()))

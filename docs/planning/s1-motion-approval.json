@@ -127,6 +127,14 @@
    "proposal": "docs/stages/SIM1-03-reset.md",
    "proposal_version": "D18 follow-up",
    "note": "one fresh-process M6 lap, unchanged D9/D10 envelope, AutoDRIVE-window video; compare with the SIM1-03-player laps (M6 x3, D13 x5, video lap)"
+  },
+  {
+   "stage": "D19 A: M0 x2 and M3b x2 on the patch-04 player (20261007T-sim1-04)",
+   "date": "2026-10-08",
+   "user_reply": "approve D19 A; run M0 and M3b repeats",
+   "proposal": "docs/stages/SIM1-05-motion-qualification.md",
+   "proposal_version": "D19 A",
+   "note": "two fresh-process trials each, unchanged stage limits (m0: steering only, throttle exactly 0; m3b: throttle {0, 0.03, 0.045, 0.06}, steering 0, 0.35 m hold travel); pass = original criteria plus M0 angles within 0.0001 deg and M3b gain within 1 % of 5.02 m/s per unit throttle"
   }
  ],
  "not_authorized": [

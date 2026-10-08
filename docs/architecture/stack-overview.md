@@ -50,7 +50,7 @@ Guard (C# inside the simulator, roboracer patch): arming epoch, lease ≤ 1 s, l
 | --- | --- | --- |
 | Guard | `integration/autodrive/sim1/RoboRacer/GuardCore.cs` (in the player) | The last authority before actuation: arming epoch, origin, sequence, lease, clock bound and limits. On expiry or disarm it brakes with zero throttle. |
 | Runner and stage scripts | `scripts/autodrive_neutral.py` | The test harness. It owns the processes, the pre-Connect review and the stage schedules. Its abort monitors are the only users of the ground-truth pose. |
-| Scorer and measurement tools | `scripts/roboracer_scoring.py`, `roboracer_episode.py`, `roboracer_timing.py`, `roboracer_f1.py` | Independent evaluation: laps, contact and off-track from simulator truth; timing and resources; the F1 fault checks. |
+| Scorer and measurement tools | `scripts/roboracer_scoring.py`, `roboracer_episode.py`, `roboracer_timing.py`, `roboracer_f1.py` | Independent evaluation: laps, contact and off-track from simulator truth; timing and resources; the F1 fault checks. Which inputs the driving stack may use and which are evaluator-only: [evaluator interface](evaluator-interface.md). |
 
 ## 5. Evidence that AVLite executes (not only imports)
 

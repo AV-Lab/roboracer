@@ -86,5 +86,41 @@ class ScoringTests(unittest.TestCase):
         self.assertEqual(1, len(r["contact_events"]))
 
 
+@unittest.skipIf(rs is None, "shapely unavailable; run with the AVLite interpreter")
+class EpisodeTruthTests(unittest.TestCase):
+    """SIM1-04: evaluator truth comes from one simulator episode; a reset (new episode) is never mixed in."""
+
+    def write(self, rows):
+        import json
+        import tempfile
+        self.tmp = tempfile.TemporaryDirectory()
+        run = Path(self.tmp.name)
+        with open(run / "bridge-frames.jsonl", "w") as f:
+            for seq, episode, ips_episode, sim in rows:
+                f.write(json.dumps({"motion": {"Position": [1.0, 2.0, 0.06], "Orientation Quaternion": [0, 0, 0, 1]},
+                                    "provenance": {"telemetry_seq": seq, "episode": episode,
+                                                   "sources": {"ips": {"episode": ips_episode, "sim_time": sim}}},
+                                    "received_monotonic_ns": seq}) + "\n")
+        return run
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_single_episode_is_returned_with_its_number(self):
+        frames = rs.truth_frames(self.write([(1, 1, 1, 0.2), (2, 1, 1, 0.4)]))
+        self.assertEqual([1, 1], [f["episode"] for f in frames])
+
+    def test_two_episodes_are_refused_unless_one_is_selected(self):
+        run = self.write([(1, 1, 1, 10.0), (2, 1, 1, 10.2), (3, 2, 2, 0.1), (4, 2, 2, 0.3)])
+        with self.assertRaises(ValueError):
+            rs.truth_frames(run)
+        self.assertEqual([3, 4], [f["telemetry_seq"] for f in rs.truth_frames(run, episode=2)])
+        self.assertEqual([1, 2], rs.run_episodes(run))
+
+    def test_ips_sample_from_another_episode_is_refused(self):
+        with self.assertRaises(ValueError):
+            rs.truth_frames(self.write([(1, 2, 1, 0.1)]))
+
+
 if __name__ == "__main__":
     unittest.main()

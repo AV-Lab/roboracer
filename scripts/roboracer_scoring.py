@@ -138,19 +138,43 @@ def footprint_polygon(fp, x, y, yaw):
     return Polygon([(x + c * u - s * v, y + s * u + c * v) for u, v in corners])
 
 
-def truth_frames(run: Path) -> list[dict]:
-    """Raw truth per telemetry frame from the runner's bridge child (independent of the stack)."""
+def truth_frames(run: Path, episode: int | None = None) -> list[dict]:
+    """Raw truth per telemetry frame from the runner's bridge child (independent of the stack).
+
+    Evaluator-only inputs (SIM1-04): IPS position (rear-axle centre) and IMU orientation, timed by IPS
+    acquisition simulation time, from one simulator episode. Simulation time restarts at a scene
+    reload (SIM1-03), so frames of different episodes are never mixed: with several episodes in a
+    run, `episode` must name one. Frames whose IPS sample belongs to another episode are refused."""
     frames = []
     for line in (run / "bridge-frames.jsonl").read_text().splitlines():
         row = json.loads(line)
         if "motion" not in row or "provenance" not in row:
             continue
+        prov = row["provenance"]
+        ips = prov["sources"]["ips"]
+        if None not in (ips.get("episode"), prov.get("episode")) and ips["episode"] != prov["episode"]:
+            raise ValueError(f"IPS sample from episode {ips['episode']} in frame of episode {prov['episode']}")
         x, y, _ = row["motion"]["Position"]
         q = row["motion"]["Orientation Quaternion"]
-        frames.append({"sim_time": row["provenance"]["sources"]["ips"]["sim_time"], "x": x, "y": y,
-                       "yaw": yaw_from_quaternion(*q), "telemetry_seq": row["provenance"]["telemetry_seq"],
+        frames.append({"sim_time": ips["sim_time"], "x": x, "y": y, "yaw": yaw_from_quaternion(*q),
+                       "telemetry_seq": prov["telemetry_seq"], "episode": prov.get("episode"),
                        "received_ns": row["received_monotonic_ns"]})
-    return frames
+    episodes = sorted({f["episode"] for f in frames})
+    if episode is None:
+        if len(episodes) > 1:
+            raise ValueError(f"Run spans episodes {episodes}; select one (truth is never mixed across a reset)")
+        return frames
+    return [f for f in frames if f["episode"] == episode]
+
+
+def run_episodes(run: Path) -> list[int]:
+    """Simulator episodes present in a run's bridge frames."""
+    found = set()
+    for line in (run / "bridge-frames.jsonl").read_text().splitlines():
+        row = json.loads(line)
+        if "provenance" in row:
+            found.add(row["provenance"].get("episode"))
+    return sorted(found)
 
 
 def events(flags, frames):
@@ -211,6 +235,7 @@ def score(geometry: dict, frames: list[dict]) -> dict:
             # Inside a tight bend the projection outruns the car (cutting the inside); audit large steps.
             "max_frame_progress_m": max_step,
             "start_pose": frames[0] if frames else None,
+            "episode": frames[0].get("episode") if frames else None,
             "start_offset_m": math.dist((frames[0]["x"], frames[0]["y"]), geometry["spawn"]["xy"]) if frames else None,
             "sampling": "telemetry frames (~5 Hz); contact/off-track on the swept footprint between frames",
             "samples": samples}

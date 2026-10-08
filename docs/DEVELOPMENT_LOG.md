@@ -730,3 +730,15 @@
 - **Lap.** Clean: 1 lap, 122.9 s, clearance 0.106 m, stop 0.34 s, all frozen limits held, exit 0, player unchanged. The runner's motion build-record and hash check accepted the new player.
 - **Comparison.** 10/11 measures inside the range of the nine previous-build laps; the 11th is the path overshoot past 33 m (+1.5 mm). The patch-04 player is now the qualified player.
 - **Evidence.** `artifacts/s1/20261008T062420Z-m6-regression/` (window video included). [Report §6](stages/SIM1-03-reset.md).
+
+## 2026-10-08 — SIM1-04: evaluator interface and fixtures (no motion, no simulator change)
+
+- **Request.** "go on with SIM1-04".
+- **Interface.** [Evaluator interface](architecture/evaluator-interface.md): allowed driving observations (LiDAR, IMU, encoders, provenance for validation only; baseline A uses LiDAR only) vs evaluator-only inputs (ground-truth pose, C0 geometry, footprint, traces). The GUI lap and collision counters are never authority. Contact is geometric, because the frozen player has no collision events.
+- **Episode truth.** `truth_frames(run, episode)` and `run_episodes()`: runs spanning a reset are scored per episode, and mixing is refused, because simulation time restarts at a scene reload. 3 new tests; 129 pass.
+- **Fixtures** (`scripts/roboracer_sim1_04.py`) on 10 recorded clean laps (12,608 frames, both players): all pass.
+  - Wall ray-cast vs LiDAR side sectors p95 3.7–4.4 mm; spawn full scan p95 ≤ 7.6 mm.
+  - Spawn offset 0; exactly 1 lap each.
+  - Contact fixture on real traces: +2 cm gives one event, −2 cm gives none.
+  - Front-sector outliers (0.24 %, up to 2.3 m) are grazing-incidence beams, sensitive to ±1° of yaw.
+- **Records.** [Report](stages/SIM1-04-evaluator.md); evidence `artifacts/s1/20261008T-sim1-04-fixtures/`. Check box left for review.

@@ -757,3 +757,11 @@
 - **Evidence map.** The frozen protocol bounds, P1b cases and PRE-03/04 parts are mapped to the S1 evidence. The stop and fault cases have 3 repeats each (F1). The open-loop actuator stages M0, M1, M3 and M3b ran once.
 - **D19 proposed (motion):** M0 ×2 and M3b ×2 on the patch-04 player; alternative B counts the closed-loop laps instead. Awaiting the user.
 - **Records.** [Report](stages/SIM1-05-motion-qualification.md). Check box left unchecked until D19.
+
+## 2026-10-08 — D19 A: M0 and M3b repeats on the patch-04 player
+
+- **Approval.** "approve D19 A; run M0 and M3b repeats"; recorded in `s1-motion-approval.json` (commit `0773bab`).
+- **Runs.** M0 trials 2–3 and M3b trials 2–3, all fresh-process, with the unchanged stages `m0` and `m3b`. Each pre-Connect screenshot was reviewed before the click. All four trials ended by themselves, every child exited 0, and the player was unchanged (604 files).
+- **M0.** All pass. Worst angle error 5.6×10⁻⁶°, the same as trial 1. Signs and slew are identical. Steering returned to 0 ≤ 0.1 ms after lease expiry. Displacement 1 mm.
+- **M3b.** All pass. Per-level gains are 5.018/5.009/4.914 and 5.019/5.007/4.920, against 5.016/5.010/4.921 for trial 1 re-analysed. The representative gain is −0.2 to −0.26 % from 5.02. The 0.06 level is 2 % low in every trial, because that hold has a single settled frame before the speed cap (already reported in M3b). Lateral deviation ≤ 1.4 mm; encoder travel is within 4 mm of IPS over 0.92 m.
+- **Records.** [SIM1-05 report §5](stages/SIM1-05-motion-qualification.md); evidence `artifacts/s1/20261008T070048Z-d19-actuator/`. Every P1b case now has 3 trials. The SIM1-05 check box is left for review.

@@ -1,6 +1,8 @@
 # SIM1-05 — Motion protocol, P1b cases, PRE-03/04 checks and simulator-hang containment
 
-Date: **2026-10-08**. Request: "go on with SIM1-05". Player: the qualified patch-04 player (D18, frozen). New evidence: `artifacts/s1/20261008T065049Z-sim1-05-hang/` (90-file `MANIFEST.sha256`). **No motion was run for this stage.** The only new live runs are three stationary, interlocked hang tests.
+Date: **2026-10-08**. Request: "go on with SIM1-05". Player: the qualified patch-04 player (D18, frozen). New evidence:
+- `artifacts/s1/20261008T065049Z-sim1-05-hang/` (90-file `MANIFEST.sha256`): three stationary, interlocked hang tests;
+- `artifacts/s1/20261008T070048Z-d19-actuator/` (127-file `MANIFEST.sha256`): the D19 actuator repeats, M0 ×2 and M3b ×2, approved with "approve D19 A; run M0 and M3b repeats" (§5).
 
 SIM1-05 item: *Submit the concrete numerical motion protocol, then execute approved P1b cases and the original PRE-03/04 checks. Qualify normalized actuator conversion, raw encoder-based speed and observed stopping; record simulator-hang containment separately.*
 
@@ -8,7 +10,7 @@ SIM1-05 item: *Submit the concrete numerical motion protocol, then execute appro
 
 - **Most of SIM1-05 was already done in S1.** The motion protocol and every moving test were run under amendment 1.2. This report maps each requirement to that evidence.
 - **One gap was untested: simulator-hang containment.** It is now built and passes **3/3**. It is recorded separately below and is not counted as a stop.
-- **One gap remains, and it needs motion.** The open-loop actuator stages (M0 steering, M3/M3b throttle identification) each ran **once**, but P1b asks for "three times each". **D19** below proposes the two missing repeats on the patch-04 player. Nothing has run; it waits for your approval.
+- **The last gap is closed.** The open-loop actuator stages each ran once, but P1b asks for "three times each". You approved **D19 A**, and M0 and M3b were each run twice more on the patch-04 player. **All four trials pass** and agree with trial 1 (§5).
 
 ## 1. Simulator-hang containment (new, recorded separately)
 
@@ -60,8 +62,8 @@ The SIM1-02 guard values were provisional: a 1 s lease cap, a 400 ms clock width
 
 | Requirement | Evidence | Repeats |
 | --- | --- | --- |
-| **Normalized actuator conversion, steering** | M0: +1 = 30° left, Ackermann angles exact to 0.0001°, slew 183°/s, expiry returns to 0 | **1** (see D19) |
-| **Normalized actuator conversion, throttle** | M1: + = forward, torque 21.4 N·m × throttle per wheel; M3/M3b: v = 5.02 m/s × throttle, linear 0.025–0.30 m/s, settles within one frame | M1 1 (4 pulses), M3 1, M3b 1 (see D19) |
+| **Normalized actuator conversion, steering** | M0: +1 = 30° left, Ackermann angles exact to 0.0001°, slew 183°/s, expiry returns to 0 | **3** (trial 1 + D19 ×2) |
+| **Normalized actuator conversion, throttle** | M1: + = forward, torque 21.4 N·m × throttle per wheel; M3/M3b: v = 5.02 m/s × throttle, linear 0.025–0.30 m/s, settles within one frame | M1 1 (4 pulses), M3 1, **M3b 3** (trial 1 + D19 ×2) |
 | **Raw encoder-based speed** | wheel angle × 0.059 m over encoder acquisition time; encoder travel matches IPS within 0.6 mm (M3) and 1.5 mm (M3b); closed-loop M4 tracks 0.1/0.2/0.3 m/s (means 0.109/0.212/0.311) | M3, M3b, M4 trial 5; used by the speed loop in M5 and all 10 laps |
 | **Observed stopping** | final stops: M4 0.34 s, M5 0.17 s, M6 ≤ 0.32 s, regression lap 0.34 s; limit 1.5 s | 3 M6 + 5 D13 + video + regression laps |
 | **Stop cases** (lease expiry, runner loss) | M2 a/b (single), then **F1-3 stale request, F1-6 algorithm exit, F1-7 runner hang, F1-8 runner exit** | **3 each** ([M1 results](S1-06-M1-results.md)) |
@@ -85,7 +87,7 @@ The SIM1-02 guard values were provisional: a 1 s lease cap, a 400 ms clock width
 | Command retention | the guard lease: no command outlives its request (500 ms) or the 1 s cap; expiry returns to zero (M0, M2, F1-3/6) |
 | Stop response | M2, F1 ×27, lap ends; all within the approved envelope |
 
-**PRE-03 is satisfied by existing evidence**, apart from the D19 repeat count for the open-loop actuator stages.
+**PRE-03 is satisfied**, now including three repeats of each open-loop actuator stage (D19).
 
 **PRE-04** — *freeze the S1 scene/start/geometry and qualify clocks, the selected display mode, evaluator inputs and reset method.*
 
@@ -101,7 +103,7 @@ The SIM1-02 guard values were provisional: a 1 s lease cap, a 400 ms clock width
 
 **Sources of evidence.** Both PRE items use S1 evidence, as amendment 1.2 allows when it meets the unchanged criteria. Their check boxes stay for your review at SIM1-06.
 
-## 5. D19 — remaining P1b repeats (motion, needs your approval)
+## 5. D19 — remaining P1b repeats (approved and run)
 
 P1b asks for actuator cases "three times each". Each open-loop actuator stage ran once.
 
@@ -115,12 +117,54 @@ P1b asks for actuator cases "three times each". Each open-loop actuator stage ra
 
 **Alternative B.** Count the closed-loop runs as the actuator repeats: M4 trial 5, M5, M6 ×3, D13 ×5 and the regression lap all used the same conversions without fault. This needs no motion, but it is a weaker reading of P1b, because steering angles and the open-loop gain are not measured directly.
 
+**Decision:** "approve D19 A; run M0 and M3b repeats" (2026-10-08, [record](../planning/s1-motion-approval.json)).
+
+### Results
+
+**How they ran.** Four fresh-process trials ran on the patch-04 player, with unchanged stage code and limits. Each pre-Connect screenshot was reviewed before the click.
+- Every trial ended by itself on the first Connect click.
+- All children exited 0 and the endpoint was released.
+- There was no player shutdown hang.
+- All 604 player files were unchanged afterwards.
+
+**Comparison with trial 1.** Trial 1 ran on the SIM1-03 player. It was re-analysed with today's analysis scripts so that all three trials are compared the same way (`*-trial1-reanalysis.json`); the original analyses are kept.
+
+**M0 (steering only, brakes on):**
+
+| | Trial 1 | Trial 2 | Trial 3 |
+| --- | --- | --- | --- |
+| Result | pass | pass | pass |
+| Worst wheel-angle error vs vendor Ackermann | 5.6×10⁻⁶° | 5.6×10⁻⁶° | 5.6×10⁻⁶° |
+| Signs (+ left, inner wheel steers more) | all 6 commands | all 6 | all 6 |
+| Measured slew | 183.2–184.6°/s | same | same |
+| Steering back to 0 after lease expiry | 0.09 ms | 0.09 ms | 0.10 ms |
+| Displacement | 1 mm | 1 mm | 1 mm |
+
+**M3b (three straight holds at throttle 0.03 / 0.045 / 0.06):**
+
+| | Trial 1 | Trial 2 | Trial 3 |
+| --- | --- | --- | --- |
+| Result | pass | pass | pass |
+| Gain per level (m/s per unit throttle) | 5.016 / 5.010 / 4.921 | 5.018 / 5.009 / 4.914 | 5.019 / 5.007 / 4.920 |
+| Representative gain (the analysis's steady gain) | 5.010 (−0.20 % vs 5.02) | 5.009 (−0.22 %) | 5.007 (−0.26 %) |
+| Settled within | 0.23 s | 0.23 s | 0.22 s |
+| Peak speed | 0.302 m/s | 0.302 m/s | 0.302 m/s |
+| Stop after the request's generation | 0.55–0.56 s | 0.55–0.57 s | 0.55–0.57 s |
+| Lateral deviation, yaw change | 1.4 mm, 0.06° | 0.4 mm, 0.0° | 1.4 mm, 0.0° |
+| Encoder vs IPS travel (whole run) | 0.922 vs 0.918 m | 0.921 vs 0.917 m | 0.912 vs 0.908 m |
+
+**Against the D19 pass criteria:**
+- **M0 angles within 0.0001°:** met.
+- **M3b gain within 1 % of 5.02:** met for the representative gain (−0.2 to −0.26 %) and for the 0.03 and 0.045 levels.
+- **The 0.06 level reads 4.91–4.92 (−2 %) in all three trials, trial 1 included.** That hold stops at the 0.3 m/s speed cap after about 0.63 s, with a single settled frame, so its estimate comes from one frame. It was already reported this way in M3b. Across trials it varies by 0.15 %.
+
+**Conclusion:** the normalized actuator conversion and encoder speed are repeatable to well under 1 % across three trials and both qualified players.
+
 ## 6. Status
 
 - **Delivered:** the hang watchdog, its 3/3 containment test, and the full evidence map for P1b and PRE-03/04.
-- **Open:**
-  - **D19** (motion; your decision);
-  - the intermittent player shutdown hang (4/27 F1 runs; diagnostics in place, not seen since).
-- **Check box:** stays unchecked until D19 is resolved.
+- **Delivered after approval:** D19 A, with M0 ×2 and M3b ×2 all passing. Every P1b actuator, stop and fault case now has three trials.
+- **Open:** the intermittent player shutdown hang (4/27 F1 runs; diagnostics in place, not seen in the 7 runs since).
+- **Check box:** left for your review.
 - **Tests:** 131 script tests pass.
-- **Next after D19:** SIM1-06, which publishes the qualified backend and the PRE completion report.
+- **Next:** SIM1-06, which publishes the qualified backend and the PRE completion report.

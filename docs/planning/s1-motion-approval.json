@@ -119,6 +119,14 @@
    "user_reply": "resume D17 \u2192 chose \"A: time from fault onset (Recommended)\"",
    "proposal": "docs/planning/s1-06-m1-protocol.md",
    "proposal_version": "0.2"
+  },
+  {
+   "stage": "M6 regression lap on the patch-04 player (20261007T-sim1-04)",
+   "date": "2026-10-08",
+   "user_reply": "approve one regression lap on the new build.",
+   "proposal": "docs/stages/SIM1-03-reset.md",
+   "proposal_version": "D18 follow-up",
+   "note": "one fresh-process M6 lap, unchanged D9/D10 envelope, AutoDRIVE-window video; compare with the SIM1-03-player laps (M6 x3, D13 x5, video lap)"
   }
  ],
  "not_authorized": [

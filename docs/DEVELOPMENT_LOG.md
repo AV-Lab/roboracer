@@ -777,3 +777,10 @@
 - **Todos.** Text updated for PRE-03/04 and SIM1-06; no box ticked. The review asks the user to accept SIM1-03–06, PRE-03/04 and S1-02–06, which would make 10/34 original and 10/10 amendment.
 - **Tests.** 131 script tests and 41 plugin tests pass.
 - **Records.** [Report](stages/SIM1-06-PRE-completion.md). **Stopped for stage review**; S2 needs entry confirmation.
+
+## 2026-10-08 — SIM1-06 stage review: boxes accepted
+
+- **Decision.** "accept all recommended boxes".
+- **Ticked.** SIM1-03, SIM1-04, SIM1-05 and SIM1-06 (amendment); PRE-03, PRE-04 and S1-02 to S1-06 (original).
+- **Counts.** Original plan **10/34**: PRE-01–04 and S1-01–06, so **PRE and S1 are complete**. Amendment **10/10**.
+- **Next.** S2 (unattended initialization, lifecycle, replay, fault policies, M2) needs the user's entry confirmation; it has not started.

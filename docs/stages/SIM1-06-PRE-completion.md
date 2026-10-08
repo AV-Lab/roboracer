@@ -12,7 +12,7 @@ SIM1-06 item: *Publish the qualified backend and PRE completion/blocker report, 
   - The repository tree was clean at the manifest commit.
 - **PRE is complete on evidence.** PRE-03 and PRE-04 meet their unchanged criteria, and every remaining PRE blocker (B05, B07, B08, B09) is closed for the S1 scope.
 - **No required case is waived.** All failures are retained. Simulator-hang containment is recorded only as containment.
-- **This is the required stage review.** I have not ticked any check box. §5 lists the boxes I recommend you accept.
+- **Stage review: accepted 2026-10-08** ("accept all recommended boxes"). All boxes in §5 are ticked: **PRE and S1 are complete**. The original plan is at 10/34 and the amendment at 10/10.
 
 ## 1. SIM1 items
 

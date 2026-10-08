@@ -742,3 +742,18 @@
   - Contact fixture on real traces: +2 cm gives one event, −2 cm gives none.
   - Front-sector outliers (0.24 %, up to 2.3 m) are grazing-incidence beams, sensitive to ±1° of yaw.
 - **Records.** [Report](stages/SIM1-04-evaluator.md); evidence `artifacts/s1/20261008T-sim1-04-fixtures/`. Check box left for review.
+
+## 2026-10-08 — SIM1-05: evidence map and simulator-hang containment (no motion)
+
+- **Request.** "go on with SIM1-05".
+- **Watchdog** (`47511de`). The runner kills the player if it is alive and connected but sends no telemetry for 2.0 s. The 2.0 s threshold is about 3× the worst qualified gap. The kill is recorded as `simulator_hang`, which is containment and not a stop. Test hook `--sim-hang-test` (SIGSTOP); it is refused with motion stages.
+- **Hang tests ×3.** Stationary, interlocked, with the screenshot reviewed before Connect:
+  - detected 1.92–2.14 s after SIGSTOP;
+  - player reaped 134–145 ms after detection;
+  - all other children exit 0; endpoint released; no player left;
+  - 0 nonzero actuator frames, encoder ticks 0;
+  - all 604 player files unchanged.
+  - Evidence: `artifacts/s1/20261008T065049Z-sim1-05-hang/`.
+- **Evidence map.** The frozen protocol bounds, P1b cases and PRE-03/04 parts are mapped to the S1 evidence. The stop and fault cases have 3 repeats each (F1). The open-loop actuator stages M0, M1, M3 and M3b ran once.
+- **D19 proposed (motion):** M0 ×2 and M3b ×2 on the patch-04 player; alternative B counts the closed-loop laps instead. Awaiting the user.
+- **Records.** [Report](stages/SIM1-05-motion-qualification.md). Check box left unchecked until D19.

@@ -68,6 +68,22 @@ class RunnerStageTests(unittest.TestCase):
             with self.subTest(args=args[1:]), self.assertRaises(ValueError):
                 motion_fields(*args)
 
+    def test_simulator_hang_threshold(self):
+        from autodrive_neutral import SIM_HANG_S, simulator_hung
+        now = 100 * 1_000_000_000
+        self.assertEqual(2.0, SIM_HANG_S)
+        self.assertFalse(simulator_hung(now - int(0.65e9), now))   # worst observed real gap (M4, GPU-starved)
+        self.assertTrue(simulator_hung(now - int(2.01e9), now))
+        self.assertFalse(simulator_hung(None, now))                # no frame yet: startup, not a hang
+
+    def test_sim_hang_test_is_stationary_only(self):
+        for extra in (["--motion-stage", "m6"], ["--sim-hang-test", "0"]):
+            argv = [sys.executable, str(ROOT / "scripts/autodrive_neutral.py"), "run", "--results", "/nonexistent/x",
+                    "--sim-hang-test", "10", *extra]
+            done = subprocess.run(argv, capture_output=True, text=True)
+            self.assertNotEqual(0, done.returncode)
+            self.assertIn("--sim-hang-test", done.stderr)
+
     def test_relocated_path_maps_only_the_documented_move(self):
         from autodrive_neutral import relocated_path
         home = str(Path.home())

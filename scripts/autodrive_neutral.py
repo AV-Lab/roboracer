@@ -664,7 +664,15 @@ def plugin_observe(args):
 
 
 M0_SPAWN_XY = (0.741, 3.158)  # recorded spawn IPS (S1-02)
-RESET_XY = (52, 606)  # GUI "Reset" button in the 1280x720 player window (SceneReset reloads the scene)
+RESET_XY = (52, 606)
+# SIM1-05: simulator-hang containment. Telemetry gaps are ~0.25 s at most (0.65 s under GPU starvation, M4);
+# no frame for this long while the player process exists is treated as a hung simulator.
+SIM_HANG_S = 2.0
+
+
+def simulator_hung(last_received_ns, now_ns, threshold_s=SIM_HANG_S):
+    """True when the last telemetry frame is older than the hang threshold."""
+    return bool(last_received_ns) and now_ns - last_received_ns > threshold_s * 1e9  # GUI "Reset" button in the 1280x720 player window (SceneReset reloads the scene)
 M0_HOLD_S = 1.0
 M0_SETTLE_S = 3.0
 M0_EXPIRY_WAIT_S = 4.0
@@ -2229,6 +2237,30 @@ def trial(args, context, out):
                 bridge_state, observer_state = read(out / "bridge-status.json"), read(out / "observer-status.json")
                 if bridge_state.get("errors"):
                     raise RuntimeError("Bridge rejected telemetry: " + repr(bridge_state["errors"]))
+                if observation_start and connected and "devkit_loss" not in record and player.poll() is None:
+                    now_ns = time.monotonic_ns()
+                    if args.sim_hang_test and "sim_hang_injected_ns" not in record and \
+                            now_ns >= observation_start + int(args.sim_hang_test * 1e9):
+                        os.kill(player.pid, signal.SIGSTOP)  # test only: freeze the whole simulator process
+                        record["sim_hang_injected_ns"] = now_ns
+                        checkpoint()
+                    if simulator_hung(bridge_state.get("last_received_ns"), now_ns):
+                        # SIM1-05: containment, not a stop. A hung player also freezes its physics; the only
+                        # remedy is to end the process. Recorded separately from every stop qualification.
+                        entry = next(e for p, _, e in children if p is player)
+                        hang = {"detected_ns": now_ns,
+                                "frame_age_s": (now_ns - bridge_state["last_received_ns"]) / 1e9,
+                                "threshold_s": SIM_HANG_S, "player_threads": thread_snapshot(player.pid),
+                                "classification": "containment (process termination), not a stop"}
+                        entry["expected_kill"] = True
+                        os.killpg(player.pid, signal.SIGKILL)
+                        player.wait()
+                        entry["termination"] = "SIGKILL (simulator-hang containment)"
+                        hang["contained_ns"] = time.monotonic_ns()
+                        record["simulator_hang"] = hang
+                        checkpoint()
+                        raise RuntimeError("Simulator hang: no telemetry for %.2f s; player killed (containment)"
+                                           % hang["frame_age_s"])
                 probe_ready = not args.kinematics_probe
                 if args.kinematics_probe:
                     probe = read(out / "kinematics/status.json")
@@ -2518,6 +2550,8 @@ def main():
     parser.add_argument("--f1-case", choices=F1_CASES, default=None,
                         help="S1-06 F1 fault case (M1 protocol v0.1); motion stage m6 only")
     parser.add_argument("--freeze-trigger", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--sim-hang-test", type=float, default=None,
+                        help="Test only (no motion stage): SIGSTOP the player this many seconds after observation start")
     parser.add_argument("--record-video", action="store_true",
                         help="Record only the AutoDRIVE window (ffmpeg x11grab) from Connect to cleanup")
     parser.add_argument("--motion-stage", choices=sorted(MOTION_STAGES) + sorted(AVLITE_MOTION_STAGES),
@@ -2548,6 +2582,8 @@ def main():
                         help="Fresh output directory for offline kinematics plots in analyze mode")
     args = parser.parse_args()
     args.results = args.results.resolve()
+    if args.sim_hang_test is not None and (args.motion_stage or args.mode != "run" or args.sim_hang_test <= 0):
+        parser.error("--sim-hang-test is a stationary (no motion stage) run-mode test with a positive delay")
     if args.f1_case:
         # S1-06 M1 protocol v0.1 (D14): F1 cases run only in the approved M6 envelope.
         if args.mode == "run" and args.motion_stage != "m6":

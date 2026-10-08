@@ -784,3 +784,14 @@
 - **Ticked.** SIM1-03, SIM1-04, SIM1-05 and SIM1-06 (amendment); PRE-03, PRE-04 and S1-02 to S1-06 (original).
 - **Counts.** Original plan **10/34**: PRE-01–04 and S1-01–06, so **PRE and S1 are complete**. Amendment **10/10**.
 - **Next.** S2 (unattended initialization, lifecycle, replay, fault policies, M2) needs the user's entry confirmation; it has not started.
+
+## 2026-10-08 — Disk cleanup before S2 (no code change)
+
+- **Request.** "Please check the disk usage and clean the /tmp before go no with S2".
+- **Finding.** The disk was 93 % full (66 GB free). `/tmp` held 14 GB, almost all of it from other projects; the main consumers were `~/roboracer-work` (117 GB) and `~/.ros/log` (45 GB of old RoboCup logs).
+- **Deleted.**
+  - Regenerable `/tmp` caches (pytest, node compile cache, idle Chromium profiles; about 0.2 GB).
+  - With the user's approval, `~/.ros/log` entries older than one day.
+  - With the user's approval, the superseded Unity project checkouts `autodrive-20261005T053316Z-sim1`, `-sim1-02`, `-sim1-03` and `autodrive-native-20260929T122535Z-authoring`. Their stale git worktree entries were pruned.
+- **Kept.** All built players (`autodrive-builds/`, including the SIM1-03 player behind earlier evidence); the patch-04 project and the baseline source; the toolchain; the venvs. Also kept, at the user's choice: the other projects' `/tmp` data, including the A2RL launch runs (12 GB).
+- **Result.** 81 % used, 177 GB free. The patch-04 player hash is unchanged (`44f9e735…`). Rebuilding a pre-04 player would now need a fresh prepared checkout; the simulator is frozen, so none is planned.

@@ -55,13 +55,13 @@ class _Feedback:
         angle = sum(snapshot.encoder_angles_rad) / 2
         sim = snapshot.sources["left_encoder"]["sim_time"]
         stamp_ns = int(round(snapshot.sources["left_encoder"]["stamp"] * 1e9))
-        # Only within one episode: a scene reload restarts simulation time and the encoders (S2), so
-        # a difference across it is meaningless and, without this check, no sample would follow
-        # until the new episode's sim time passed the old one's.
+        # Only within one episode: a scene reload restarts simulation time and the encoders (S2), so a
+        # difference across it is meaningless (after a short episode it would even pass the sim-time
+        # check). Each sample carries its episode, so the speed loop can restart at a reload.
         if self.previous is not None and snapshot.episode == self.previous[2] and sim > self.previous[1]:
             dt = sim - self.previous[1]
             self.samples.put(((angle - self.previous[0]) * self.WHEEL_RADIUS_M / dt, stamp_ns,
-                              snapshot.telemetry_seq, dt))
+                              snapshot.telemetry_seq, dt, snapshot.episode))
         self.previous = (angle, sim, snapshot.episode)
 
     def drain(self):

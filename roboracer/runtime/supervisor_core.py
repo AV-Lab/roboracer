@@ -71,13 +71,36 @@ class SpeedLoop:
 
     def __init__(self, params: SpeedLoopParams = SpeedLoopParams()):
         self.p = params
+        self.episode: int | None = None
+        self.episode_restarts = 0
+        self._restart()
+
+    def _restart(self) -> None:
+        """Start-up state: no feedback yet (zero throttle, not a loss), no trim, no rise history."""
         self.trim = 0.0
         self.last_u = 0.0
         self.last_ns: int | None = None
         self.speed = self.stamp_ns = self.seq = self.dt_s = None
         self.integrated_seq = None
 
-    def feedback(self, speed_mps: float, stamp_ns: int, seq: int, dt_s: float) -> None:
+    def observe_episode(self, episode) -> None:
+        """S2 batches: a scene reload (new simulator episode) restarts the loop as at start-up. The GUI
+        Reset leaves seconds without telemetry, so the previous episode's feedback would otherwise read
+        as lost (sticky inhibition) on the first request of the next episode. Feedback loss within an
+        episode is still detected; an older episode never takes the loop back."""
+        if isinstance(episode, bool) or not isinstance(episode, int):
+            return
+        if self.episode is not None and episode > self.episode:
+            self._restart()
+            self.episode_restarts += 1
+        if self.episode is None or episode > self.episode:
+            self.episode = episode
+
+    def feedback(self, speed_mps: float, stamp_ns: int, seq: int, dt_s: float, episode=None) -> None:
+        if episode is not None:
+            self.observe_episode(episode)
+            if episode != self.episode:
+                return  # a late sample of an earlier episode
         if math.isfinite(speed_mps) and dt_s > 0:
             self.speed, self.stamp_ns, self.seq, self.dt_s = speed_mps, stamp_ns, seq, dt_s
 
@@ -166,10 +189,10 @@ class SupervisorCore:
         if self.stage in AVLITE_STAGES and self.speed_loop is None:
             self.speed_loop = SpeedLoop()
 
-    def feedback(self, speed_mps: float, stamp_ns: int, seq: int, dt_s: float) -> None:
+    def feedback(self, speed_mps: float, stamp_ns: int, seq: int, dt_s: float, episode=None) -> None:
         """Supervisor-owned encoder speed (D4 A); only used by the AVLite speed loop."""
         if self.speed_loop is not None:
-            self.speed_loop.feedback(speed_mps, stamp_ns, seq, dt_s)
+            self.speed_loop.feedback(speed_mps, stamp_ns, seq, dt_s, episode)
 
     def _count(self, key):
         self.counters[key] = self.counters.get(key, 0) + 1
@@ -248,6 +271,7 @@ class SupervisorCore:
             speed, steer = float(first), float(second)
             if speed < 0 or speed > profile["max_speed_mps"] or abs(steer) > profile["max_steer_rad"]:
                 return self._reject("stage-limit")
+            self.speed_loop.observe_episode(obs.get("episode"))  # the request's observation episode (S2)
             u, control = self.speed_loop.command(speed, now_ns)
             if control["rule"] == "feedback-lost":
                 self.state, self.reason = "inhibited", "feedback-lost"
@@ -271,6 +295,8 @@ class SupervisorCore:
         return {"protocol": PROTOCOL, "origin": self.origin, "stage": self.stage, "state": self.state,
                 "reason": self.reason, "runner_seq": self.runner_seq, "request_origin": self.request_origin,
                 "request_seq": self.request_seq, "out_seq": self.out_seq, "counters": dict(self.counters),
+                "speed_loop": ({"episode": self.speed_loop.episode, "episode_restarts": self.speed_loop.episode_restarts}
+                               if self.speed_loop is not None else None),
                 "limits": {k: getattr(self.limits, k) for k in self.limits.__dataclass_fields__}}
 
 

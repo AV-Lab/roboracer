@@ -187,9 +187,9 @@ class FeedbackEpisodeTests(unittest.TestCase):
         f = self.feedback()
         f._on_snapshot(self.snapshot(1, 10, 100.0, 50.0))
         f._on_snapshot(self.snapshot(1, 11, 100.2, 51.0))
-        (speed, _, seq, dt), = f.drain()
+        (speed, _, seq, dt, episode), = f.drain()
         self.assertAlmostEqual(1.0 * 0.059 / 0.2, speed)
-        self.assertEqual((11, 0.2), (seq, round(dt, 6)))
+        self.assertEqual((11, 0.2, 1), (seq, round(dt, 6), episode))
 
     def test_no_sample_across_a_reload_even_when_sim_time_increases(self):
         f = self.feedback()
@@ -197,8 +197,8 @@ class FeedbackEpisodeTests(unittest.TestCase):
         f._on_snapshot(self.snapshot(2, 11, 4.0, 0.0))       # new episode: sim 4.0 > 3.0, encoders back at 0
         self.assertEqual([], f.drain())                       # was a bogus -1.18 m/s sample before the fix
         f._on_snapshot(self.snapshot(2, 12, 4.2, 0.0))
-        (speed, _, seq, _), = f.drain()                       # resumes on the next frame
-        self.assertEqual((0.0, 12), (speed, seq))
+        (speed, _, seq, _, episode), = f.drain()              # resumes on the next frame
+        self.assertEqual((0.0, 12, 2), (speed, seq, episode))
 
     def test_lap_length_episode_resumes_on_the_next_frame(self):
         f = self.feedback()
@@ -206,6 +206,56 @@ class FeedbackEpisodeTests(unittest.TestCase):
         f._on_snapshot(self.snapshot(2, 11, 4.0, 0.0))
         f._on_snapshot(self.snapshot(2, 12, 4.2, 0.0))
         self.assertEqual([12], [s[2] for s in f.drain()])
+
+
+
+class SpeedLoopEpisodeTests(unittest.TestCase):
+    """S2 batch 1 failure: after a GUI Reset the first request met the previous episode's feedback,
+    more than 0.9 s old, and the supervisor inhibited itself for the rest of the batch."""
+
+    def core(self):
+        s = SupervisorCore(origin="sup-1", stage="m6")
+        s.heartbeat(1, NOW - 100 * MS)
+        return s
+
+    def req(self, seq, episode, speed=0.2, now=NOW):
+        r = request(seq=seq, gen=now - 50 * MS, speed=speed, telemetry=seq, stamp=now - 200 * MS)
+        r["observation"]["episode"] = episode
+        return r
+
+    def test_reset_gap_reads_as_no_feedback_yet_not_lost(self):
+        s = self.core()
+        s.feedback(0.25, NOW - 6000 * MS, 5, 0.2, episode=1)           # last sample before a ~6 s reset
+        d = s.submit(self.req(1, episode=2, speed=0.0), NOW)          # first request of episode 2
+        self.assertTrue(d.accepted, d.reason)
+        self.assertEqual(("no-feedback-yet", 0.0), (d.control["rule"], d.control["u"]))
+        self.assertEqual("active", s.state)
+        s.feedback(0.0, NOW - 100 * MS, 6, 0.2, episode=2)
+        d = s.submit(self.req(2, episode=2), NOW)
+        self.assertEqual("control", d.control["rule"])
+        self.assertEqual(1, s.status()["speed_loop"]["episode_restarts"])
+
+    def test_without_an_episode_change_old_feedback_is_still_lost(self):
+        s = self.core()
+        s.feedback(0.25, NOW - 6000 * MS, 5, 0.2, episode=1)
+        d = s.submit(self.req(1, episode=1), NOW)
+        self.assertFalse(d.accepted)
+        self.assertEqual(("inhibited", "feedback-lost"), (s.state, s.reason))
+
+    def test_late_sample_of_an_earlier_episode_is_ignored(self):
+        s = self.core()
+        s.submit(self.req(1, episode=3, speed=0.0), NOW)
+        s.feedback(0.3, NOW - 50 * MS, 9, 0.2, episode=2)              # queued before the reload
+        d = s.submit(self.req(2, episode=3, speed=0.0), NOW)
+        self.assertEqual("no-feedback-yet", d.control["rule"])
+
+    def test_feedback_seeing_the_new_episode_first_also_restarts(self):
+        s = self.core()
+        s.feedback(0.25, NOW - 6000 * MS, 5, 0.2, episode=1)
+        s.feedback(0.0, NOW - 100 * MS, 7, 0.2, episode=2)             # feedback ahead of the first request
+        d = s.submit(self.req(1, episode=2), NOW)
+        self.assertEqual("control", d.control["rule"])
+        self.assertEqual((2, 1), (s.speed_loop.episode, s.speed_loop.episode_restarts))
 
 
 if __name__ == "__main__":

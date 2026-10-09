@@ -857,3 +857,14 @@
 - **Fix** (`939b7fd`). The speed loop restarts at a new simulator episode (detected from requests and feedback). Within-episode loss is still detected. 4 new tests; 48 plugin and 155 script tests pass.
 - **Replay on driving data** ×3 fresh processes: 2,747/2,747 snapshots and 5,392/5,392 controller commands identical. The D24 exact-equality criterion holds on a lap.
 - **Next.** A rerun of the 3-lap batch needs a new run approval.
+
+## 2026-10-09 — S2 batch rerun: 2/3 healthy; a real simulator stall contained
+
+- **Approval.** "approve the rerun of the 3-lap batch".
+- **Result.**
+  - Laps 1 and 2 healthy (123.0 / 123.8 s, 0.105 m). The speed-loop fix worked, with 2 episode restarts.
+  - Lap 3: telemetry stopped 0.65 m in. The stack aborted, and the watchdog killed the player after 2.10 s (containment, not a stop).
+  - All unattended checks passed. Replay ×3 exact (1,651 snapshots, 2,815 commands).
+- **Stall.** The player was alive but idle (all threads waiting, GPU to 0 %), with no Unity error. The bridge had counted a reply for every frame, but before the send, so not proven sent. It looks like a stock lock-step stall; the cause is open.
+- **Diagnostics added** (`a3c251b`): reply hand-off and return times and the bridge's thread states in the hang record. Checked on a deliberate stationary hang (reply returned 58.8 ms after the last frame). The first check attempt had 3 dropped Connect clicks and is retained.
+- **Records.** [S2 §5](stages/S2.md). The stall rate must be measured before the M2 budgets; it threatens "ten consecutive healthy episodes".

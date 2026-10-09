@@ -2177,8 +2177,12 @@ def trial(args, context, out):
             connection.sync()
             pause_beating(0.2)
             local = window.query_pointer()
-            if connection.get_input_focus().focus != window or (local.win_x, local.win_y) != (x, y):
-                raise RuntimeError("Guard input is not targeting the reviewed owned window")
+            focus = connection.get_input_focus().focus
+            if focus != window or (local.win_x, local.win_y) != (x, y):
+                # S2: on a shared desktop, a person's mouse or window switch moves the pointer or focus here.
+                raise RuntimeError("Guard input is not targeting the reviewed owned window: focus %s (window %s), "
+                                   "pointer %s (wanted %s)" % (getattr(focus, "id", focus), window.id,
+                                                               [local.win_x, local.win_y], [x, y]))
 
         def click(window, x, y):
             target_window(window, x, y)

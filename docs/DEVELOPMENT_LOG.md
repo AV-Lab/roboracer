@@ -892,3 +892,15 @@
 - **F2 sequence.** Stopped by the agent during F2-1's first session, before injection. Clean shutdown; player unchanged.
 - **Change.** `04c95a1`: the Reset-click refusal reports focus and pointer.
 - **Decision needed.** Keep the desktop untouched during runs, run while the user is away, or qualify a separate display (R2-05). Report: [S2 §7](stages/S2.md).
+
+## 2026-10-09 — Baseline repeat halted: Activities overview held the input grab
+
+- **Decision.** "A" (hands off).
+- **Result.** Both players in the 5-lap batch ignored the Connect clicks. Reproduced stationary, and in a bare-player test with a test listener on 4567: no connection attempt.
+- **Cause.** Another X client held the pointer and keyboard grab: the GNOME Activities overview was open (screenshot).
+- **Denied.** My one Escape key press to close it was denied by the permission system; left to the user.
+- **Fixed** (`c8e5e2f`). The runner refuses GUI clicks when another client holds the grab, with a clear message.
+- **Process fixes.**
+  - The sequence's leftover-player check now matches the full command line (`pgrep -x` cannot match the 15-character-truncated process name).
+  - Stopping an orchestrator does not stop its runner child; stop the runner too.
+- **Records.** [S2 §8](stages/S2.md).

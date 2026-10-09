@@ -79,6 +79,13 @@ class BatchTests(unittest.TestCase):
         self.assertEqual([(1, "healthy"), (1, "failed"), (2, "healthy")], [(e["session"], e["outcome"]) for e in b["episodes"]])
         self.assertEqual([3, 1], [s["episodes_requested"] for s in b["sessions"]])
 
+    def test_session_ending_early_with_exit_0_still_counts_and_recovers(self):
+        plan = {"1": {"complete": [], "exit": 0}, "2": {"complete": [True], "exit": 0}}  # e.g. F2-6 Devkit loss
+        _, b = self.run_plan(2, plan)
+        self.assertEqual([(1, "failed"), (2, "healthy")], [(e["session"], e["outcome"]) for e in b["episodes"]])
+        self.assertEqual("session ended early", b["episodes"][0]["failure"])
+        self.assertEqual(1, len(b["recovery_actions"]))
+
     def test_restart_that_fails_again_ends_the_batch(self):
         plan = {"1": {"complete": [], "exit": 1, "error": "RuntimeError: Initialization failed after GUI Reset"},
                 "2": {"complete": [], "exit": 1, "error": "RuntimeError: Automated pre-Connect check failed"}}

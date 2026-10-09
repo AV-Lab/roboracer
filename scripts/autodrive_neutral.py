@@ -282,7 +282,7 @@ def bridge(args):
             if args.guard == "batch" and args.motion_stage else None
         driver = ScenarioDriver(inbox, lambda number: str(number) in read(out / "actions-done.json"),
                                 mode=args.guard, duration_ns=int(args.duration * 1e9),
-                                trigger=lambda: read(out / "guard-trigger.json"), case=args.f1_case,
+                                trigger=lambda: read(out / "guard-trigger.json"), case=args.f1_case or args.f2_case,
                                 episodes=args.episodes, episode_done=episode_done, motion=bool(args.motion_stage))
         state.update(guard_mode=args.guard, guard_socket=socket_name(os.getpid()))
 
@@ -1363,6 +1363,12 @@ M6_DISTANCE_M, M6_TIME_S = 33.0, 200.0  # D10: one lap plus the opening straight
 F1_CASES = ("f1-1", "f1-2", "f1-3", "f1-4", "f1-5", "f1-6", "f1-7", "f1-8", "f1-9")
 F1_INJECT_S, F1_END_S, F1_FAULT_S, F1_REARM_S = 6.0, 8.0, 5.0, 3.0
 STOP_HOLD_S = 1.5           # zero requests before going silent (lease then expires at zero)
+# S2 F2 catalog (proposal v0.1 section 5, D23): injected in the batch's first episode at 6.0 s of run time.
+F2_CASES = tuple(f"f2-{n}" for n in range(1, 11))
+F2_INJECT_S = 6.0
+F2_FAULT_S = 1.0            # F2-2/F2-3: duplicated / reordered observations for this long (about 5 frames)
+F2_CLOCK_JUMP_NS = 1_000_000_000
+F2_END_S = 8.0              # process-loss cases: observe this long after the injection, then end the session
 
 
 class StackStage:
@@ -1387,8 +1393,9 @@ class StackStage:
         # S2 batch (D20 A): episode `number` of `episodes`, in simulator episode `episode` (scene load count).
         self.episodes, self.number, self.episode, self.reported = getattr(args, "episodes", 1) or 1, 1, None, False
         self.saw_unarmed = False
+        self.f2, self.f2_injected = getattr(args, "f2_case", None), None
         state.update(stage_phase=self.phase, abort=None, finish_reason=None, precheck=None, f1_case=self.f1,
-                     stage_episodes=[])
+                     f2_case=self.f2, stage_episodes=[])
         self._request(0.0)
 
     def _report_episode(self):
@@ -1437,6 +1444,11 @@ class StackStage:
                              left=sector_min(ranges, 80, 100), right=sector_min(ranges, -100, -80),
                              pose=[snap.pose.x, snap.pose.y, snap.pose.yaw])
         elapsed = now - self.phase_start
+        if self.phase in ("settle", "run", "stopping") and snap is not None and self.episode is not None \
+                and snap.episode > self.episode:
+            # The scene reloaded during the episode (F2-1 reset during motion): the episode is over.
+            self._request(0.0)
+            self._set("finished", finish_reason="scene reload")
         if self.phase == "finished":
             if not self.reported:
                 self._report_episode()
@@ -1487,6 +1499,9 @@ class StackStage:
                     return True
                 self._set("finished", finish_reason="f1 case end")  # guard already stopped: no requests
                 return False
+        if self.phase == "run" and self.f2 and self.number == 1 and self.f2_injected is None \
+                and elapsed >= F2_INJECT_S:
+            self._inject_f2(now, snap, speed)
         if self.phase == "run":
             reason = self._abort_reason(now, snap, speed, guard_state)
             if reason:
@@ -1548,6 +1563,61 @@ class StackStage:
             save(results / "runner-error-request.json", {"requested_ns": record["injected_ns"]})
         save(results / "fault-inject.json", record)
         self.state["f1_injected_ns"] = record["injected_ns"]
+
+    def _inject_f2(self, now, snap, speed):
+        """S2 F2 injection (proposal v0.1 section 5, D23). Test-only; selected on the command line.
+        Stack-side cases act here; process and scene cases are carried out by the runner (f2-inject.json),
+        the clock jump by the bridge-side guard driver (guard-trigger.json)."""
+        results = self.args.results
+        self.f2_injected = now
+        record = {"case": self.f2, "injected_ns": time.monotonic_ns(), "run_elapsed_s": now - self.phase_start,
+                  "episode": self.episode, "encoder_speed": speed, "path_m": self.path_m,
+                  "pose": [snap.pose.x, snap.pose.y, snap.pose.yaw] if snap is not None else None}
+        until = record["injected_ns"] + int(F2_FAULT_S * 1e9)
+        if self.f2 == "f2-2":
+            self._install_duplicates(until)
+        elif self.f2 == "f2-3":
+            self._install_reorder(until)
+        elif self.f2 == "f2-4":
+            save(results / "guard-trigger.json", {"clock_jump_ns": F2_CLOCK_JUMP_NS, "source": "f2-4"})
+        elif self.f2 == "f2-5":
+            save(results / "supervisor-feedback-blackout.json", {"requested_ns": record["injected_ns"], "source": "f2-5"})
+        save(results / "f2-inject.json", record)
+        self.state["f2_injected_ns"] = record["injected_ns"]
+
+    def _install_duplicates(self, until_ns):
+        """F2-2: every incoming message (sensors and provenance) is delivered twice until `until_ns`."""
+        bridge, original = self.bridge, self.bridge._offer
+
+        def offer(topic, message):
+            original(topic, message)
+            if time.monotonic_ns() < until_ns:
+                self.state["f2_duplicated"] = self.state.get("f2_duplicated", 0) + 1
+                original(topic, message)
+
+        bridge._offer = offer
+
+    def _install_reorder(self, until_ns):
+        """F2-3: provenance records arrive out of order until `until_ns`: each is held back and delivered
+        after the next one (an older telemetry sequence after a newer one)."""
+        bridge, original = self.bridge, self.bridge._offer
+        held = []
+
+        def offer(topic, message):
+            if topic != "provenance":
+                return original(topic, message)
+            if time.monotonic_ns() < until_ns or held:
+                if not held and time.monotonic_ns() < until_ns:
+                    held.append(message)
+                    return
+                original(topic, message)
+                if held:
+                    self.state["f2_reordered"] = self.state.get("f2_reordered", 0) + 1
+                    original(topic, held.pop())
+                return
+            original(topic, message)
+
+        bridge._offer = offer
 
     def _install_scan_fault(self, until_ns):
         """F1-2: incoming LiDAR messages carry NaN ranges until `until_ns` (wraps this bridge
@@ -1898,7 +1968,7 @@ def trial(args, context, out):
               "provenance": args.provenance, "freeze_test": args.freeze_test,
               "freeze_window_seconds_after_first_frame": args.freeze_window if args.freeze_test else None,
               "guard": args.guard, "guard_actions": [], "plugin_observer": args.plugin_observer,
-              "plugin_stack": args.plugin_stack, "f1_case": args.f1_case}
+              "plugin_stack": args.plugin_stack, "f1_case": args.f1_case, "f2_case": args.f2_case}
     heartbeat = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
     heartbeat.setblocking(False)
     heartbeat_seq = 0
@@ -1951,6 +2021,8 @@ def trial(args, context, out):
                 sim1 += ["--freeze-trigger"]
         if args.f1_case:
             sim1 += ["--f1-case", args.f1_case]
+        if args.f2_case:
+            sim1 += ["--f2-case", args.f2_case]
         if args.guard:
             sim1 += ["--guard", args.guard, "--duration", str(args.duration)]
             if args.guard == "batch":
@@ -1979,7 +2051,7 @@ def trial(args, context, out):
                 if args.motion_stage in AVLITE_MOTION_STAGES:
                     # D4 A: the supervisor reads encoder speed itself; M4 also gets the stale-feedback hook.
                     stage += ["--feedback"]
-                    if args.motion_stage == "m4":
+                    if args.motion_stage == "m4" or args.f2_case == "f2-5":
                         stage += ["--blackout-file", str(out / "supervisor-feedback-blackout.json")]
                 spawn("supervisor-1", [context["avlite_python"], "-B", "-m", "roboracer.runtime.supervisor_process",
                     "--name", supervisor_name, "--target", read(out / "bridge-status.json")["guard_socket"],
@@ -1998,6 +2070,7 @@ def trial(args, context, out):
                                            "--results", str(out), "--plugin", str(PLUGIN_DIRECTORY),
                                            "--supervisor", supervisor_name, "--stack-profile", args.motion_stage,
                                            *(["--f1-case", args.f1_case] if args.f1_case else []),
+                                           *(["--f2-case", args.f2_case] if args.f2_case else []),
                                            *(["--record-inputs"] if args.record_inputs else []),
                                            "--episodes", str(args.episodes)],
                           plugin_environment)
@@ -2314,6 +2387,41 @@ def trial(args, context, out):
                 return {"killed_pid": bridge_process.pid, "monotonic_ns": now}
             raise RuntimeError("Unknown guard action " + repr(kind))
 
+        def f2_action(case, window, approval):
+            """S2 F2 cases the runner carries out (proposal v0.1 section 5): scene reset, Devkit loss,
+            supervisor exit/hang, simulator exit/hang. Every termination is recorded as expected."""
+            now = time.monotonic_ns()
+            if case == "f2-1":
+                result = gui_reset(window, approval)
+                record["guard_actions"].append(dict(result, kind="gui-reset", source="f2-1"))
+                return {"case": case, "monotonic_ns": now, "reset": result.get("reset"),
+                        "readiness": result.get("readiness")}
+            if case == "f2-6":
+                return dict(guard_action("kill-bridge", window, approval), case=case)
+            if case in ("f2-7", "f2-8"):
+                process, _, entry = next(c for c in children if c[2]["label"] == "supervisor-1")
+                entry["expected_kill"] = True
+                if case == "f2-7":
+                    os.killpg(process.pid, signal.SIGKILL)
+                    process.wait()
+                    entry["termination"] = "SIGKILL (F2-7 supervisor exit)"
+                else:
+                    os.killpg(process.pid, signal.SIGSTOP)
+                    entry["termination_note"] = "SIGSTOP (F2-8 supervisor hang)"
+                return {"case": case, "monotonic_ns": now, "pid": process.pid}
+            if case == "f2-9":
+                entry = next(e for p, _, e in children if p is player)
+                entry["expected_kill"] = True
+                os.killpg(player.pid, signal.SIGKILL)
+                player.wait()
+                entry["termination"] = "SIGKILL (F2-9 simulator exit; containment, not a stop)"
+                return {"case": case, "monotonic_ns": now, "pid": player.pid}
+            if case == "f2-10":
+                os.kill(player.pid, signal.SIGSTOP)  # the hang watchdog contains it
+                record["sim_hang_injected_ns"] = now
+                return {"case": case, "monotonic_ns": now, "pid": player.pid}
+            return {"case": case, "monotonic_ns": now, "runner_action": None}  # stack- or driver-side case
+
         def check_devkit_loss():
             """After the bridge is killed, read the player's own trace: whichever of disconnect or lease
             expiry clears the lease first, then 2 s of steps with nothing applied."""
@@ -2564,6 +2672,14 @@ def trial(args, context, out):
                             entry["termination"] = "SIGKILL (F1-6 algorithm exit)"
                     record["f1_stack_killed_ns"] = time.monotonic_ns()
                     checkpoint()
+                if args.f2_case and connected and "f2_action" not in record and (out / "f2-inject.json").exists():
+                    record["f2_action"] = f2_action(args.f2_case, window, approval)
+                    checkpoint()
+                if args.f2_case in ("f2-5", "f2-7", "f2-8", "f2-9") and "f2_action" in record and \
+                        time.monotonic_ns() - read(out / "f2-inject.json")["injected_ns"] >= F2_END_S * 1e9:
+                    record["f2_case_end_ns"] = time.monotonic_ns()
+                    checkpoint()
+                    raise RuntimeError(f"{args.f2_case.upper()} case end (expected): observation window over")
                 if args.f1_case == "f1-9" and (out / "runner-error-request.json").exists():
                     record["f1_error_raised_ns"] = time.monotonic_ns()
                     raise RuntimeError("F1-9 injected runner error")
@@ -2667,6 +2783,8 @@ def main():
     parser.add_argument("--stack-profile", choices=sorted(AVLITE_MOTION_STAGES), default=None, help=argparse.SUPPRESS)
     parser.add_argument("--f1-case", choices=F1_CASES, default=None,
                         help="S1-06 F1 fault case (M1 protocol v0.1); motion stage m6 only")
+    parser.add_argument("--f2-case", choices=F2_CASES, default=None,
+                        help="S2 F2 fault case (proposal v0.1 section 5, D23); --guard batch with stage m6 only")
     parser.add_argument("--freeze-trigger", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--episodes", type=int, default=1,
                         help="S2 batch (--guard batch): episodes in this player, GUI Reset between them (D20 A)")
@@ -2710,6 +2828,10 @@ def main():
             not (args.plugin_stack or args.plugin_observer or args.motion_stage in AVLITE_MOTION_STAGES
                  or args.mode == "plugin-observe"):
         parser.error("--record-inputs needs the plugin bridge (--plugin-stack, --plugin-observer or an AVLite stage)")
+    if args.f2_case and args.mode == "run" and not (args.guard == "batch" and args.motion_stage == "m6"):
+        parser.error("--f2-case runs only in an S2 batch on stage m6 (D22, D23)")
+    if args.f2_case and args.f1_case:
+        parser.error("one fault case per run")
     if args.sim_hang_test is not None and (args.motion_stage or args.mode != "run" or args.sim_hang_test <= 0):
         parser.error("--sim-hang-test is a stationary (no motion stage) run-mode test with a positive delay")
     if args.f1_case:

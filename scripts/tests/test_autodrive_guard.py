@@ -281,21 +281,27 @@ class SimInbox:
 
 
 def simulate(mode="scenario", defect=None, duration_s=5, max_frames=4000, stop_requests_after_s=None,
-             trigger=None, case=None, episodes=1, stage_s=None, stage_never_finishes=False):
+             trigger=None, case=None, episodes=1, stage_s=None, stage_never_finishes=False, f2_at_s=None):
     """Lock-step bridge/player loop on simulated time; returns (driver, model).
     ``stop_requests_after_s``: the request source goes silent then (calibration expiry case).
     ``stage_s`` (batch, motion): an AVLite stage that drives for this long after each arm, then goes
-    silent (its last lease expires) and reports the episode finished 1.5 s later."""
+    silent (its last lease expires) and reports the episode finished 1.5 s later.
+    ``f2_at_s`` (with ``case`` f2-1 / f2-4): the fault is injected this long after the first arm: F2-1 reloads
+    the scene (runner-side GUI Reset), F2-4 asks the driver for a clock jump; the stage then ends the episode."""
     bridge_now = [10_000 * MS]
     start_ns = bridge_now[0]
     offset = 7_000 * MS + 123  # sim = bridge + offset; never assumed by the code under test
     model = ModelGuard(defect)
     inbox = SimInbox(lambda: bridge_now[0])
     done = set()
-    stage = {"armed_at": None, "silent_at": None, "finished": 0}
+    stage = {"armed_at": None, "silent_at": None, "finished": 0, "first_arm": None, "f2": None}
+    if case in ("f2-1", "f2-4"):
+        trigger = None
+        f2_trigger = {}
     driver = ScenarioDriver(inbox, lambda number: number in done, mode=mode, duration_ns=duration_s * 1000 * MS,
                             clock=lambda: bridge_now[0],
-                            trigger=(lambda: trigger(bridge_now[0] - start_ns)) if trigger else None, case=case,
+                            trigger=(lambda: trigger(bridge_now[0] - start_ns)) if trigger else
+                                    ((lambda: f2_trigger) if case in ("f2-1", "f2-4") else None), case=case,
                             episodes=episodes, motion=stage_s is not None,
                             episode_done=(lambda n: stage["finished"] >= n) if stage_s is not None else None)
     session, episode, step, seq = "c" * 32, 1, 0, 0
@@ -305,6 +311,22 @@ def simulate(mode="scenario", defect=None, duration_s=5, max_frames=4000, stop_r
         seq += 1
         if stop_requests_after_s is not None and bridge_now[0] - start_ns >= stop_requests_after_s * 1000 * MS:
             inbox.alive = False
+        if case in ("f2-1", "f2-4") and stage_s is not None:
+            now = bridge_now[0]
+            if model.state == "armed" and stage["first_arm"] is None:
+                stage["first_arm"] = now
+            if stage["first_arm"] is not None and stage["f2"] is None and now - stage["first_arm"] >= f2_at_s * 1000 * MS:
+                stage["f2"] = now
+                if case == "f2-1":   # runner GUI Reset mid-episode; the stage ends the episode at once
+                    model.samples = []
+                    model.leave("disarmed", "scene-load", now + offset)
+                    episode += 1
+                    stage["armed_at"], stage["silent_at"], inbox.alive = None, None, False
+                    stage["finished"] += 1
+                else:
+                    f2_trigger["clock_jump_ns"] = 1000 * MS
+            if case == "f2-4" and model.state == "fault" and stage["armed_at"] is not None:
+                stage["armed_at"], stage["silent_at"], inbox.alive = None, now, False  # stage aborts on fault
         if stage_s is not None:
             now = bridge_now[0]
             if model.state == "armed" and stage["armed_at"] is None and stage["silent_at"] is None:
@@ -455,6 +477,27 @@ class ScenarioDriverTests(unittest.TestCase):
         checks = {c["name"]: c["ok"] for c in driver.phases[0]["checks"]}
         self.assertFalse(checks["episode finished by the stage"])
         self.assertFalse(driver.summary()["passed"])
+
+    def test_batch_f2_1_reset_during_motion_then_clean_episode(self):
+        driver, model, _ = simulate(mode="batch", duration_s=60, episodes=2, stage_s=6, case="f2-1", f2_at_s=3,
+                                    max_frames=6000)
+        phases = [p["phase"] for p in driver.phases]
+        self.assertEqual(["episode 1", "episode 2"], phases)  # no driver reset: the scene already reloaded
+        self.assertTrue(driver.summary()["passed"], [(p["phase"], [c for c in p["checks"] if not c["ok"]]) for p in driver.phases])
+        self.assertEqual(1, model.events.count("state disarmed scene-load"))
+        rejects = [e for e in model.events if e.startswith("reject ")]
+        self.assertEqual(1, len(rejects))
+        self.assertTrue(rejects[0].endswith(" stale-epoch"))  # the old epoch's request is never reapplied
+        self.assertEqual(1, sum(e.startswith("state stopped lease-expired") for e in model.events))  # episode 2 only
+
+    def test_batch_f2_4_clock_jump_faults_then_reset_and_clean_episode(self):
+        driver, model, _ = simulate(mode="batch", duration_s=60, episodes=2, stage_s=8, case="f2-4", f2_at_s=3,
+                                    max_frames=6000)
+        self.assertEqual(["episode 1", "reset 1", "episode 2"], [p["phase"] for p in driver.phases])
+        self.assertTrue(driver.summary()["passed"], [(p["phase"], [c for c in p["checks"] if not c["ok"]]) for p in driver.phases])
+        self.assertIn("clock clock-discontinuity", model.events)
+        self.assertTrue(any(e.startswith("state fault clock-discontinuity") for e in model.events))
+        self.assertEqual(2, model.epoch)
 
     def test_trace_analysis_flags_torque_and_unaccepted_application(self):
         rows = [{"k": "start", "schema": SCHEMA},

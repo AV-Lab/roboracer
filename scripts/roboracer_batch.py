@@ -62,6 +62,8 @@ def runner_command(args, results: Path, episodes: int, first: bool) -> list[str]
         command += ["--plugin-stack"]
     if args.record_inputs:
         command += ["--record-inputs"]
+    if args.f2_case and first:
+        command += ["--f2-case", args.f2_case]  # injected in the batch's first episode (D23)
     if args.sim_hang_first_session and first:
         command += ["--sim-hang-test", str(args.sim_hang_first_session)]  # recovery test (stationary only)
     return command
@@ -149,12 +151,19 @@ def run_batch(args) -> dict:
                        simulator_hang=status.get("simulator_hang"))
         completed = session_episodes(args, run)
         for item in completed:
+            if args.f2_case and index == 1 and item["number"] == 1:
+                item["f2_case"] = args.f2_case  # judged by roboracer_f2.py, not as a lap
             batch["episodes"].append(dict(item, index=len(batch["episodes"]) + 1, session=index))
-        if session["exit_code"] != 0 and len(batch["episodes"]) < args.episodes:
+        ended_short = len(completed) < remaining
+        if (session["exit_code"] != 0 or ended_short) and len(batch["episodes"]) < args.episodes:
             # The episode in progress (or being initialized) when the session failed counts as attempted.
-            batch["episodes"].append({"index": len(batch["episodes"]) + 1, "session": index,
-                                      "number": len(completed) + 1, "outcome": "failed",
-                                      "failure": status.get("error") or f"runner exit {session['exit_code']}"})
+            # (Also with exit 0: F2-6 Devkit loss ends a session cleanly before its episodes are done.)
+            entry = {"index": len(batch["episodes"]) + 1, "session": index, "number": len(completed) + 1,
+                     "outcome": "failed", "failure": status.get("error") or
+                     (f"runner exit {session['exit_code']}" if session["exit_code"] else "session ended early")}
+            if args.f2_case and index == 1 and entry["number"] == 1:
+                entry["f2_case"] = args.f2_case
+            batch["episodes"].append(entry)
             failed_streak = failed_streak + 1 if not completed else 1
             if failed_streak >= 2:
                 batch["end_reason"] = "restart failed: two sessions in a row ended without completing an episode"
@@ -162,7 +171,7 @@ def run_batch(args) -> dict:
                 break
             if len(batch["episodes"]) < args.episodes:
                 batch["recovery_actions"].append({"after_session": index, "action": "fresh player (recovery step 2)",
-                                                  "reason": session["error"] or f"runner exit {session['exit_code']}"})
+                                                  "reason": entry["failure"]})
         else:
             failed_streak = 0
         save()
@@ -195,10 +204,13 @@ def main(argv=None):
                         help="per-episode cap, s (default: 235 for m6, 15 for stationary)")
     parser.add_argument("--wall-cap-s", type=float, default=1800.0, help="batch wall-time cap (proposal: 30 min)")
     parser.add_argument("--record-inputs", action="store_true")
+    parser.add_argument("--f2-case", default=None, help="S2 F2 fault case for the first episode (stage m6, D23)")
     parser.add_argument("--sim-hang-first-session", type=float, default=None,
                         help="stationary recovery test: SIGSTOP the first session's player this many s in")
     parser.add_argument("--runner", type=Path, default=HERE / "autodrive_neutral.py", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.f2_case and args.stage != "m6":
+        parser.error("--f2-case needs --stage m6")
     if args.sim_hang_first_session is not None and args.stage != "stationary":
         parser.error("--sim-hang-first-session is a stationary test")
     args.duration = args.duration or (235.0 if args.stage == "m6" else 15.0)

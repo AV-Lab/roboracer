@@ -513,6 +513,11 @@ class ScenarioDriver:
             self._open_phase(f"episode {number}")
             if not (yield from self._arm()):
                 return
+            armed_episode = self.episode
+            # F2 cases in the first episode (D23): F2-1 reloads the scene under the episode, F2-4 jumps the clock.
+            expect_reload = self.case == "f2-1" and number == 1
+            expect_fault = self.case == "f2-4" and number == 1
+            jumped = False
             if replay is not None:
                 mark = self._mark()
                 yield Reply(request=replay["text"])
@@ -524,10 +529,37 @@ class ScenarioDriver:
                 return self.episode_done is not None and self.episode_done(number)
 
             while self.clock() - start < self.duration_ns and not finished():
+                if expect_fault and not jumped and (self.trigger() if self.trigger else {}).get("clock_jump_ns"):
+                    jumped = True
+                    self.skew_ns = int(self.trigger()["clock_jump_ns"])  # one skewed ping, then back to 0
+                    yield Reply()
+                    self.skew_ns = 0
+                    continue
                 request = self._fresh()
-                if request is not None:
+                if request is not None and self.episode == armed_episode:
                     last = request
-                yield Reply(request=self._text(request)) if request is not None else Reply()
+                    yield Reply(request=self._text(request))
+                else:
+                    yield Reply()
+            if expect_reload or expect_fault:
+                self._check("F2 injected and episode ended", finished(), case=self.case)
+                pattern = r"^state disarmed scene-load$" if expect_reload else r"^state fault clock-discontinuity"
+                self._check("expected F2 guard outcome", self._find(since, pattern) is not None, pattern=pattern)
+                yield from self._disarm()
+                if number == self.episodes:
+                    break
+                replay = {"text": self._text(last), "seq": last["seq"]} if last is not None else None
+                if self.episode > armed_episode:   # F2-1 already reloaded the scene: no second reset
+                    yield from self._idle(5)
+                    continue
+                old_episode, since = self.episode, self._mark()
+                self._open_phase(f"reset {number}")
+                if not (yield from self._act("gui-reset", frames=900)):
+                    return
+                self._check("guard disarmed by the scene load", self._find(since, r"^state disarmed scene-load$") is not None)
+                self._check("episode advanced by one", self.episode == old_episode + 1, before=old_episode, after=self.episode)
+                yield from self._idle(5)
+                continue
             if self.motion:
                 self._check("episode finished by the stage", finished(), elapsed_s=(self.clock() - start) / 1e9)
                 # The stage stops requesting when it finishes; its last request's lease then expires.

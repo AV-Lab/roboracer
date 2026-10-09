@@ -163,6 +163,14 @@
    "proposal": "docs/planning/s2-proposal.md",
    "proposal_version": "0.1 (D20 A, D21 A, D22)",
    "note": "same as batch 1: 3 episodes, M6 envelope, automated checks against the user-reviewed reference, --record-inputs"
+  },
+  {
+   "stage": "S2 M2 baseline part 2: one unattended 5-lap batch, then F2-1..F2-10 once each (2-episode batches)",
+   "date": "2026-10-09",
+   "user_reply": "approve the 5-lap batch and F2-1 to F2-10",
+   "proposal": "docs/planning/s2-proposal.md; docs/stages/S2.md section 6",
+   "proposal_version": "0.1 (D20 A, D21 A, D22, D23; F2 as built, section 6)",
+   "note": "M6 envelope unchanged; automated checks against the user-reviewed reference; --record-inputs; fault in episode 1 at 6.0 s run time, recovery in episode 2; simulator exit/hang recorded as containment"
   }
  ],
  "not_authorized": [

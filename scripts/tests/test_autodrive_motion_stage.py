@@ -46,7 +46,8 @@ class RunnerStageTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             check_guard_request("1 sup-1 3 10 20 0.07 0 cal.3.t9", "m3b")
         for item in ("AVLite motion outside M4/M5/M6", "speeds above 0.3 m/s", "more than one lap per episode",
-                     "steering while moving outside M5/M6", "unattended reset"):
+                     "steering while moving outside M5/M6", "unattended reset outside S2 batches (D22)",
+                     "any S2 live run set without its own run approval (D22)"):
             self.assertIn(item, approval["not_authorized"])
 
     def test_m4_m5_ranges_match_supervisor(self):

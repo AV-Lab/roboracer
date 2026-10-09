@@ -277,9 +277,13 @@ def bridge(args):
         inbox = RequestInbox(socket_name(os.getpid()))
         # Only a confirmed motion stage runs a motion-authorized player; the mode is checked per frame.
         guard_tracker = GuardTracker(require_interlock=not args.motion_stage)
+        # S2 batch (D20 A): the AVLite stage appends each finished episode to stage-episodes.json.
+        episode_done = (lambda n: n <= len(read(out / "stage-episodes.json").get("episodes", []))) \
+            if args.guard == "batch" and args.motion_stage else None
         driver = ScenarioDriver(inbox, lambda number: str(number) in read(out / "actions-done.json"),
                                 mode=args.guard, duration_ns=int(args.duration * 1e9),
-                                trigger=lambda: read(out / "guard-trigger.json"), case=args.f1_case)
+                                trigger=lambda: read(out / "guard-trigger.json"), case=args.f1_case,
+                                episodes=args.episodes, episode_done=episode_done, motion=bool(args.motion_stage))
         state.update(guard_mode=args.guard, guard_socket=socket_name(os.getpid()))
 
     def freeze_request():
@@ -372,7 +376,8 @@ def bridge(args):
     @incoming.sio.on("connect")
     def connected(sid, environ):
         state["connections"] += 1
-        if state["connections"] > (2 if args.guard == "reset" else 1):
+        allowed = {"reset": 2, "batch": args.episodes}.get(args.guard, 1)  # one Connect per scene load
+        if state["connections"] > allowed:
             state["errors"].append("Unexpected reconnection in a fresh-process trial")
         checkpoint()
 
@@ -623,8 +628,8 @@ def plugin_observe(args):
     if args.record_inputs:
         # S2-03: every raw message the bridge processes, for open-loop replay (roboracer_inputs.py).
         sys.path.insert(0, str(Path(__file__).resolve().parent))
-        from roboracer_inputs import InputRecorder
-        recorder = InputRecorder(args.results / "plugin-inputs.jsonl")
+        from roboracer_inputs import MAX_BYTES, InputRecorder
+        recorder = InputRecorder(args.results / "plugin-inputs.jsonl", max_bytes=MAX_BYTES * max(1, args.episodes))
         bridge.message_listener = recorder
         state["input_recording"] = recorder.stats
     bridge.connect(supervisor=args.supervisor)
@@ -1372,8 +1377,30 @@ class StackStage:
         self.f1 = getattr(args, "f1_case", None)
         self.injected_at = None
         self.scan_fault_until_ns = 0
-        state.update(stage_phase=self.phase, abort=None, finish_reason=None, precheck=None, f1_case=self.f1)
+        # S2 batch (D20 A): episode `number` of `episodes`, in simulator episode `episode` (scene load count).
+        self.episodes, self.number, self.episode, self.reported = getattr(args, "episodes", 1) or 1, 1, None, False
+        self.saw_unarmed = False
+        state.update(stage_phase=self.phase, abort=None, finish_reason=None, precheck=None, f1_case=self.f1,
+                     stage_episodes=[])
         self._request(0.0)
+
+    def _report_episode(self):
+        """Append the finished episode for the bridge-side batch driver and the scorer."""
+        entry = {"number": self.number, "episode": self.episode, "finish_reason": self.state.get("finish_reason"),
+                 "abort": self.state.get("abort"), "precheck": self.state.get("precheck"), "path_m": self.path_m,
+                 "finished_ns": time.monotonic_ns()}
+        self.state["stage_episodes"].append(entry)
+        save(self.args.results / "stage-episodes.json", {"episodes": self.state["stage_episodes"]})
+        self.reported = True
+
+    def _next_episode(self, snap):
+        """Back to wait-armed for the next episode after the scene load (GUI Reset) arrived."""
+        self.number, self.episode, self.reported, self.saw_unarmed = self.number + 1, snap.episode, False, False
+        self.start_pose = self.last_pose = None
+        self.path_m, self.last_seq, self.last_new = 0.0, None, time.monotonic()
+        self.state.update(abort=None, finish_reason=None, precheck=None, stage_number=self.number)
+        self._request(0.0)
+        self._set("wait-armed")
 
     def _request(self, speed):
         if self.profile == "m4":
@@ -1403,8 +1430,23 @@ class StackStage:
                              left=sector_min(ranges, 80, 100), right=sector_min(ranges, -100, -80),
                              pose=[snap.pose.x, snap.pose.y, snap.pose.yaw])
         elapsed = now - self.phase_start
+        if self.phase == "finished":
+            if not self.reported:
+                self._report_episode()
+            if self.number < self.episodes and snap is not None and self.episode is not None \
+                    and snap.episode > self.episode:
+                self._next_episode(snap)
+            else:
+                return False  # no requests: the guard lease expires; the runner resets the scene
         if self.phase == "wait-armed":
-            if guard_state == "armed":
+            if snap is not None and self.episode is None:
+                self.episode = snap.episode
+            if guard_state != "armed":
+                self.saw_unarmed = True
+            # From the second episode on, an "armed" left over from the previous episode never counts:
+            # the guard must have been seen not armed since this episode began (scene load disarms it).
+            if guard_state == "armed" and snap is not None and snap.episode == self.episode and \
+                    (self.number == 1 or self.saw_unarmed):
                 self._set("settle")
             return True
         if self.phase == "settle":
@@ -1904,6 +1946,8 @@ def trial(args, context, out):
             sim1 += ["--f1-case", args.f1_case]
         if args.guard:
             sim1 += ["--guard", args.guard, "--duration", str(args.duration)]
+            if args.guard == "batch":
+                sim1 += ["--episodes", str(args.episodes)]
         if args.motion_stage:
             sim1 += ["--motion-stage", args.motion_stage]
         bridge_process = spawn("bridge", [context["devkit_python"], "-B", own_script, "bridge", "--results", str(out),
@@ -1947,7 +1991,8 @@ def trial(args, context, out):
                                            "--results", str(out), "--plugin", str(PLUGIN_DIRECTORY),
                                            "--supervisor", supervisor_name, "--stack-profile", args.motion_stage,
                                            *(["--f1-case", args.f1_case] if args.f1_case else []),
-                                           *(["--record-inputs"] if args.record_inputs else [])],
+                                           *(["--record-inputs"] if args.record_inputs else []),
+                                           "--episodes", str(args.episodes)],
                           plugin_environment)
                     status_name = "plugin-observer-status.json"
                 elif args.motion_stage:
@@ -2091,8 +2136,10 @@ def trial(args, context, out):
                 return read(out / "bridge-status.json").get("errors")
 
             result = {"clicks": [], "reset": False}
+            number = len([a for a in record["guard_actions"] if a.get("kind") == "gui-reset"]) + 1
+            suffix = f"-{number}" if args.guard == "batch" else ""
             pointer, focus = root.query_pointer(), connection.get_input_focus().focus
-            capture(window, "ui-before-reset")
+            capture(window, "ui-before-reset" + suffix)
             for _ in range(3):
                 result["clicks"].append(click(window, *RESET_XY))
                 if wait_beating(5, scene_load_seen):
@@ -2105,16 +2152,19 @@ def trial(args, context, out):
             if not result["reset"]:
                 return result
             wait_beating(4)
-            capture(window, "ui-after-reset")
+            capture(window, "ui-after-reset" + suffix)
+            review_name = f"ui-review-reset{suffix}.json"
             record["ui_reset_review_required"] = {"pid": player.pid, "window_id": window.id,
-                                                  "screenshot": str(out / "ui-after-reset.png"),
-                                                  "review_file": str(out / "ui-review-reset.json")}
+                                                  "screenshot": str(out / f"ui-after-reset{suffix}.png"),
+                                                  "review_file": str(out / review_name)}
             checkpoint()
-            if not wait_beating(900, lambda: (out / "ui-review-reset.json").exists()):
+            if args.ui_reference:
+                automated_review(window, "ui-after-reset" + suffix, review_name)
+            if not wait_beating(900, lambda: (out / review_name).exists()):
                 raise TimeoutError("No review of the reloaded scene")
-            review = read(out / "ui-review-reset.json")
+            review = read(out / review_name)
             if review.get("pid") != player.pid or review.get("window_id") != window.id or \
-                    review.get("screenshot_sha256") != hashlib.sha256((out / "ui-after-reset.png").read_bytes()).hexdigest():
+                    review.get("screenshot_sha256") != hashlib.sha256((out / f"ui-after-reset{suffix}.png").read_bytes()).hexdigest():
                 raise RuntimeError("Reset review does not match this window or screenshot")
             result["review"] = review
             before = read(out / "bridge-status.json").get("connections", 0)
@@ -2145,7 +2195,48 @@ def trial(args, context, out):
                     "encoders_still": len(new) >= 2 and new[-1]["motion"]["Encoder Angles"] == new[-2]["motion"]["Encoder Angles"]}
             except (OSError, ValueError, KeyError) as exc:
                 result["c0_start"] = {"error": f"{type(exc).__name__}: {exc}"}
+            if args.guard == "batch":
+                result["readiness"] = readiness(result["c0_start"], read(out / "first-raw-frame.json") and
+                                                motion_fields(read(out / "first-raw-frame.json"), args.motion_stage))
+                record["guard_actions"].append({"kind": "readiness", **result["readiness"]})  # visible at once
+                checkpoint()
+                if not (result["reconnected"] and result["frames_resumed"] and result["readiness"]["passed"]):
+                    raise RuntimeError("Initialization failed after GUI Reset: " + json.dumps(
+                        {"reconnected": result["reconnected"], "frames_resumed": result["frames_resumed"],
+                         **result["readiness"]["checks"]}))
             return result
+
+        def automated_review(window, label, review_name):
+            """D21 A: the reviewed-reference text-region check replaces the human review; written in the
+            same review format, so the Connect path applies all its usual window and hash checks."""
+            from roboracer_uicheck import check, load_reference
+            result = check(out / (label + ".png"), load_reference(args.ui_reference))
+            record.setdefault("ui_checks", []).append(dict(result, label=label))
+            checkpoint()
+            if not result["passed"]:
+                raise RuntimeError(f"Automated pre-Connect check failed ({label}): {result['mismatch_px']}")
+            save(out / review_name, {"pid": player.pid, "window_id": window.id, "mode": "Guarded",
+                                     "connect_xy": [52, 273], "screenshot_sha256": result["image_sha256"],
+                                     "note": "automated D21 text-region check against the reviewed reference",
+                                     "automated": result})
+
+        def readiness(c0_start, first):
+            """D21 A telemetry readiness after a scene load, before any arm (proposal section 2)."""
+            guard = read(out / "bridge-status.json").get("guard", {})
+            yaw = None
+            try:
+                rows = [json.loads(line) for line in (out / "bridge-frames.jsonl").read_text().splitlines()[-40:]]
+                new = [r for r in rows if "motion" in r and r.get("provenance", {}).get("episode") == c0_start.get("episode")]
+                if new and first:
+                    yaw = abs(math.degrees(math.remainder(new[-1]["motion"]["Orientation Euler Angles"][2]
+                                                          - first["Orientation Euler Angles"][2], math.tau)))
+            except (OSError, ValueError, KeyError):
+                pass
+            checks = {"spawn offset <= 0.010 m": (c0_start.get("offset_m") or 1e9) <= 0.010,
+                      "yaw within 1 deg of the first spawn": yaw is not None and yaw <= 1.0,
+                      "wheels still": bool(c0_start.get("encoders_still")),
+                      "guard not armed and no fault": guard.get("state") not in ("armed", "fault")}
+            return {"checks": checks, "yaw_offset_deg": yaw, "passed": all(checks.values())}
 
         def guard_action(kind, window, approval):
             now = time.monotonic_ns()
@@ -2302,6 +2393,8 @@ def trial(args, context, out):
                         record["ui_review_required"] = {"pid": player.pid, "window_id": window.id,
                             "screenshot": str(out / "ui-before-connect.png"),
                             "review_file": str(out / "ui-review.json")}
+                        if args.ui_reference:
+                            automated_review(window, "ui-before-connect", "ui-review.json")
                         checkpoint()
                         reviewed = True
                     approval = read(out / "ui-review.json")
@@ -2421,7 +2514,7 @@ def trial(args, context, out):
                         break
                     # Observe and calibration trials end when the bridge-side driver completes
                     # (calibration: after its final checks and disarm; M0 attempt 2 waited for the timeout).
-                    if args.guard in ("observe", "calibration", "reset") and bridge_state.get("guard", {}).get("complete"):
+                    if args.guard in ("observe", "calibration", "reset", "batch") and bridge_state.get("guard", {}).get("complete"):
                         if window is not None:
                             capture(window, "ui-completed")
                         record.update(completed_observation=True, observation_end_ns=time.monotonic_ns(),
@@ -2482,7 +2575,7 @@ def trial(args, context, out):
         gpu_stop.set()
         cleanup_started = time.monotonic()
         heartbeat.close()  # D16: no further runner heartbeats from here on
-        if record.get("error") and args.guard == "calibration" and args.motion_stage:
+        if record.get("error") and args.guard in ("calibration", "batch") and args.motion_stage:
             record["d16"] = runner_error_stop(out)
             checkpoint()
         if connection is not None:
@@ -2555,7 +2648,7 @@ def main():
     parser.add_argument("--freeze-window", default="10,15",
                         type=lambda text: tuple(float(v) for v in text.split(",")),
                         help="Freeze start,end seconds after the bridge's first frame")
-    parser.add_argument("--guard", choices=("observe", "scenario", "calibration", "reset"),
+    parser.add_argument("--guard", choices=("observe", "scenario", "calibration", "reset", "batch"),
                         help="SIM1-02: launch the guarded interlocked player with a supervisor stand-in; "
                              "observe forwards zero requests for --duration, scenario runs the disarmed P1a cases; "
                              "calibration forwards a confirmed motion stage's requests (requires --motion-stage)")
@@ -2563,6 +2656,10 @@ def main():
     parser.add_argument("--f1-case", choices=F1_CASES, default=None,
                         help="S1-06 F1 fault case (M1 protocol v0.1); motion stage m6 only")
     parser.add_argument("--freeze-trigger", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--episodes", type=int, default=1,
+                        help="S2 batch (--guard batch): episodes in this player, GUI Reset between them (D20 A)")
+    parser.add_argument("--ui-reference", type=Path, default=None,
+                        help="S2 (D21 A): reviewed roboracer.ui-reference/1 record; replaces the per-Connect review")
     parser.add_argument("--record-inputs", action="store_true",
                         help="S2-03: record every raw message the plugin bridge processes (plugin-inputs.jsonl)")
     parser.add_argument("--sim-hang-test", type=float, default=None,
@@ -2631,14 +2728,22 @@ def main():
     if args.freeze_test and not (len(args.freeze_window) == 2 and 0 < args.freeze_window[0] < args.freeze_window[1]
                                  and args.freeze_window[1] + 5 <= args.duration):
         parser.error("Freeze window must be ordered and end at least 5 s before the observation ends")
-    if args.plugin_stack and (args.guard not in ("observe", "reset") or args.plugin_observer):
+    if args.guard == "batch" and args.mode == "run" and not (
+            args.episodes >= 1 and args.ui_reference and (args.motion_stage == "m6" or args.plugin_stack)):
+        parser.error("--guard batch needs --episodes >= 1, --ui-reference and either --motion-stage m6 or --plugin-stack")
+    if args.episodes != 1 and args.guard != "batch" and args.mode in ("run", "bridge"):
+        parser.error("--episodes is for --guard batch")
+    if args.plugin_stack and (args.guard not in ("observe", "reset", "batch") or args.plugin_observer):
         parser.error("The plugin stack runs only with --guard observe and replaces --plugin-observer")
     if args.plugin_observer and not args.provenance:
         parser.error("The plugin observer needs the provenance topic (--provenance)")
     if (args.motion_stage == "m2") != bool(args.m2_case) and args.mode in ("run", "calibrate"):
         parser.error("--m2-case is required for, and only for, stage m2")
-    if (args.guard == "calibration") != bool(args.motion_stage) and args.mode == "run":
-        parser.error("--guard calibration and --motion-stage go together")
+    if args.mode == "run" and (bool(args.motion_stage) != (args.guard in ("calibration", "batch")) and
+                               not (args.guard == "batch" and args.plugin_stack and not args.motion_stage)):
+        parser.error("--motion-stage needs --guard calibration or batch (batch also runs stationary with --plugin-stack)")
+    if args.guard == "batch" and args.motion_stage and args.motion_stage != "m6":
+        parser.error("S2 batches run only the M6 envelope (D22)")
     if args.motion_stage and args.mode == "run":
         if args.plugin_stack or args.plugin_observer or args.reply_delay > 0.05:
             parser.error("Motion stages run the calibration source alone with reply pacing <= 50 ms (D3)")

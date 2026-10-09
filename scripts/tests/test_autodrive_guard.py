@@ -281,18 +281,23 @@ class SimInbox:
 
 
 def simulate(mode="scenario", defect=None, duration_s=5, max_frames=4000, stop_requests_after_s=None,
-             trigger=None, case=None):
+             trigger=None, case=None, episodes=1, stage_s=None, stage_never_finishes=False):
     """Lock-step bridge/player loop on simulated time; returns (driver, model).
-    ``stop_requests_after_s``: the request source goes silent then (calibration expiry case)."""
+    ``stop_requests_after_s``: the request source goes silent then (calibration expiry case).
+    ``stage_s`` (batch, motion): an AVLite stage that drives for this long after each arm, then goes
+    silent (its last lease expires) and reports the episode finished 1.5 s later."""
     bridge_now = [10_000 * MS]
     start_ns = bridge_now[0]
     offset = 7_000 * MS + 123  # sim = bridge + offset; never assumed by the code under test
     model = ModelGuard(defect)
     inbox = SimInbox(lambda: bridge_now[0])
     done = set()
+    stage = {"armed_at": None, "silent_at": None, "finished": 0}
     driver = ScenarioDriver(inbox, lambda number: number in done, mode=mode, duration_ns=duration_s * 1000 * MS,
                             clock=lambda: bridge_now[0],
-                            trigger=(lambda: trigger(bridge_now[0] - start_ns)) if trigger else None, case=case)
+                            trigger=(lambda: trigger(bridge_now[0] - start_ns)) if trigger else None, case=case,
+                            episodes=episodes, motion=stage_s is not None,
+                            episode_done=(lambda n: stage["finished"] >= n) if stage_s is not None else None)
     session, episode, step, seq = "c" * 32, 1, 0, 0
     tracker = GuardTracker()
     killed = False
@@ -300,6 +305,18 @@ def simulate(mode="scenario", defect=None, duration_s=5, max_frames=4000, stop_r
         seq += 1
         if stop_requests_after_s is not None and bridge_now[0] - start_ns >= stop_requests_after_s * 1000 * MS:
             inbox.alive = False
+        if stage_s is not None:
+            now = bridge_now[0]
+            if model.state == "armed" and stage["armed_at"] is None and stage["silent_at"] is None:
+                stage["armed_at"] = now
+                if not inbox.alive:
+                    inbox.alive, inbox.next_ns = True, now  # the stage drives again in the new episode
+            elif stage["armed_at"] is not None and now - stage["armed_at"] >= stage_s * 1000 * MS:
+                stage["armed_at"], stage["silent_at"], inbox.alive = None, now, False
+            elif stage["silent_at"] is not None and now - stage["silent_at"] >= 1500 * MS:
+                stage["silent_at"] = None
+                if not stage_never_finishes:
+                    stage["finished"] += 1
         emit = bridge_now[0] + offset
         frame = dict(model.telemetry(emit))
         bridge_now[0] += 15 * MS                                    # frame transit
@@ -410,6 +427,34 @@ class ScenarioDriverTests(unittest.TestCase):
                      "replayed pre-reset request rejected stale-epoch"):
             self.assertTrue(checks[name], name)
         self.assertIn("state disarmed scene-load", model.events)
+
+    def test_batch_motion_episodes_reset_and_no_stale_reapplication(self):
+        driver, model, killed = simulate(mode="batch", duration_s=60, episodes=3, stage_s=6, max_frames=6000)
+        self.assertFalse(killed)
+        self.assertTrue(driver.complete and driver.summary()["passed"],
+                        [(p["phase"], [c for c in p["checks"] if not c["ok"]]) for p in driver.phases])
+        self.assertEqual(["episode 1", "reset 1", "episode 2", "reset 2", "episode 3"], [p["phase"] for p in driver.phases])
+        self.assertEqual(3, sum(e.startswith("state stopped lease-expired") for e in model.events))
+        self.assertEqual(2, model.events.count("state disarmed scene-load"))
+        self.assertEqual(3, model.epoch)
+        stale = [e for e in model.events if e.startswith("reject ")]
+        self.assertEqual(2, len(stale))  # exactly the two deliberate previous-epoch replays
+        self.assertTrue(all(e.endswith(" stale-epoch") for e in stale), stale)
+        self.assertEqual("disarmed", driver.summary()["state"])
+
+    def test_batch_stationary_episodes_have_no_expiry(self):
+        driver, model, killed = simulate(mode="batch", duration_s=5, episodes=3, max_frames=6000)
+        self.assertTrue(driver.complete and driver.summary()["passed"],
+                        [(p["phase"], [c for c in p["checks"] if not c["ok"]]) for p in driver.phases])
+        self.assertEqual(0, model.counters["expired"])
+        self.assertEqual(2, model.events.count("state disarmed scene-load"))
+
+    def test_batch_fails_when_the_stage_never_reports_the_episode(self):
+        driver, _, _ = simulate(mode="batch", duration_s=20, episodes=2, stage_s=4, stage_never_finishes=True,
+                                max_frames=6000)
+        checks = {c["name"]: c["ok"] for c in driver.phases[0]["checks"]}
+        self.assertFalse(checks["episode finished by the stage"])
+        self.assertFalse(driver.summary()["passed"])
 
     def test_trace_analysis_flags_torque_and_unaccepted_application(self):
         rows = [{"k": "start", "schema": SCHEMA},

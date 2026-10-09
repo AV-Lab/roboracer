@@ -207,13 +207,16 @@ class ScenarioDriver:
     """
 
     def __init__(self, inbox, action_done, mode="scenario", duration_ns=None, clock=time.monotonic_ns,
-                 trigger=None, case=None):
+                 trigger=None, case=None, episodes=1, episode_done=None, motion=True):
         self.inbox, self.action_done, self.mode = inbox, action_done, mode
         self.duration_ns, self.clock = duration_ns, clock
         # S1-06 (M1 protocol v0.1): calibration mode reads an external trigger each frame,
         # {"disarm": true, "rearm_after_s": float | null, "source": ...}, written by the AVLite stage
         # (F1-5 disarm/rearm) or by the runner (D16: disarm on runner error). `case` selects checks.
         self.trigger, self.case = trigger, case
+        # S2 batch (D20 A): `episodes` per player; `episode_done(n)` is true once the AVLite stage reports
+        # episode n finished (motion), or None for stationary batches, whose episodes last `duration_ns`.
+        self.episodes, self.episode_done, self.motion = episodes, episode_done, motion
         self.external = None
         self.events, self.phases, self.record = [], [], None
         self.session = self.episode = None
@@ -224,7 +227,7 @@ class ScenarioDriver:
         self.started = False
         self.current = None
         self.script = {"observe": self._observe, "calibration": self._calibration,
-                       "reset": self._reset}.get(mode, self._scenario)()
+                       "reset": self._reset, "batch": self._batch}.get(mode, self._scenario)()
 
     # Bridge interface -------------------------------------------------------------
     def on_frame(self, record, session, episode):
@@ -493,6 +496,62 @@ class ScenarioDriver:
         yield from self._forward_and_expect(2)
         self._forbid("no fault", since, r"^state fault")
         yield from self._disarm()
+
+    def _batch(self):
+        """S2 batch (D20 A, D21 A, D22): one player, `episodes` episodes with GUI Reset between them.
+
+        Each episode: arm in a new epoch; from the second episode on, a replay of the previous epoch's
+        last forwarded request must be rejected stale-epoch (no stale reapplication); forward every
+        fresh supervisor request until the stage reports the episode finished (motion) or `duration_ns`
+        elapses (stationary); then require the stop: motion ends with exactly one lease expiry, a
+        stationary episode with none; no other rejection, no fault; disarm. Between episodes the runner
+        performs the GUI Reset with its automated checks and reconnects; the scene-load disarm and the
+        episode advance are checked here."""
+        yield from self._warmup()
+        replay = None
+        for number in range(1, self.episodes + 1):
+            self._open_phase(f"episode {number}")
+            if not (yield from self._arm()):
+                return
+            if replay is not None:
+                mark = self._mark()
+                yield Reply(request=replay["text"])
+                yield from self._expect("previous-epoch request rejected stale-epoch", mark,
+                                        rf"^reject {replay['seq']} stale-epoch$")
+            start, since, last = self.clock(), self._mark(), None
+
+            def finished():
+                return self.episode_done is not None and self.episode_done(number)
+
+            while self.clock() - start < self.duration_ns and not finished():
+                request = self._fresh()
+                if request is not None:
+                    last = request
+                yield Reply(request=self._text(request)) if request is not None else Reply()
+            if self.motion:
+                self._check("episode finished by the stage", finished(), elapsed_s=(self.clock() - start) / 1e9)
+                # The stage stops requesting when it finishes; its last request's lease then expires.
+                yield from self._await(since, r"^state (stopped|fault)", 12)
+                stops = [t for _, t, _ in self.events[since:] if t.startswith("state stopped")]
+                self._check("one final lease expiry", len(stops) == 1 and stops[0].startswith("state stopped lease-expired"),
+                            stops=stops)
+            else:
+                self._forbid("no expiry", since, r"^state (stopped|fault)")
+                self._check("accepted continuously", self.record["state"] == "armed", state=self.record["state"])
+            self._forbid("no rejection", since, r"^reject ")
+            self._forbid("no fault", since, r"^state fault")
+            self._check("requests forwarded", last is not None)
+            yield from self._disarm()
+            if number == self.episodes:
+                break
+            replay = {"text": self._text(last), "seq": last["seq"]} if last is not None else None
+            old_episode, since = self.episode, self._mark()
+            self._open_phase(f"reset {number}")
+            if not (yield from self._act("gui-reset", frames=900)):
+                return
+            self._check("guard disarmed by the scene load", self._find(since, r"^state disarmed scene-load$") is not None)
+            self._check("episode advanced by one", self.episode == old_episode + 1, before=old_episode, after=self.episode)
+            yield from self._idle(5)  # clock exchanges after the reconnect, before the next arm
 
     def _next_fresh_or_none(self):
         return self._fresh()

@@ -171,6 +171,14 @@
    "proposal": "docs/planning/s2-proposal.md; docs/stages/S2.md section 6",
    "proposal_version": "0.1 (D20 A, D21 A, D22, D23; F2 as built, section 6)",
    "note": "M6 envelope unchanged; automated checks against the user-reviewed reference; --record-inputs; fault in episode 1 at 6.0 s run time, recovery in episode 2; simulator exit/hang recorded as containment"
+  },
+  {
+   "stage": "S2 M2 baseline part 2, repeated after the shared-desktop halt (same run set: 5-lap batch, F2-1..F2-10)",
+   "date": "2026-10-09",
+   "user_reply": "A",
+   "proposal": "docs/stages/S2.md section 7 (option A: desktop left untouched during the runs)",
+   "proposal_version": "approval of 2026-10-09 'approve the 5-lap batch and F2-1 to F2-10', kept valid",
+   "note": "the halted attempt (20261009T085844Z) is retained; this repeat uses the same scripts and limits"
   }
  ],
  "not_authorized": [

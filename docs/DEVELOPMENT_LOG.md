@@ -869,7 +869,6 @@
 - **Diagnostics added** (`a3c251b`): reply hand-off and return times and the bridge's thread states in the hang record. Checked on a deliberate stationary hang (reply returned 58.8 ms after the last frame). The first check attempt had 3 dropped Connect clicks and is retained.
 - **Records.** [S2 §5](stages/S2.md). The stall rate must be measured before the M2 budgets; it threatens "ten consecutive healthy episodes".
 
-
 ## 2026-10-09 — S2-04 F2 injection and analysis built (no motion)
 
 - **F2-1 to F2-10**, each a 2-episode batch: inject in episode 1 at 6.0 s of run time, and episode 2 must recover healthy.

@@ -147,6 +147,14 @@
    "user_reply": "approve D20 A, D21 A, D22, D23, D24",
    "proposal": "docs/planning/s2-proposal.md",
    "proposal_version": "0.1"
+  },
+  {
+   "stage": "S2 M2 baseline part 1: one unattended 3-lap batch (M6 envelope, GUI Reset between laps)",
+   "date": "2026-10-09",
+   "user_reply": "reference OK; approve the 3-lap batch",
+   "proposal": "docs/planning/s2-proposal.md",
+   "proposal_version": "0.1 (D20 A, D21 A, D22)",
+   "note": "one batch through roboracer_batch.py: 3 episodes, A-lap, <= 0.3 m/s, one lap per episode, containment box, automated pre-Connect/readiness checks against the user-reviewed reference, --record-inputs; no F2 cases"
   }
  ],
  "not_authorized": [

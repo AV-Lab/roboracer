@@ -828,3 +828,20 @@
   - exact-equality replay.
 - **Records.** Recorded in `s1-motion-approval.json`. "Unattended reset" is now allowed only inside S2 batches. Every live run set still needs its own run approval.
 - **Process.** Commit messages no longer carry Claude attribution (user request).
+
+## 2026-10-09 — S2-01/02 unattended batches and recovery (no motion)
+
+- **Built:**
+  - batch guard mode;
+  - multi-episode AVLite stage;
+  - automated pre-Connect check (D21 A) and post-reset readiness checks;
+  - orchestrator with the recovery ladder;
+  - supervisor feedback episode fix.
+- **Tests.** 155 script tests and 44 plugin tests pass.
+- **Correction.** I had overstated the feedback bug as about 125 s of starved feedback per reset. The old code skipped only one frame; the real defect was one possible bogus sample after a short episode. The fix and test stand.
+- **Live, stationary and interlocked:**
+  - **3/3 unattended 3-episode batches pass:** 9/9 automated checks at 0 px, 6/6 readiness checks, about 5.1 s from Reset to Connect.
+  - The multi-episode recording replays 261/261 exactly ×3.
+  - A frozen-player recovery test recovered with a fresh player. The first attempt exposed an accounting bug (episodes before a failure were missed), now fixed.
+- **Evidence.** `artifacts/s2/20261009T055934Z-batch-stationary/`. Report: [S2 §3](stages/S2.md).
+- **Next.** The user's one-time reference review (D21) and a run approval for the first motion batch. The F2 injection hooks are still to build.

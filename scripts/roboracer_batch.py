@@ -77,7 +77,9 @@ def all_reviews_automated(status: dict) -> bool:
 def session_episodes(args, run: Path) -> list[dict]:
     """Episodes this session completed, with an outcome each."""
     status = read(run / "run.json")
-    guard = (status.get("bridge_at_end") or {}).get("guard") or {}
+    # A failed run has no bridge_at_end; the Devkit bridge rewrites bridge-status.json every frame, so its
+    # last copy holds the guard phases up to the failure.
+    guard = (status.get("bridge_at_end") or read(run / "bridge-status.json")).get("guard") or {}
     phases = {p["phase"]: p for p in guard.get("phases", [])}
     if args.stage == "m6":
         import roboracer_scoring as rs

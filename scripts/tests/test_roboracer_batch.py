@@ -25,8 +25,10 @@ run.mkdir(parents=True)
 phases = [{"phase": f"episode {i}", "passed": ok, "last_frame": 10 * i, "checks": [{"ok": ok}]}
           for i, ok in enumerate(plan["complete"], 1)]
 status = {"error": plan.get("error"), "manual_mode_review": {"automated": {"passed": True}},
-          "guard_actions": [{"kind": "gui-reset", "review": {"automated": {"passed": True}}}],
-          "bridge_at_end": {"guard": {"phases": phases}}, "argv": argv}
+          "guard_actions": [{"kind": "gui-reset", "review": {"automated": {"passed": True}}}], "argv": argv}
+if plan["exit"] == 0:
+    status["bridge_at_end"] = {"guard": {"phases": phases}}  # like the runner: only on a completed run
+(run / "bridge-status.json").write_text(json.dumps({"guard": {"phases": phases}}))
 (run / "run.json").write_text(json.dumps(status))
 sys.exit(plan["exit"])
 '''
@@ -69,6 +71,13 @@ class BatchTests(unittest.TestCase):
         session2 = b["sessions"][1]
         self.assertEqual(1, session2["episodes_requested"])     # only the remaining episode
         self.assertEqual((1, False, "all episodes attempted"), (code, b["passed"], b["end_reason"]))
+
+    def test_episodes_finished_before_a_failure_count_from_the_live_bridge_status(self):
+        plan = {"1": {"complete": [True], "exit": 1, "error": "RuntimeError: Simulator hang"},
+                "2": {"complete": [True], "exit": 0}}
+        _, b = self.run_plan(3, plan)
+        self.assertEqual([(1, "healthy"), (1, "failed"), (2, "healthy")], [(e["session"], e["outcome"]) for e in b["episodes"]])
+        self.assertEqual([3, 1], [s["episodes_requested"] for s in b["sessions"]])
 
     def test_restart_that_fails_again_ends_the_batch(self):
         plan = {"1": {"complete": [], "exit": 1, "error": "RuntimeError: Initialization failed after GUI Reset"},

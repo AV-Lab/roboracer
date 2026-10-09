@@ -816,3 +816,15 @@
 - **Live check.** A stationary interlocked session with recording on: 918 messages, 1.39 MB. Replay ×3 in fresh processes gives **152/152 snapshots identical**, with the same rejection and drop counts. 0 tick overruns; player unchanged.
 - **Tests.** 138 script tests (7 new, no skip) and 41 plugin tests pass.
 - **Records.** [S2 report](stages/S2.md). Controller replay on a driving recording waits for the first approved lap.
+
+## 2026-10-09 — S2 decisions confirmed
+
+- **Decision.** "approve D20 A, D21 A, D22, D23, D24".
+- **What it fixes:**
+  - one player per batch, with GUI Reset between episodes;
+  - the automated pre-Connect check plus telemetry readiness checks;
+  - unattended batches inside the unchanged M6 envelope;
+  - F2-1 to F2-10;
+  - exact-equality replay.
+- **Records.** Recorded in `s1-motion-approval.json`. "Unattended reset" is now allowed only inside S2 batches. Every live run set still needs its own run approval.
+- **Process.** Commit messages no longer carry Claude attribution (user request).

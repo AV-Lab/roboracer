@@ -1,6 +1,6 @@
 # S2 proposal — unattended episodes, diagnosis and fault recovery
 
-Version **0.1 — for confirmation**. Date: **2026-10-08**. Entry: "go on with S2", after PRE and S1 were accepted ("accept all recommended boxes"). Backend: the frozen [qualified patch-04 backend](../architecture/qualified-backend.md). Feasibility evidence: `artifacts/s2/20261008T092831Z-entry/`.
+Version **0.1 — confirmed 2026-10-09**: "approve D20 A, D21 A, D22, D23, D24" ([record](s1-motion-approval.json)). Live run sets still need their own run approval (D22). Date: **2026-10-08**. Entry: "go on with S2", after PRE and S1 were accepted ("accept all recommended boxes"). Backend: the frozen [qualified patch-04 backend](../architecture/qualified-backend.md). Feasibility evidence: `artifacts/s2/20261008T092831Z-entry/`.
 
 **S2 goal (plan):** one invocation runs repeated AutoDRIVE episodes, validates each initial state, records results, and recovers or fails cleanly after defined faults.
 

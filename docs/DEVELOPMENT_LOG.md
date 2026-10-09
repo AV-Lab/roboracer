@@ -868,3 +868,16 @@
 - **Stall.** The player was alive but idle (all threads waiting, GPU to 0 %), with no Unity error. The bridge had counted a reply for every frame, but before the send, so not proven sent. It looks like a stock lock-step stall; the cause is open.
 - **Diagnostics added** (`a3c251b`): reply hand-off and return times and the bridge's thread states in the hang record. Checked on a deliberate stationary hang (reply returned 58.8 ms after the last frame). The first check attempt had 3 dropped Connect clicks and is retained.
 - **Records.** [S2 §5](stages/S2.md). The stall rate must be measured before the M2 budgets; it threatens "ten consecutive healthy episodes".
+
+
+## 2026-10-09 — S2-04 F2 injection and analysis built (no motion)
+
+- **F2-1 to F2-10**, each a 2-episode batch: inject in episode 1 at 6.0 s of run time, and episode 2 must recover healthy.
+  - Stack-side: duplicate and reorder intake (F2-2, F2-3); clock-jump trigger (F2-4); feedback blackout (F2-5).
+  - Runner: mid-lap GUI Reset (F2-1) and process kill or stop (F2-6 to F2-10).
+  - Guard driver: F2-1 and F2-4 expectations.
+  - Orchestrator: counts sessions that end early with exit 0.
+- **Analysis.** `roboracer_f2.py` checks detection, the stop (≤ 1.5 s, ≤ 0.40 m from onset), recovery and terminations. Simulator exit and hang are containment only.
+- **Deviation.** F2-4 ends its episode on the guard fault, and process faults recover with a fresh player (D20 ladder), not in-session as the proposal text said.
+- **Timing tool.** `--episode N` added. Batch 2 lap 2 gives a complete window inside every limit.
+- **Tests.** 169 script tests and 48 plugin tests pass. Report: [S2 §6](stages/S2.md).

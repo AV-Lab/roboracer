@@ -880,3 +880,15 @@
 - **Deviation.** F2-4 ends its episode on the guard fault, and process faults recover with a fresh player (D20 ladder), not in-session as the proposal text said.
 - **Timing tool.** `--episode N` added. Batch 2 lap 2 gives a complete window inside every limit.
 - **Tests.** 169 script tests and 48 plugin tests pass. Report: [S2 §6](stages/S2.md).
+
+## 2026-10-09 — M2 baseline part 2 halted: shared desktop
+
+- **Approval.** "approve the 5-lap batch and F2-1 to F2-10".
+- **5-lap batch.**
+  - Laps 1 and 2 healthy (123.3 / 123.8 s).
+  - Then the input-targeting check refused the Reset click, and in the fresh player the Connect click (pointer at (50, 279), not (52, 273): the mouse moved).
+  - The batch ended under the ladder rule: 4 attempted, 2 healthy.
+- **Cause.** The user was working on the same display `:1` (Chrome active; Teams, Lark, emacs open). The check refuses synthetic clicks unless the player has focus and the pointer; it worked as designed, with the car stopped and disarmed.
+- **F2 sequence.** Stopped by the agent during F2-1's first session, before injection. Clean shutdown; player unchanged.
+- **Change.** `04c95a1`: the Reset-click refusal reports focus and pointer.
+- **Decision needed.** Keep the desktop untouched during runs, run while the user is away, or qualify a separate display (R2-05). Report: [S2 §7](stages/S2.md).

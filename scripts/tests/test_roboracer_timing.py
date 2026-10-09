@@ -61,5 +61,12 @@ class GpuSamplerTests(unittest.TestCase):
                                                    rows[0]["memory_total_mib"]))
 
 
+class RunSegmentTests(unittest.TestCase):
+    def test_one_segment_per_driven_episode(self):
+        phases = ["wait-armed", "settle", "run", "run", "stopping", "finished", "wait-armed", "run", "run", "run", "finished"]
+        ticks = [{"phase": p, "start_ns": i} for i, p in enumerate(phases)]
+        self.assertEqual([[2, 3], [7, 8, 9]], [[t["start_ns"] for t in seg] for seg in rt.run_segments(ticks)])
+
+
 if __name__ == "__main__":
     unittest.main()

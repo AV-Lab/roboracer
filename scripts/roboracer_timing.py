@@ -77,14 +77,29 @@ def guard_events(guard, forwarded):
     return accepted, applied
 
 
-def measure(run: Path, warmup_s=10.0, window_s=120.0, geometry: Path | None = None) -> dict:
+def run_segments(ticks):
+    """Contiguous stretches of run-phase ticks: one per driven episode in an S2 batch."""
+    segments, current = [], []
+    for t in ticks:
+        if t.get("phase") == "run":
+            current.append(t)
+        elif current:
+            segments.append(current)
+            current = []
+    if current:
+        segments.append(current)
+    return segments
+
+
+def measure(run: Path, warmup_s=10.0, window_s=120.0, geometry: Path | None = None, episode: int = 1) -> dict:
     ticks, frames = rows(run / "plugin-ticks.jsonl"), rows(run / "bridge-frames.jsonl")
     snapshots, trace = rows(run / "plugin-snapshots.jsonl"), rows(run / "supervisor-trace.jsonl")
     guard, resources, gpu = rows(run / "guard/guard-trace.jsonl"), rows(run / "resources.jsonl"), rows(run / "gpu.jsonl")
     status = json.loads((run / "plugin-observer-status.json").read_text())
-    run_ticks = [t for t in ticks if t.get("phase") == "run"]
-    if not run_ticks:
-        return {"run": str(run), "complete": False, "reason": "no run phase"}
+    segments = run_segments(ticks)
+    if len(segments) < episode:
+        return {"run": str(run), "complete": False, "reason": f"no run phase for episode {episode}"}
+    run_ticks = segments[episode - 1]  # S2 batches: the window starts in this episode's run phase
     run_start, run_end = run_ticks[0]["start_ns"], run_ticks[-1]["start_ns"]
     lo, hi = run_start + int(warmup_s * 1e9), run_start + int((warmup_s + window_s) * 1e9)
     complete = run_end >= hi
@@ -94,7 +109,8 @@ def measure(run: Path, warmup_s=10.0, window_s=120.0, geometry: Path | None = No
     def inside(ns):
         return ns is not None and lo <= ns < hi_eff
 
-    out = {"run": str(run), "stage": status.get("stack_profile"), "warmup_s": warmup_s, "window_s": window_s,
+    out = {"run": str(run), "episode": episode, "stage": status.get("stack_profile"), "warmup_s": warmup_s,
+           "window_s": window_s,
            "complete": complete, "measured_s": span, "run_phase_s": (run_end - run_start) / 1e9,
            "clock_domains": "monotonic wall ns unless named *_sim"}
 
@@ -240,11 +256,12 @@ def main():
     parser.add_argument("--geometry", type=Path)
     parser.add_argument("--warmup", type=float, default=10.0)
     parser.add_argument("--window", type=float, default=120.0)
+    parser.add_argument("--episode", type=int, default=1, help="run-phase segment (S2 batch episode), 1-based")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.output.exists():
         parser.error("Output must be fresh")
-    result = measure(args.run, args.warmup, args.window, args.geometry)
+    result = measure(args.run, args.warmup, args.window, args.geometry, args.episode)
     args.output.write_text(json.dumps(result, indent=1) + "\n")
     lim = result.get("limits", {})
     print(json.dumps({"complete": result["complete"], "measured_s": result.get("measured_s"),

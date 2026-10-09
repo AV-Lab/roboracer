@@ -371,7 +371,14 @@ def bridge(args):
             state.update(action=driver.action, guard=driver.summary(), supervisor_requests_received=inbox.received)
             checkpoint()
         state["emissions"] += 1
-        return raw_emit(event, data=data, **kwargs)
+        # S2 batch 2: a lock-step stall left the player idle after the bridge had counted its reply. Record
+        # when the reply was handed to Socket.IO and when that call returned, so the next stall shows
+        # whether the last reply left this process.
+        state["last_emit_started_ns"] = time.monotonic_ns()
+        result = raw_emit(event, data=data, **kwargs)
+        state["last_emit_returned_ns"] = time.monotonic_ns()
+        checkpoint()
+        return result
 
     @incoming.sio.on("connect")
     def connected(sid, environ):
@@ -2355,6 +2362,11 @@ def trial(args, context, out):
                         hang = {"detected_ns": now_ns,
                                 "frame_age_s": (now_ns - bridge_state["last_received_ns"]) / 1e9,
                                 "threshold_s": SIM_HANG_S, "player_threads": thread_snapshot(player.pid),
+                                # Did the last reply leave the bridge? (lock-step stall diagnosis, S2 batch 2)
+                                "bridge": {k: bridge_state.get(k) for k in (
+                                    "processed", "emissions", "last_received_ns", "last_emit_started_ns",
+                                    "last_emit_returned_ns", "connections")},
+                                "bridge_threads": thread_snapshot(bridge_process.pid),
                                 "classification": "containment (process termination), not a stop"}
                         entry["expected_kill"] = True
                         os.killpg(player.pid, signal.SIGKILL)

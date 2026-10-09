@@ -845,3 +845,15 @@
   - A frozen-player recovery test recovered with a fresh player. The first attempt exposed an accounting bug (episodes before a failure were missed), now fixed.
 - **Evidence.** `artifacts/s2/20261009T055934Z-batch-stationary/`. Report: [S2 §3](stages/S2.md).
 - **Next.** The user's one-time reference review (D21) and a run approval for the first motion batch. The F2 injection hooks are still to build.
+
+## 2026-10-09 — S2 M2 baseline part 1: first unattended 3-lap batch failed (1/3); fixed
+
+- **Approval.** "reference OK; approve the 3-lap batch". The reference is now user-reviewed.
+- **Result.**
+  - Lap 1 healthy (122.9 s, 0.104 m).
+  - Laps 2 and 3 never moved. The supervisor latched inhibited/feedback-lost on the first request after the GUI Reset: the speed loop saw the previous episode's feedback, more than 0.9 s old.
+  - A safe failure: nothing was forwarded and the car stayed at the spawn.
+  - Every unattended mechanism worked: 3/3 automated checks, 2/2 readiness checks, all processes exit 0, player unchanged.
+- **Fix** (`939b7fd`). The speed loop restarts at a new simulator episode (detected from requests and feedback). Within-episode loss is still detected. 4 new tests; 48 plugin and 155 script tests pass.
+- **Replay on driving data** ×3 fresh processes: 2,747/2,747 snapshots and 5,392/5,392 controller commands identical. The D24 exact-equality criterion holds on a lap.
+- **Next.** A rerun of the 3-lap batch needs a new run approval.

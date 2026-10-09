@@ -167,5 +167,46 @@ class BridgeClientTests(unittest.TestCase):
         self.assertEqual({"sent": 3, "refused": 0, "dropped": 0, "held_resend": 1, "no_observation": 1}, r["io"])
 
 
+class FeedbackEpisodeTests(unittest.TestCase):
+    """S2: supervisor-owned encoder speed must restart at a scene reload (new episode)."""
+
+    @staticmethod
+    def snapshot(episode, seq, sim, angle):
+        from types import SimpleNamespace as NS
+        return NS(episode=episode, telemetry_seq=seq, encoder_angles_rad=(angle, angle),
+                  sources={"left_encoder": {"sim_time": sim, "stamp": 100.0 + seq}})
+
+    def feedback(self):
+        import queue
+        from roboracer.runtime.supervisor_process import _Feedback
+        f = object.__new__(_Feedback)  # no ROS: only the per-snapshot speed logic is exercised
+        f.samples, f.previous = queue.Queue(), None
+        return f
+
+    def test_speed_within_an_episode(self):
+        f = self.feedback()
+        f._on_snapshot(self.snapshot(1, 10, 100.0, 50.0))
+        f._on_snapshot(self.snapshot(1, 11, 100.2, 51.0))
+        (speed, _, seq, dt), = f.drain()
+        self.assertAlmostEqual(1.0 * 0.059 / 0.2, speed)
+        self.assertEqual((11, 0.2), (seq, round(dt, 6)))
+
+    def test_no_sample_across_a_reload_even_when_sim_time_increases(self):
+        f = self.feedback()
+        f._on_snapshot(self.snapshot(1, 10, 3.0, 20.0))      # short episode (reset 3 s in)
+        f._on_snapshot(self.snapshot(2, 11, 4.0, 0.0))       # new episode: sim 4.0 > 3.0, encoders back at 0
+        self.assertEqual([], f.drain())                       # was a bogus -1.18 m/s sample before the fix
+        f._on_snapshot(self.snapshot(2, 12, 4.2, 0.0))
+        (speed, _, seq, _), = f.drain()                       # resumes on the next frame
+        self.assertEqual((0.0, 12), (speed, seq))
+
+    def test_lap_length_episode_resumes_on_the_next_frame(self):
+        f = self.feedback()
+        f._on_snapshot(self.snapshot(1, 10, 125.0, 400.0))
+        f._on_snapshot(self.snapshot(2, 11, 4.0, 0.0))
+        f._on_snapshot(self.snapshot(2, 12, 4.2, 0.0))
+        self.assertEqual([12], [s[2] for s in f.drain()])
+
+
 if __name__ == "__main__":
     unittest.main()

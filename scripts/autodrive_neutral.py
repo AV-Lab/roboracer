@@ -2184,7 +2184,31 @@ def trial(args, context, out):
                                    "pointer %s (wanted %s)" % (getattr(focus, "id", focus), window.id,
                                                                [local.win_x, local.win_y], [x, y]))
 
+        def input_grabbed():
+            """S2: another X client holding the pointer or keyboard grab (e.g. the GNOME Activities overview
+            or an open menu) receives every synthetic click, so the player never sees it. Test by trying to
+            grab briefly; a successful test grab is released at once."""
+            grabbed = []
+            if root.grab_pointer(False, X.ButtonPressMask, X.GrabModeAsync, X.GrabModeAsync, X.NONE, X.NONE,
+                                 X.CurrentTime) == X.AlreadyGrabbed:
+                grabbed.append("pointer")
+            else:
+                connection.ungrab_pointer(X.CurrentTime)
+            if root.grab_keyboard(False, X.GrabModeAsync, X.GrabModeAsync, X.CurrentTime) == X.AlreadyGrabbed:
+                grabbed.append("keyboard")
+            else:
+                connection.ungrab_keyboard(X.CurrentTime)
+            connection.sync()
+            return grabbed
+
+        def refuse_if_grabbed(what):
+            grabbed = input_grabbed()
+            if grabbed:
+                raise RuntimeError(f"{what} refused: another X client holds the {' and '.join(grabbed)} grab "
+                                   "(for example the Activities overview or an open menu); close it and rerun")
+
         def click(window, x, y):
+            refuse_if_grabbed("GUI click")
             target_window(window, x, y)
             xtest.fake_input(connection, X.ButtonPress, 1)
             connection.sync()
@@ -2573,6 +2597,7 @@ def trial(args, context, out):
                         if window.id not in under_pointer or current_focus != window or (local_pointer.win_x, local_pointer.win_y) != (x, y):
                             raise RuntimeError("Connect input is not targeting the reviewed owned window")
                         capture(window, "ui-connect-hover")
+                        refuse_if_grabbed("Connect click")
                         xtest.fake_input(connection, X.ButtonPress, 1)
                         connection.sync()
                         time.sleep(0.1)  # Keep press and release on separate rendered frames.

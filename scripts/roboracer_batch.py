@@ -151,10 +151,17 @@ def run_batch(args) -> dict:
             break
         index = len(batch["sessions"]) + 1
         remaining = args.episodes - len(batch["episodes"])
+        if args.episodes_per_player:
+            # D27 (proposed): a planned fresh player every N episodes keeps the frozen player's per-step guard
+            # trace (capped at 256 MiB, about 5 laps) complete. Planned, not a recovery; labelled as such.
+            remaining = min(remaining, args.episodes_per_player)
         results = out / f"session-{index:02d}"
         command = runner_command(args, results, remaining, first=index == 1)
         session = {"session": index, "results": str(results), "episodes_requested": remaining,
-                   "started_utc": utc_now(), "command": command}
+                   "started_utc": utc_now(), "command": command,
+                   "start": "planned restart" if index > 1 and not batch["recovery_actions"] or
+                   (batch["recovery_actions"] and batch["recovery_actions"][-1]["after_session"] != index - 1)
+                   else ("recovery" if index > 1 else "batch start")}
         batch["sessions"].append(session)
         save()
         with (out / f"session-{index:02d}-console.log").open("w") as log:
@@ -228,6 +235,8 @@ def main(argv=None):
                         help="per-episode cap, s (default: 235 for m6, 15 for stationary)")
     parser.add_argument("--wall-cap-s", type=float, default=1800.0, help="batch wall-time cap (proposal: 30 min)")
     parser.add_argument("--record-inputs", action="store_true")
+    parser.add_argument("--episodes-per-player", type=int, default=None,
+                        help="planned fresh player every N episodes (D27 proposal; keeps the 256 MiB guard trace complete)")
     parser.add_argument("--f2-case", default=None, help="S2 F2 fault case for the first episode (stage m6, D23)")
     parser.add_argument("--sim-hang-first-session", type=float, default=None,
                         help="stationary recovery test: SIGSTOP the first session's player this many s in")

@@ -104,6 +104,22 @@ class BatchTests(unittest.TestCase):
         _, b = self.run_plan(2, plan)
         self.assertEqual([(1, "failed"), (2, "healthy")], [(e["session"], e["outcome"]) for e in b["episodes"]])
 
+    def test_planned_restart_every_n_episodes(self):
+        plan = {"1": {"complete": [True, True, True, True], "exit": 0},
+                "2": {"complete": [True, True, True, True], "exit": 0},
+                "3": {"complete": [True, True], "exit": 0}}
+        d = Path(self.tmp.name)
+        (d / "stub.py").write_text(STUB)
+        (d / "plan.json").write_text(json.dumps(plan))
+        os.environ["STUB_PLAN"] = str(d / "plan.json")
+        code = rb.main(["--stage", "stationary", "--episodes", "10", "--episodes-per-player", "4", "--output",
+                        str(d / "b"), "--context", "c", "--player", "p", "--ui-reference", "r", "--runner", str(d / "stub.py")])
+        b = json.loads((d / "b" / "batch.json").read_text())
+        self.assertEqual((0, 10, 10), (code, b["attempted"], b["longest_healthy_streak"]))
+        self.assertEqual([4, 4, 2], [s["episodes_requested"] for s in b["sessions"]])
+        self.assertEqual(["batch start", "planned restart", "planned restart"], [s["start"] for s in b["sessions"]])
+        self.assertEqual([], b["recovery_actions"])
+
     def test_restart_that_fails_again_ends_the_batch(self):
         plan = {"1": {"complete": [], "exit": 1, "error": "RuntimeError: Initialization failed after GUI Reset"},
                 "2": {"complete": [], "exit": 1, "error": "RuntimeError: Automated pre-Connect check failed"}}

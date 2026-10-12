@@ -69,6 +69,24 @@ def runner_command(args, results: Path, episodes: int, first: bool) -> list[str]
     return command
 
 
+def episodes_begun(run: Path) -> int:
+    """Episodes whose initialization began in this session (plan: an attempted episode starts when its runner
+    begins recorded initialization): the first one at the session start, one more per GUI Reset the guard
+    driver started (closed reset phases, or a reset action still pending), and at least every armed one."""
+    bridge = read(run / "bridge-status.json")
+    phases = (bridge.get("guard") or {}).get("phases", [])
+    resets = sum(1 for p in phases if p.get("phase", "").startswith("reset "))
+    pending = 1 if (bridge.get("action") or {}).get("kind") == "gui-reset" else 0
+    armed = 0
+    frames = run / "bridge-frames.jsonl"
+    if frames.exists():
+        for line in frames.read_text().splitlines():
+            if '"state armed epoch' in line:
+                armed += sum(1 for _, e in (json.loads(line).get("guard") or {}).get("events", [])
+                             if e.startswith("state armed epoch"))
+    return max(1 + resets + pending, armed)
+
+
 def all_reviews_automated(status: dict) -> bool:
     """True when the initial Connect and every post-reset reconnect used the automated D21 check."""
     resets = [a for a in status.get("guard_actions", []) if a.get("kind") == "gui-reset"]
@@ -154,16 +172,22 @@ def run_batch(args) -> dict:
             if args.f2_case and index == 1 and item["number"] == 1:
                 item["f2_case"] = args.f2_case  # judged by roboracer_f2.py, not as a lap
             batch["episodes"].append(dict(item, index=len(batch["episodes"]) + 1, session=index))
-        ended_short = len(completed) < remaining
+        # An episode that began (initialization or driving) but was not reported counts as attempted; one that
+        # never began does not (F2-6/9/10, run 3: a lap the stage had already reported was counted twice and
+        # the recovery lap was never run).
+        unreported = min(1, max(0, episodes_begun(run) - len(completed))) if session["exit_code"] != 0 or \
+            len(completed) < remaining else 0
+        session.update(episodes_reported=len(completed), unreported_begun=unreported)
+        ended_short = len(completed) + unreported < remaining
         if (session["exit_code"] != 0 or ended_short) and len(batch["episodes"]) < args.episodes:
-            # The episode in progress (or being initialized) when the session failed counts as attempted.
-            # (Also with exit 0: F2-6 Devkit loss ends a session cleanly before its episodes are done.)
-            entry = {"index": len(batch["episodes"]) + 1, "session": index, "number": len(completed) + 1,
-                     "outcome": "failed", "failure": status.get("error") or
-                     (f"runner exit {session['exit_code']}" if session["exit_code"] else "session ended early")}
-            if args.f2_case and index == 1 and entry["number"] == 1:
-                entry["f2_case"] = args.f2_case
-            batch["episodes"].append(entry)
+            failure = status.get("error") or (f"runner exit {session['exit_code']}" if session["exit_code"]
+                                              else "session ended early")
+            if unreported and len(batch["episodes"]) < args.episodes:
+                entry = {"index": len(batch["episodes"]) + 1, "session": index, "number": len(completed) + 1,
+                         "outcome": "failed", "failure": failure}
+                if args.f2_case and index == 1 and entry["number"] == 1:
+                    entry["f2_case"] = args.f2_case
+                batch["episodes"].append(entry)
             failed_streak = failed_streak + 1 if not completed else 1
             if failed_streak >= 2:
                 batch["end_reason"] = "restart failed: two sessions in a row ended without completing an episode"
@@ -171,7 +195,7 @@ def run_batch(args) -> dict:
                 break
             if len(batch["episodes"]) < args.episodes:
                 batch["recovery_actions"].append({"after_session": index, "action": "fresh player (recovery step 2)",
-                                                  "reason": entry["failure"]})
+                                                  "reason": failure})
         else:
             failed_streak = 0
         save()

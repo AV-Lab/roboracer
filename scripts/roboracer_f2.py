@@ -110,7 +110,10 @@ def analyze(batch_dir: Path, geometry: Path | None = None) -> dict:
         expects = False
         out["stop"] = "not required: the lap continued through the reordered window"
     if expects and onset:
-        stop = stop_after(truth(frames), onset)
+        # Only the injected episode: after a GUI Reset the next lap drives again in the same session, and a
+        # stop search over the whole session would wait for the end of that lap (F2-4, run 3).
+        episode = inject.get("episode")
+        stop = stop_after(truth([f for f in frames if f.get("provenance", {}).get("episode") == episode]), onset)
         out["stop"] = stop
         checks[f"stopped within {STOP_WITHIN_S} s of onset"] = stop["stop_s"] is not None and stop["stop_s"] <= STOP_WITHIN_S
         checks[f"travel <= {TRAVEL_MAX_M} m"] = stop["travel_m"] <= TRAVEL_MAX_M

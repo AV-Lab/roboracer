@@ -254,9 +254,15 @@ class ScenarioDriver:
         return reply
 
     def summary(self):
+        """Written to bridge-status.json on every frame, so it stays bounded: each phase's forwarded
+        requests appear as a count plus the last few (S2 batch: the full lists grew the file to 642 KB
+        over 5 laps, raised the bridge's per-frame time 59 -> 97 ms and widened the guard clock bound
+        33 -> 134 ms until a lease expired before the next frame)."""
+        phases = [dict(p, forwarded={"count": len(p["forwarded"]), "last": p["forwarded"][-3:]})
+                  for p in self.phases]
         return {"mode": self.mode, "complete": self.complete, "frames": self.frames,
                 "state": self.record["state"] if self.record else None,
-                "phases": self.phases, "events_seen": len(self.events),
+                "phases": phases, "events_seen": len(self.events),
                 "passed": self.complete and all(p["passed"] for p in self.phases)}
 
     # Helpers --------------------------------------------------------------------

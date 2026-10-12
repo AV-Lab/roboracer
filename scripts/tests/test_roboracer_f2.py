@@ -71,6 +71,23 @@ class F2AnalysisTests(unittest.TestCase):
         self.assertEqual("containment", r["classification"])
         self.assertNotIn("stop", r)
 
+    def test_stop_is_judged_on_the_injected_episode_only(self):
+        # F2-4 shape (run 3): after the fault stop a GUI Reset starts episode 2 in the same session, which
+        # drives again; the stop must not wait for the end of that lap.
+        d = make_batch(self.d / "h", "f2-4", stop_after_s=0.5, expiry=False)
+        run = d / "session-01" / "run-01"
+        frames = [json.loads(l) for l in (run / "bridge-frames.jsonl").read_text().splitlines()]
+        t, x = frames[-1]["received_monotonic_ns"], frames[-1]["motion"]["Position"][0]
+        for i in range(1, 40):                     # episode 2: driving at 0.25 m/s
+            f = frame(t + i * 200_000_000, x + 0.05 * i)
+            f["provenance"]["episode"] = 2
+            frames.append(f)
+        frames[-50]["guard"]["events"] = [[1, "clock clock-discontinuity"], [2, "state fault clock-discontinuity"]]
+        (run / "bridge-frames.jsonl").write_text("\n".join(json.dumps(f) for f in frames) + "\n")
+        r = f2.analyze(d)
+        self.assertLessEqual(r["stop"]["stop_s"], 1.5)
+        self.assertLessEqual(r["stop"]["travel_m"], 0.40)
+
     def test_unhealthy_recovery_episode_fails_the_case(self):
         r = f2.analyze(make_batch(self.d / "f", "f2-7", episode2="failed"))
         self.assertFalse(r["checks"]["recovered: episode 2 healthy"])

@@ -22,8 +22,13 @@ session = int(results.name.split("-")[1])
 plan = json.loads(Path(os.environ["STUB_PLAN"]).read_text())[str(session)]
 run = results / "run-01"
 run.mkdir(parents=True)
-phases = [{"phase": f"episode {i}", "passed": ok, "last_frame": 10 * i, "checks": [{"ok": ok}]}
-          for i, ok in enumerate(plan["complete"], 1)]
+# Like the guard driver: a "reset i" phase after every reported episode that was not the last, and after the
+# last reported one when the session then failed while the next episode was being set up or driven.
+phases = []
+for i, ok in enumerate(plan["complete"], 1):
+    phases.append({"phase": f"episode {i}", "passed": ok, "last_frame": 10 * i, "checks": [{"ok": ok}]})
+    if i < len(plan["complete"]) or (plan["exit"] != 0 and plan.get("began_next", True)):
+        phases.append({"phase": f"reset {i}", "passed": True, "last_frame": 10 * i + 5, "checks": [{"ok": True}]})
 status = {"error": plan.get("error"), "manual_mode_review": {"automated": {"passed": True}},
           "guard_actions": [{"kind": "gui-reset", "review": {"automated": {"passed": True}}}], "argv": argv}
 if plan["exit"] == 0:
@@ -85,6 +90,19 @@ class BatchTests(unittest.TestCase):
         self.assertEqual([(1, "failed"), (2, "healthy")], [(e["session"], e["outcome"]) for e in b["episodes"]])
         self.assertEqual("session ended early", b["episodes"][0]["failure"])
         self.assertEqual(1, len(b["recovery_actions"]))
+
+    def test_reported_episode_is_not_counted_again_and_recovery_runs(self):
+        # F2-6/9/10 shape: the stage reported lap 1 (failed), then the session ended; lap 2 never began.
+        plan = {"1": {"complete": [False], "exit": 0}, "2": {"complete": [True], "exit": 0}}
+        _, b = self.run_plan(2, plan)
+        self.assertEqual([(1, "failed"), (2, "healthy")], [(e["session"], e["outcome"]) for e in b["episodes"]])
+        self.assertEqual(2, len(b["sessions"]))
+        self.assertEqual([2, 1], [s["episodes_requested"] for s in b["sessions"]])
+        self.assertEqual(0, b["sessions"][0]["unreported_begun"])
+        plan = {"1": {"complete": [False], "exit": 1, "error": "RuntimeError: F2-9 case end", "began_next": False},
+                "2": {"complete": [True], "exit": 0}}
+        _, b = self.run_plan(2, plan)
+        self.assertEqual([(1, "failed"), (2, "healthy")], [(e["session"], e["outcome"]) for e in b["episodes"]])
 
     def test_restart_that_fails_again_ends_the_batch(self):
         plan = {"1": {"complete": [], "exit": 1, "error": "RuntimeError: Initialization failed after GUI Reset"},

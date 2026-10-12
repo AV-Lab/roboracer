@@ -464,6 +464,15 @@ class ScenarioDriverTests(unittest.TestCase):
         self.assertTrue(all(e.endswith(" stale-epoch") for e in stale), stale)
         self.assertEqual("disarmed", driver.summary()["state"])
 
+    def test_summary_stays_bounded_over_a_long_batch(self):
+        driver, _, _ = simulate(mode="batch", duration_s=60, episodes=3, stage_s=6, max_frames=6000)
+        summary = driver.summary()
+        self.assertTrue(all(set(p["forwarded"]) == {"count", "last"} and len(p["forwarded"]["last"]) <= 3
+                            for p in summary["phases"]))
+        self.assertGreater(sum(p["forwarded"]["count"] for p in summary["phases"]), 30)
+        self.assertLess(len(json.dumps(summary)), 20_000)
+        self.assertTrue(all(isinstance(p["forwarded"], list) for p in driver.phases))  # full lists kept in memory
+
     def test_batch_stationary_episodes_have_no_expiry(self):
         driver, model, killed = simulate(mode="batch", duration_s=5, episodes=3, max_frames=6000)
         self.assertTrue(driver.complete and driver.summary()["passed"],

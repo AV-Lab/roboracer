@@ -205,6 +205,14 @@
    "proposal": "docs/planning/s2-budgets-proposal.md",
    "proposal_version": "0.1",
    "note": "wall cap 45 min (D25); judged against the frozen S1 limits and the D25 budgets; F2 x3 not yet approved"
+  },
+  {
+   "stage": "S2 M2 acceptance: full rerun of the 10-episode batch (D26 A)",
+   "date": "2026-10-12",
+   "user_reply": "rerun the 10-lap batch, go",
+   "proposal": "docs/planning/s2-budgets-proposal.md; docs/stages/S2.md section 11",
+   "proposal_version": "0.1 (D25, D26 A)",
+   "note": "the failed attempt (20261012T073442Z, 9/10) is retained; same scripts and limits plus 74ce358 (hang containment in GUI Reset)"
   }
  ],
  "not_authorized": [

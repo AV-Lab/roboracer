@@ -2249,10 +2249,19 @@ def trial(args, context, out):
             pointer, focus = root.query_pointer(), connection.get_input_focus().focus
             capture(window, "ui-before-reset" + suffix)
             for _ in range(3):
+                # S2 batch 10 (2026-10-12): a player that froze just before the Reset ignored three clicks for
+                # 15 s while the observation loop's watchdog waited. Telemetry flows until the scene reload
+                # starts, so stale telemetry before a click, or after a click with no scene load, is a hang.
+                hung = hung_now()
+                if hung:
+                    contain_hang(*hung, "GUI Reset, before the click")
                 result["clicks"].append(click(window, *RESET_XY))
                 if wait_beating(5, scene_load_seen):
                     result["reset"] = True
                     break
+                hung = hung_now()
+                if hung:
+                    contain_hang(*hung, "GUI Reset, no scene load after the click")
             root.warp_pointer(pointer.root_x, pointer.root_y)
             if hasattr(focus, "set_input_focus"):
                 focus.set_input_focus(X.RevertToParent, X.CurrentTime)
@@ -2313,6 +2322,34 @@ def trial(args, context, out):
                         {"reconnected": result["reconnected"], "frames_resumed": result["frames_resumed"],
                          **result["readiness"]["checks"]}))
             return result
+
+        def contain_hang(bridge_state, now_ns, where):
+            """SIM1-05: containment, not a stop. A hung player also freezes its physics; the only remedy is to
+            end the process. Recorded separately from every stop qualification. Raises."""
+            entry = next(e for p, _, e in children if p is player)
+            hang = {"detected_ns": now_ns, "detected_in": where,
+                    "frame_age_s": (now_ns - bridge_state["last_received_ns"]) / 1e9,
+                    "threshold_s": SIM_HANG_S, "player_threads": thread_snapshot(player.pid),
+                    # Did the last reply leave the bridge? (lock-step stall diagnosis, S2 batch 2)
+                    "bridge": {k: bridge_state.get(k) for k in (
+                        "processed", "emissions", "last_received_ns", "last_emit_started_ns",
+                        "last_emit_returned_ns", "connections")},
+                    "bridge_threads": thread_snapshot(bridge_process.pid),
+                    "classification": "containment (process termination), not a stop"}
+            entry["expected_kill"] = True
+            os.killpg(player.pid, signal.SIGKILL)
+            player.wait()
+            entry["termination"] = "SIGKILL (simulator-hang containment)"
+            hang["contained_ns"] = time.monotonic_ns()
+            record["simulator_hang"] = hang
+            checkpoint()
+            raise RuntimeError("Simulator hang: no telemetry for %.2f s; player killed (containment)"
+                               % hang["frame_age_s"])
+
+        def hung_now():
+            """(bridge state, now) when telemetry is older than the hang threshold, else None."""
+            state, now_ns = read(out / "bridge-status.json"), time.monotonic_ns()
+            return (state, now_ns) if simulator_hung(state.get("last_received_ns"), now_ns) else None
 
         def automated_review(window, label, review_name):
             """D21 A: the reviewed-reference text-region check replaces the human review; written in the
@@ -2492,27 +2529,7 @@ def trial(args, context, out):
                         record["sim_hang_injected_ns"] = now_ns
                         checkpoint()
                     if simulator_hung(bridge_state.get("last_received_ns"), now_ns):
-                        # SIM1-05: containment, not a stop. A hung player also freezes its physics; the only
-                        # remedy is to end the process. Recorded separately from every stop qualification.
-                        entry = next(e for p, _, e in children if p is player)
-                        hang = {"detected_ns": now_ns,
-                                "frame_age_s": (now_ns - bridge_state["last_received_ns"]) / 1e9,
-                                "threshold_s": SIM_HANG_S, "player_threads": thread_snapshot(player.pid),
-                                # Did the last reply leave the bridge? (lock-step stall diagnosis, S2 batch 2)
-                                "bridge": {k: bridge_state.get(k) for k in (
-                                    "processed", "emissions", "last_received_ns", "last_emit_started_ns",
-                                    "last_emit_returned_ns", "connections")},
-                                "bridge_threads": thread_snapshot(bridge_process.pid),
-                                "classification": "containment (process termination), not a stop"}
-                        entry["expected_kill"] = True
-                        os.killpg(player.pid, signal.SIGKILL)
-                        player.wait()
-                        entry["termination"] = "SIGKILL (simulator-hang containment)"
-                        hang["contained_ns"] = time.monotonic_ns()
-                        record["simulator_hang"] = hang
-                        checkpoint()
-                        raise RuntimeError("Simulator hang: no telemetry for %.2f s; player killed (containment)"
-                                           % hang["frame_age_s"])
+                        contain_hang(bridge_state, now_ns, "observation loop")
                 probe_ready = not args.kinematics_probe
                 if args.kinematics_probe:
                     probe = read(out / "kinematics/status.json")

@@ -179,6 +179,14 @@
    "proposal": "docs/stages/S2.md section 7 (option A: desktop left untouched during the runs)",
    "proposal_version": "approval of 2026-10-09 'approve the 5-lap batch and F2-1 to F2-10', kept valid",
    "note": "the halted attempt (20261009T085844Z) is retained; this repeat uses the same scripts and limits"
+  },
+  {
+   "stage": "S2 M2 baseline part 2, third attempt (same run set: 5-lap batch, F2-1..F2-10)",
+   "date": "2026-10-12",
+   "user_reply": "go",
+   "proposal": "docs/stages/S2.md section 8 (Activities overview closed by the user; desktop untouched)",
+   "proposal_version": "approval of 2026-10-09 'approve the 5-lap batch and F2-1 to F2-10', kept valid",
+   "note": "input grab verified free before the start (pointer and keyboard GrabSuccess)"
   }
  ],
  "not_authorized": [

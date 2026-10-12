@@ -945,3 +945,12 @@
 - **Fix** (`74ce358`). Hang containment inside GUI Reset; before this, detection took 16.8 s. Checker `roboracer_m2_check.py` (`9e607e7`).
 - **Stall rate.** About 1 in 22 laps.
 - **Next.** A rerun needs approval; F2 ×3 not yet run.
+
+## 2026-10-12 — 10-episode rerun 9/10; real cause found: guard trace cap, not a simulator stall
+
+- **Rerun.** "rerun the 10-lap batch, go". Failed at exactly the same point (6th Reset; 4,973 vs 4,977 frames).
+- **Root cause.** My patch-04 guard trace inside the frozen player is capped at 256 MiB and stopped during lap 6. The runner confirmed Resets only by the trace's scene-load event, so it took a successful Reset for a hang and killed a healthy player.
+- **This corrects the earlier diagnosis.** It was not a simulator stall. Stall rate revised to about 1 in 50 laps; only batch 2's stall was genuine.
+- **Ruled out.** GPU memory flat. A stationary 8-Reset batch had no failure.
+- **Fixes.** `045eb86`: Reset confirmed by the bridge-observed disconnect or the trace; the checker flags a truncated trace. `ee1936e`: optional planned restart every N episodes.
+- **Open.** The per-step trace holds about 5 laps. D27 proposes a planned fresh player every 4 episodes. Report: [S2 §12](stages/S2.md).

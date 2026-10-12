@@ -904,3 +904,19 @@
   - The sequence's leftover-player check now matches the full command line (`pgrep -x` cannot match the 15-character-truncated process name).
   - Stopping an orchestrator does not stop its runner child; stop the runner too.
 - **Records.** [S2 §8](stages/S2.md).
+
+## 2026-10-12 — M2 baseline run 3: complete; three tooling bugs fixed
+
+- **Run.** "go". The input grab was verified free. The sequence ran unattended to the end.
+- **5-lap batch.**
+  - Laps 1–4 healthy (122.9 to 124.2 s, 0.105 to 0.109 m). Replay ×3 exact (3,766 snapshots, 7,569 commands).
+  - Lap 5 never drove: a guard lease expired 3 ms before the next request.
+  - Root cause: the Devkit bridge slowed over the session (status file 642 KB; per-frame handling 59 → 97 ms; clock bound 33 → 134 ms), from the unbounded guard summary I write every frame.
+  - Fixed (`38452f9`). Timing windows for laps 1–4 held every limit but show the trend.
+- **F2.**
+  - 1, 2, 3, 5, 7, 8 pass.
+  - 4 passes after an analysis fix: the stop was searched over the whole session; it is now 0.51 s / 0.087 m.
+  - 6, 9, 10: detection or containment pass, but the recovery lap was never run, because of an orchestrator accounting bug (a reported lap was booked twice). Fixed and checked against the real sessions.
+- **Timing tool.** Batch-episode scoring and labels (`6c96a8e`).
+- **Tests.** 172 script tests and 48 plugin tests pass.
+- **Next.** Rerun F2-6, F2-9, F2-10 and one 5-lap batch on the fixed bridge (needs approval). Report: [S2 §9](stages/S2.md).

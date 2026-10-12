@@ -932,3 +932,16 @@
   - D25 budgets, including an S2 health budget of observation age ≤ 400 ms that would have caught the slowdown;
   - D26 acceptance matrix: one 10-episode batch plus F2 ×3 (about 2.2 h hands off). A failed 10-episode batch is retained and rerun only with approval.
 - **Status.** Awaiting confirmation. Report: [S2 §10](stages/S2.md).
+
+## 2026-10-12 — M2 acceptance: 10-episode batch failed (9/10, simulator stall)
+
+- **Decisions.** "approve D25, D26 A; run the 10-lap batch, go".
+- **Result.**
+  - Episodes 1–6 and 8–10 healthy.
+  - Episode 7 lost to a simulator stall in the GUI Reset after lap 6. It was contained, and a fresh player ran laps 8–10.
+  - **Item fails under D26 A** and is retained.
+- **Everything else within D25.** Every driven lap inside the S1 limits and the S2 health budgets. Replay ×3 exact. Player unchanged.
+- **Stall diagnosis.** The bridge handed its reply to Socket.IO 60.7 ms after the last frame. The player then stopped (all threads waiting) and ignored three Reset clicks. That points at the player's side; the bytes on the wire are unproven.
+- **Fix** (`74ce358`). Hang containment inside GUI Reset; before this, detection took 16.8 s. Checker `roboracer_m2_check.py` (`9e607e7`).
+- **Stall rate.** About 1 in 22 laps.
+- **Next.** A rerun needs approval; F2 ×3 not yet run.

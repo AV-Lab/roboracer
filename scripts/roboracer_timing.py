@@ -109,7 +109,10 @@ def measure(run: Path, warmup_s=10.0, window_s=120.0, geometry: Path | None = No
     def inside(ns):
         return ns is not None and lo <= ns < hi_eff
 
-    out = {"run": str(run), "episode": episode, "stage": status.get("stack_profile"), "warmup_s": warmup_s,
+    # The simulator episode driven in this run phase (S2 batches: one per GUI Reset).
+    sim_episode = next((sn.get("episode") for sn in snapshots if sn["committed_monotonic_ns"] >= run_start), None)
+    out = {"run": str(run), "batch_episode": episode, "sim_episode": sim_episode,
+           "stage": status.get("stack_profile"), "warmup_s": warmup_s,
            "window_s": window_s,
            "complete": complete, "measured_s": span, "run_phase_s": (run_end - run_start) / 1e9,
            "clock_domains": "monotonic wall ns unless named *_sim"}
@@ -213,9 +216,13 @@ def measure(run: Path, warmup_s=10.0, window_s=120.0, geometry: Path | None = No
     out["stop_and_bounds"] = {k: analysis.get(k) for k in ("finish_reason", "abort", "final_stop_s", "max_speed_mps",
                                                            "requested_steer_rad_min_max", "min_side_m", "min_front10_m",
                                                            "path_m", "failures")}
+    if len(segments) > 1:
+        out["stop_and_bounds"]["scope"] = "whole run (all batch episodes), not this episode"
     if geometry:
         import roboracer_scoring as rs
-        score = rs.score(json.loads(geometry.read_text()), rs.truth_frames(run))
+        episodes = rs.run_episodes(run)
+        score = rs.score(json.loads(geometry.read_text()),
+                         rs.truth_frames(run, sim_episode if len(episodes) > 1 else None))
         out["episode"] = {k: score[k] for k in ("laps", "contact_events", "offtrack_events", "min_clearance_m",
                                                 "progress_m", "max_frame_progress_m")}
 

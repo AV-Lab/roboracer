@@ -920,3 +920,15 @@
 - **Timing tool.** Batch-episode scoring and labels (`6c96a8e`).
 - **Tests.** 172 script tests and 48 plugin tests pass.
 - **Next.** Rerun F2-6, F2-9, F2-10 and one 5-lap batch on the fixed bridge (needs approval). Report: [S2 §9](stages/S2.md).
+
+## 2026-10-12 — M2 baseline complete; S2-05 budgets proposed
+
+- **Reruns.** "approve the reruns, go".
+  - F2-6, F2-9 and F2-10 pass with recovery, so **F2 is 10/10 across the baseline**.
+  - 5-lap batch on the fixed bridge: **5/5 healthy** (122.9–123.8 s).
+  - The bridge slowdown is gone (handling 59 → 60 ms, clock width 34 → 36 ms, status file 15 KB).
+  - Replay ×3 exact (4,168 snapshots, 6,955 commands). Player unchanged.
+- **Proposal.** [s2-budgets-proposal.md](planning/s2-budgets-proposal.md):
+  - D25 budgets, including an S2 health budget of observation age ≤ 400 ms that would have caught the slowdown;
+  - D26 acceptance matrix: one 10-episode batch plus F2 ×3 (about 2.2 h hands off). A failed 10-episode batch is retained and rerun only with approval.
+- **Status.** Awaiting confirmation. Report: [S2 §10](stages/S2.md).

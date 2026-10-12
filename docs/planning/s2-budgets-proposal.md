@@ -1,6 +1,6 @@
 # S2-05 — Proposed M2 budgets and acceptance matrix (for confirmation)
 
-Version **0.1 — for confirmation**. Date: **2026-10-12**. From the completed M2 baseline ([S2 report §9–§10](../stages/S2.md)). Plan rule: budgets are proposed with evidence and confirmed **before** the acceptance matrix is frozen and run. Nothing here changes a frozen S1 limit or an approved criterion.
+Version **0.1 — confirmed 2026-10-12**: "approve D25, D26 A; run the 10-lap batch, go" ([record](s1-motion-approval.json)). Date: **2026-10-12**. From the completed M2 baseline ([S2 report §9–§10](../stages/S2.md)). Plan rule: budgets are proposed with evidence and confirmed **before** the acceptance matrix is frozen and run. Nothing here changes a frozen S1 limit or an approved criterion.
 
 ## 1. Baseline facts
 

@@ -21,7 +21,9 @@
   "D21": "A (automated text-region pre-Connect check + telemetry readiness checks; reference reviewed once)",
   "D22": "approved (unattended S2 batches with GUI Reset between laps inside the unchanged M6 envelope; each live run set needs its own run approval)",
   "D23": "approved (F2-1..F2-10 as in s2-proposal.md section 5)",
-  "D24": "approved (replay: exact equality on this host/environment; three fresh-process replays per fixture)"
+  "D24": "approved (replay: exact equality on this host/environment; three fresh-process replays per fixture)",
+  "D25": "approved (S2 budgets as in s2-budgets-proposal.md section 2)",
+  "D26": "A (one 10-episode batch; any failure fails the item, retained, full rerun only with approval; F2 x3; five timing windows from episodes 1-5; replay x3 per fixture)"
  },
  "stages": [
   "M0",
@@ -195,6 +197,14 @@
    "proposal": "docs/stages/S2.md section 9",
    "proposal_version": "run 3 follow-up",
    "note": "same M6 envelope, scripts and limits; input grab verified free before the start"
+  },
+  {
+   "stage": "S2 M2 acceptance matrix part 1: one unattended 10-episode batch (M6 envelope)",
+   "date": "2026-10-12",
+   "user_reply": "approve D25, D26 A; run the 10-lap batch, go",
+   "proposal": "docs/planning/s2-budgets-proposal.md",
+   "proposal_version": "0.1",
+   "note": "wall cap 45 min (D25); judged against the frozen S1 limits and the D25 budgets; F2 x3 not yet approved"
   }
  ],
  "not_authorized": [

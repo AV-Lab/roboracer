@@ -388,6 +388,14 @@ def bridge(args):
             state["errors"].append("Unexpected reconnection in a fresh-process trial")
         checkpoint()
 
+    @incoming.sio.on("disconnect")
+    def disconnected(sid):
+        # S2: a GUI Reset reloads the scene, which drops the player's Socket.IO connection. The runner uses this
+        # as scene-reload evidence that does not depend on the player's size-capped guard trace (256 MiB).
+        state["disconnections"] = state.get("disconnections", 0) + 1
+        state["last_disconnect_ns"] = time.monotonic_ns()
+        checkpoint()
+
     @incoming.sio.on("Bridge")
     def observed(sid, data):
         nonlocal reference
@@ -2234,11 +2242,24 @@ def trial(args, context, out):
                 raise RuntimeError("Owned player window unavailable for the reset action")
             trace_path = out / "guard/guard-trace.jsonl"
             offset = trace_path.stat().st_size
+            disconnects = read(out / "bridge-status.json").get("disconnections", 0)
+            evidence = {}
 
             def scene_load_seen():
+                """The reload is confirmed by the guard trace's scene-load event or by the bridge seeing the player
+                drop its connection. The trace alone is not enough: it is capped at 256 MiB inside the frozen
+                player, and once full (about 6 laps) it records nothing, so a reset that worked looked like a
+                hang (10-episode batches, 2026-10-12). Readiness then checks the new episode independently."""
                 with open(trace_path, "rb") as f:
                     f.seek(offset)
-                    return b"state disarmed scene-load" in f.read()
+                    tail = f.read()
+                if b"state disarmed scene-load" in tail:
+                    evidence["trace"] = True
+                if read(out / "bridge-status.json").get("disconnections", 0) > disconnects:
+                    evidence["disconnect"] = True
+                if b'{"k":"truncated"}' in tail:
+                    evidence["trace_truncated"] = True
+                return bool(evidence.get("trace") or evidence.get("disconnect"))
 
             def bridge_errors():
                 return read(out / "bridge-status.json").get("errors")
@@ -2266,9 +2287,12 @@ def trial(args, context, out):
             if hasattr(focus, "set_input_focus"):
                 focus.set_input_focus(X.RevertToParent, X.CurrentTime)
             connection.sync()
+            result["scene_load_evidence"] = dict(evidence)
             if not result["reset"]:
                 return result
             wait_beating(4)
+            scene_load_seen()  # the slower of the two signals usually arrives by now: record both
+            result["scene_load_evidence"] = dict(evidence)
             capture(window, "ui-after-reset" + suffix)
             review_name = f"ui-review-reset{suffix}.json"
             record["ui_reset_review_required"] = {"pid": player.pid, "window_id": window.id,

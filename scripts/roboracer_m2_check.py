@@ -61,6 +61,10 @@ def check(batch_dir: Path, geometry: Path | None, expected_episodes: int) -> dic
         offsets = [(a.get("c0_start") or {}).get("offset_m") for a in resets]
         checks[f"{key}: readiness after every reset"] = all(r.get("passed") for r in ready) and \
             all(o is not None and o <= READY_OFFSET_M for o in offsets)
+        trace = run / "guard" / "guard-trace.jsonl"
+        truncated = trace.exists() and trace.stat().st_size > 1024 and \
+            b'{"k":"truncated"}' in trace.read_bytes()[-256:]
+        checks[f"{key}: guard per-step trace complete (not truncated at 256 MiB)"] = trace.exists() and not truncated
         phases = guard.get("phases", [])
         checks[f"{key}: guard batch phases pass"] = bool(phases) and all(p["passed"] for p in phases)
         stale = [c for p in phases for c in p["checks"] if c["name"] == "previous-epoch request rejected stale-epoch"]

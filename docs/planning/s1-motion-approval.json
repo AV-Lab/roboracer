@@ -23,7 +23,8 @@
   "D23": "approved (F2-1..F2-10 as in s2-proposal.md section 5)",
   "D24": "approved (replay: exact equality on this host/environment; three fresh-process replays per fixture)",
   "D25": "approved (S2 budgets as in s2-budgets-proposal.md section 2)",
-  "D26": "A (one 10-episode batch; any failure fails the item, retained, full rerun only with approval; F2 x3; five timing windows from episodes 1-5; replay x3 per fixture)"
+  "D26": "A (one 10-episode batch; any failure fails the item, retained, full rerun only with approval; F2 x3; five timing windows from episodes 1-5; replay x3 per fixture)",
+  "D27": "A (planned fresh player every 4 episodes, labelled 'planned restart', so each player's 256 MiB guard trace stays complete)"
  },
  "stages": [
   "M0",
@@ -213,6 +214,14 @@
    "proposal": "docs/planning/s2-budgets-proposal.md; docs/stages/S2.md section 11",
    "proposal_version": "0.1 (D25, D26 A)",
    "note": "the failed attempt (20261012T073442Z, 9/10) is retained; same scripts and limits plus 74ce358 (hang containment in GUI Reset)"
+  },
+  {
+   "stage": "S2 M2 acceptance: 10-episode batch with a planned fresh player every 4 episodes (D27 A)",
+   "date": "2026-10-14",
+   "user_reply": "D27 A, run the 10-lap batch, go",
+   "proposal": "docs/stages/S2.md section 12",
+   "proposal_version": "D27 A",
+   "note": "earlier attempts (20261012T073442Z, 20261012T120511Z; 9/10 each) retained; fixes 045eb86 and ee1936e in effect"
   }
  ],
  "not_authorized": [

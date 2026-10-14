@@ -954,3 +954,15 @@
 - **Ruled out.** GPU memory flat. A stationary 8-Reset batch had no failure.
 - **Fixes.** `045eb86`: Reset confirmed by the bridge-observed disconnect or the trace; the checker flags a truncated trace. `ee1936e`: optional planned restart every N episodes.
 - **Open.** The per-step trace holds about 5 laps. D27 proposes a planned fresh player every 4 episodes. Report: [S2 §12](stages/S2.md).
+
+## 2026-10-14 — 10-episode batch with D27 A: 9/10 (readiness bug), fixed
+
+- **Decision.** "D27 A, run the 10-lap batch, go".
+- **Result.**
+  - Episodes 1–3 healthy.
+  - Episode 4 failed readiness after the 3rd Reset: the car was exactly at the spawn (0.000 m) and `offset or 1e9` treated 0 as missing.
+  - Episodes 5–8 ran on a recovery player and 9–10 on a planned restart (D27); all healthy.
+  - The item fails under D26 A; retained.
+- **D27 works.** Every guard trace complete (≤ 191 MB). Resets confirmed by both trace and disconnect. Replay exact ×3; player unchanged.
+- **Fix** (`3fdbbc9`). `readiness_checks()`, unit-tested, plus the same falsy-zero fix in the checker.
+- **Next.** The rerun needs approval. Report: [S2 §13](stages/S2.md).

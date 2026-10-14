@@ -206,5 +206,17 @@ class F2StageTests(unittest.TestCase):
         self.assertEqual(["p2", "p1", "p4", "p3", "i1", "p5"], [m for _, m in h.offered])
 
 
+
+class ReadinessTests(unittest.TestCase):
+    def test_exact_spawn_passes_and_missing_values_fail(self):
+        self.assertTrue(all(an.readiness_checks(0.0, 0.0, True, "disarmed").values()))      # exactly at the spawn
+        self.assertTrue(all(an.readiness_checks(0.001, 0.4, True, "stopped").values()))
+        checks = an.readiness_checks(None, None, False, "armed")
+        self.assertEqual([False] * 4, list(checks.values()))
+        self.assertFalse(an.readiness_checks(0.011, 0.0, True, "disarmed")["spawn offset <= 0.010 m"])
+        self.assertFalse(an.readiness_checks(0.0, 1.5, True, "disarmed")["yaw within 1 deg of the first spawn"])
+        self.assertFalse(an.readiness_checks(0.0, 0.0, True, "fault")["guard not armed and no fault"])
+
+
 if __name__ == "__main__":
     unittest.main()

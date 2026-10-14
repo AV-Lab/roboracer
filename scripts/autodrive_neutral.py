@@ -700,6 +700,15 @@ RESET_XY = (52, 606)  # GUI "Reset" button in the 1280x720 player window (SceneR
 SIM_HANG_S = 2.0
 
 
+def readiness_checks(offset_m, yaw_offset_deg, encoders_still, guard_state):
+    """D21 A readiness after a scene load. A missing value fails; zero is a value (an exact spawn, offset
+    0.000 m, failed the 2026-10-14 acceptance batch when `offset or 1e9` treated 0.0 as missing)."""
+    return {"spawn offset <= 0.010 m": offset_m is not None and offset_m <= 0.010,
+            "yaw within 1 deg of the first spawn": yaw_offset_deg is not None and yaw_offset_deg <= 1.0,
+            "wheels still": bool(encoders_still),
+            "guard not armed and no fault": guard_state not in ("armed", "fault")}
+
+
 def simulator_hung(last_received_ns, now_ns, threshold_s=SIM_HANG_S):
     """True when the last telemetry frame is older than the hang threshold."""
     return bool(last_received_ns) and now_ns - last_received_ns > threshold_s * 1e9
@@ -2401,10 +2410,7 @@ def trial(args, context, out):
                                                           - first["Orientation Euler Angles"][2], math.tau)))
             except (OSError, ValueError, KeyError):
                 pass
-            checks = {"spawn offset <= 0.010 m": (c0_start.get("offset_m") or 1e9) <= 0.010,
-                      "yaw within 1 deg of the first spawn": yaw is not None and yaw <= 1.0,
-                      "wheels still": bool(c0_start.get("encoders_still")),
-                      "guard not armed and no fault": guard.get("state") not in ("armed", "fault")}
+            checks = readiness_checks(c0_start.get("offset_m"), yaw, c0_start.get("encoders_still"), guard.get("state"))
             return {"checks": checks, "yaw_offset_deg": yaw, "passed": all(checks.values())}
 
         def guard_action(kind, window, approval):

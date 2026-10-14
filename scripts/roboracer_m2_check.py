@@ -49,8 +49,8 @@ def check(batch_dir: Path, geometry: Path | None, expected_episodes: int) -> dic
         status = read(run / "run.json")
         guard = (status.get("bridge_at_end") or read(run / "bridge-status.json")).get("guard") or {}
         key = f"session {s['session']}"
-        checks[f"{key}: startup <= {STARTUP_S:.0f} s"] = (status.get("startup_to_observation_seconds") or 1e9) <= STARTUP_S
-        checks[f"{key}: cleanup <= {CLEANUP_S:.0f} s"] = (status.get("cleanup_seconds") or 1e9) <= CLEANUP_S
+        checks[f"{key}: startup <= {STARTUP_S:.0f} s"] = status.get("startup_to_observation_seconds") is not None and status["startup_to_observation_seconds"] <= STARTUP_S
+        checks[f"{key}: cleanup <= {CLEANUP_S:.0f} s"] = status.get("cleanup_seconds") is not None and status["cleanup_seconds"] <= CLEANUP_S
         ui = [max(c["mismatch_px"].values()) for c in status.get("ui_checks", [])]
         checks[f"{key}: automated checks <= {UI_PX} px"] = bool(ui) and max(ui) <= UI_PX
         resets = [a for a in status.get("guard_actions", []) if a.get("kind") == "gui-reset"]

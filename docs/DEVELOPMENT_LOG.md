@@ -983,3 +983,13 @@
   - r1 F2-6: player shutdown hang at cleanup (deadlock in the frozen player).
   - r2 F2-10: runner-loop stall of about 0.5 s during the recovery lap, so the 500 ms runner lease expired, the supervisor inhibited itself and the lap timed out.
 - **Proposed.** D28 (heartbeat thread gated on loop progress) and D29 (keep the shutdown hang a failure; test the bridge-before-player cleanup order). Rerun the two failed repetitions. Report: [S2 §15](stages/S2.md).
+
+## 2026-10-15 — D28 A, D29 A: checks and reruns passed; F2 ×3 complete
+
+- **Approval.** "D28 A, D29 A; run the checks and reruns, go". Code `d0d7e54`.
+- **Changes.**
+  - D28 A: runner heartbeats from a thread gated on main-loop progress (0.3 s).
+  - D29 A: the Devkit bridge is stopped before the player at cleanup.
+  - The live F1 path gets the automated pre-Connect check.
+- **Runs, all passed.** Stationary check; F1-7 (inhibited 0.50 s after the pause, stop 1.27 s); F1-8 (stop 1.22 s); reruns of F2-6 and F2-10. Player unchanged.
+- **S2-06 acceptance items now all passed.** The shutdown hang did not recur in this set (not yet proof of a fix). Report: [S2 §16](stages/S2.md).

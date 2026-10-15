@@ -222,6 +222,14 @@
    "proposal": "docs/stages/S2.md section 12",
    "proposal_version": "D27 A",
    "note": "earlier attempts (20261012T073442Z, 20261012T120511Z; 9/10 each) retained; fixes 045eb86 and ee1936e in effect"
+  },
+  {
+   "stage": "S2 M2 acceptance: rerun of the 10-episode batch (D27 A) after the readiness fix 3fdbbc9",
+   "date": "2026-10-15",
+   "user_reply": "run the 10-lap batch, go",
+   "proposal": "docs/stages/S2.md section 12",
+   "proposal_version": "D27 A",
+   "note": "earlier attempts (20261012T073442Z, 20261012T120511Z, 20261014T104814Z; 9/10 each) retained; fixes 045eb86, ee1936e, 3fdbbc9 in effect"
   }
  ],
  "not_authorized": [

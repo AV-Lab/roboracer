@@ -974,3 +974,12 @@
 - **Checker.** `roboracer_m2_check.py`: all D26 A and D25 checks pass. All 10 timing windows inside every S1 limit and S2 budget (observation age ≤ 345 ms).
 - **Evidence.** Guard traces complete. Replay ×3 exact. Player unchanged.
 - **Remaining for S2-06.** F2 ×3 (needs approval). Report: [S2 §14](stages/S2.md).
+
+## 2026-10-15 — M2 acceptance F2 ×3: 28/30
+
+- **Approval.** "run all three F2 sessions,go". 30 batches, unattended. Player unchanged.
+- **Result.** 8 cases 3/3. F2-6 and F2-10 2/3. Every stop and detection inside its limits (stops ≤ 0.96 s, ≤ 0.22 m).
+- **Failures, both unrelated to the injected fault.**
+  - r1 F2-6: player shutdown hang at cleanup (deadlock in the frozen player).
+  - r2 F2-10: runner-loop stall of about 0.5 s during the recovery lap, so the 500 ms runner lease expired, the supervisor inhibited itself and the lap timed out.
+- **Proposed.** D28 (heartbeat thread gated on loop progress) and D29 (keep the shutdown hang a failure; test the bridge-before-player cleanup order). Rerun the two failed repetitions. Report: [S2 §15](stages/S2.md).

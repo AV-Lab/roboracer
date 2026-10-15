@@ -966,3 +966,11 @@
 - **D27 works.** Every guard trace complete (≤ 191 MB). Resets confirmed by both trace and disconnect. Replay exact ×3; player unchanged.
 - **Fix** (`3fdbbc9`). `readiness_checks()`, unit-tested, plus the same falsy-zero fix in the checker.
 - **Next.** The rerun needs approval. Report: [S2 §13](stages/S2.md).
+
+## 2026-10-15 — M2 acceptance: 10 consecutive healthy unattended episodes PASSED
+
+- **Approval.** "run the 10-lap batch, go".
+- **Result: 10/10 healthy** (122.9–123.8 s, ≥ 0.103 m), unattended, with planned restarts after episodes 4 and 8 (D27 A) and no recovery.
+- **Checker.** `roboracer_m2_check.py`: all D26 A and D25 checks pass. All 10 timing windows inside every S1 limit and S2 budget (observation age ≤ 345 ms).
+- **Evidence.** Guard traces complete. Replay ×3 exact. Player unchanged.
+- **Remaining for S2-06.** F2 ×3 (needs approval). Report: [S2 §14](stages/S2.md).

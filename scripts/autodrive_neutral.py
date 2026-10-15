@@ -1905,6 +1905,76 @@ def sample_gpu(path, stop, period_s=1.0):
             stop.wait(period_s)
 
 
+class RunnerHeartbeat:
+    """D28 A: runner heartbeats for the supervisor's lease from a dedicated thread, so a short stall of
+    the runner's main loop (r2 F2-10: about 0.5 s) no longer expires the 500 ms lease. A beat is sent
+    only while `enabled()` holds (after Connect, not deliberately paused: F1-7) and the main loop has
+    reported progress within `progress_window_s`; a hung loop therefore still stops the beats, at most
+    `progress_window_s` later than before. `stop()` ends the beats immediately (cleanup, F1-8)."""
+
+    def __init__(self, send, enabled, progress_window_s=0.3, period_s=0.1, clock=time.monotonic_ns):
+        import threading
+        self.send, self.enabled, self.clock = send, enabled, clock
+        self.window_ns, self.period_s = int(progress_window_s * 1e9), period_s
+        self.last_progress_ns = None
+        self.max_progress_gap_ns = 0
+        self.sent = self.withheld = 0
+        self.error = None
+        self.stopped = threading.Event()
+        self.thread = threading.Thread(target=self._run, name="runner-heartbeat", daemon=True)
+
+    def progress(self):
+        """Called by the main loop on every iteration (and by its GUI waits)."""
+        now = self.clock()
+        if self.last_progress_ns is not None:
+            self.max_progress_gap_ns = max(self.max_progress_gap_ns, now - self.last_progress_ns)
+        self.last_progress_ns = now
+
+    def tick(self):
+        """One beat decision; True if a beat was sent."""
+        if self.stopped.is_set() or not self.enabled():
+            return False
+        if self.last_progress_ns is None or self.clock() - self.last_progress_ns > self.window_ns:
+            self.withheld += 1
+            return False
+        self.send()
+        self.sent += 1
+        return True
+
+    def _run(self):
+        while not self.stopped.wait(self.period_s):
+            try:
+                self.tick()
+            except Exception as exc:  # recorded; no further beats, so the supervisor inhibits itself
+                self.error = f"{type(exc).__name__}: {exc}"
+                return
+
+    def start(self):
+        self.thread.start()
+        return self
+
+    def stop(self):
+        self.stopped.set()
+        if self.thread.is_alive():
+            self.thread.join(timeout=2)
+
+    def summary(self):
+        return {"sent": self.sent, "withheld_no_progress": self.withheld, "progress_window_s": self.window_ns / 1e9,
+                "max_main_loop_gap_s": round(self.max_progress_gap_ns / 1e9, 3), "error": self.error}
+
+
+def cleanup_order(children, label=lambda c: c[2]["label"]):
+    """Owned children in termination order: reverse spawn order, except that the Devkit bridge is stopped
+    directly before the player (D29 A: test whether the player's intermittent quit-time deadlock involves
+    its open Socket.IO connection)."""
+    order = list(reversed(children))
+    bridge = next((c for c in order if label(c) == "bridge"), None)
+    if bridge is not None and any(label(c) == "player" for c in order):
+        order.remove(bridge)
+        order.insert(next(i for i, c in enumerate(order) if label(c) == "player"), bridge)
+    return order
+
+
 def thread_snapshot(pid):
     """Per-thread name, scheduler state and kernel wait channel of a live process (same user, no ptrace)."""
     base = Path(f"/proc/{pid}")
@@ -1988,22 +2058,31 @@ def trial(args, context, out):
               "plugin_stack": args.plugin_stack, "f1_case": args.f1_case, "f2_case": args.f2_case}
     heartbeat = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
     heartbeat.setblocking(False)
-    heartbeat_seq = 0
+    heartbeat_seq = heartbeat_failures = 0
+    connected = False  # read by the D28 heartbeat thread from its start
 
     def checkpoint():
         save(out / "run.json", record)
 
-    def beat():
-        """Runner heartbeat for the supervisor lease, also from GUI actions (SIM1-03 reset). Only while a
-        supervisor runs, after Connect, and not while heartbeats are deliberately paused (M2 b, F1-7)."""
-        nonlocal heartbeat_seq
-        if not ((args.plugin_stack or args.motion_stage) and connected and "heartbeat_paused_ns" not in record):
-            return
+    def beating_enabled():
+        """Heartbeats only while a supervisor runs, after Connect, and not while deliberately paused (M2 b, F1-7)."""
+        return bool((args.plugin_stack or args.motion_stage) and connected and "heartbeat_paused_ns" not in record)
+
+    def send_beat():
+        # Runs on the heartbeat thread: never mutates `record` (checkpoint() serialises it concurrently).
+        nonlocal heartbeat_seq, heartbeat_failures
         heartbeat_seq += 1
         try:
             heartbeat.sendto(json.dumps({"kind": "heartbeat", "seq": heartbeat_seq}).encode(), "\0" + supervisor_name)
         except (BlockingIOError, ConnectionRefusedError, FileNotFoundError):
-            record["heartbeat_failures"] = record.get("heartbeat_failures", 0) + 1
+            heartbeat_failures += 1
+
+    # D28 A: the beats come from this thread; the main loop and GUI waits only report progress.
+    heartbeater = RunnerHeartbeat(send_beat, beating_enabled).start()
+
+    def beat():
+        """Runner liveness for the supervisor lease, also from GUI actions (SIM1-03 reset)."""
+        heartbeater.progress()
 
     def pause_beating(seconds):
         """Sleep in 0.1 s steps with heartbeats, so GUI input handling never outlives the runner lease."""
@@ -2765,10 +2844,9 @@ def trial(args, context, out):
                     # supervisor must inhibit itself within its runner lease. Never resumed.
                     record["heartbeat_paused_ns"] = time.monotonic_ns()
                     checkpoint()
-                if (args.plugin_stack or args.motion_stage) and connected and "heartbeat_paused_ns" not in record:
-                    # Runner liveness for the supervisor's lease, from this loop only (after the
-                    # Connect sequence, whose ~1 s of input handling would otherwise trip it).
-                    beat()
+                # D28 A: this loop's progress gates the heartbeat thread's beats (sent only after Connect
+                # and while not paused); a stall of more than 0.3 s withholds them.
+                beat()
                 time.sleep(0.1)
         if not (record["completed_observation"] or record["completed_diagnostic_window"]):
             raise TimeoutError("Stationary observation did not complete in its execution bound")
@@ -2778,13 +2856,19 @@ def trial(args, context, out):
     finally:
         gpu_stop.set()
         cleanup_started = time.monotonic()
-        heartbeat.close()  # D16: no further runner heartbeats from here on
+        heartbeater.stop()  # D16: no further runner heartbeats from here on
+        record["runner_heartbeat"] = heartbeater.summary()
+        if heartbeat_failures:
+            record["heartbeat_failures"] = heartbeat_failures
+        heartbeat.close()
         if record.get("error") and args.guard in ("calibration", "batch") and args.motion_stage:
             record["d16"] = runner_error_stop(out)
             checkpoint()
         if connection is not None:
             connection.close()
-        for process, log, entry in reversed(children):
+        terminate = cleanup_order(children)
+        record["cleanup_order"] = [entry["label"] for _, _, entry in terminate]
+        for process, log, entry in terminate:
             if process.poll() is None:
                 os.killpg(process.pid, signal.SIGTERM)
                 entry["termination"] = "SIGTERM owned process group"

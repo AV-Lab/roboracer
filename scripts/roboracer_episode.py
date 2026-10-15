@@ -142,7 +142,9 @@ def export(results: Path, geometry_path: Path, output: Path, mode: str, invocati
                              "workspace_precheck": (status or {}).get("precheck")},
         "initialization": {
             "method": "fresh player process at the scene's default spawn; guard interlocked until "
-                      "a person reviews the pre-Connect screenshot; one scripted Connect click",
+                      + ("the automated D21 pre-Connect check passes" if (run_json or {}).get("ui_checks") else
+                         "a person reviews the pre-Connect screenshot") + "; one scripted Connect click",
+            "ui_checks": (run_json or {}).get("ui_checks"),
             "unattended_reset": False,
             "manual_steps": [{"step": "visual pre-Connect review", "record": manual}] if manual else [],
             "scripted_actions": (run_json or {}).get("actions")},
@@ -226,6 +228,8 @@ def main():
     live.add_argument("--build-record", type=Path, required=True)
     live.add_argument("--f1-case", default=None, help="S1-06 F1 fault case (M1 protocol v0.1; stage m6)")
     live.add_argument("--record-video", action="store_true", help="record only the AutoDRIVE window")
+    live.add_argument("--ui-reference", type=Path, default=None,
+                      help="S2 (D21 A): reviewed UI reference; the automated pre-Connect check replaces review.py")
     rec = sub.add_parser("recorded")
     rec.add_argument("--results", type=Path, required=True, help="existing runner results directory")
     rec.add_argument("--build-record", type=Path)
@@ -246,10 +250,11 @@ def main():
                    "--profile", "p0-creep", "--provenance", "--guard", "calibration",
                    "--motion-stage", args.stage, "--reply-delay", "0.05", "--runs", "1",
                    "--duration", str(args.duration), *(["--f1-case", args.f1_case] if args.f1_case else []),
-                   *(["--record-video"] if args.record_video else [])]
+                   *(["--record-video"] if args.record_video else []),
+                   *(["--ui-reference", str(args.ui_reference)] if args.ui_reference else [])]
         invocation["runner_argv"] = command
-        print(json.dumps({"runner": "started", "manual_step": "review ui-before-connect.png, then run review.py"}),
-              flush=True)
+        print(json.dumps({"runner": "started", "manual_step": None if args.ui_reference else
+                          "review ui-before-connect.png, then run review.py"}), flush=True)
         args.results.parent.mkdir(parents=True, exist_ok=True)
         with open(f"{args.results}-console.log", "w") as log:
             runner = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT)

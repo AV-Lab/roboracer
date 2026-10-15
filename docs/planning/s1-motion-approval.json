@@ -230,6 +230,14 @@
    "proposal": "docs/stages/S2.md section 12",
    "proposal_version": "D27 A",
    "note": "earlier attempts (20261012T073442Z, 20261012T120511Z, 20261014T104814Z; 9/10 each) retained; fixes 045eb86, ee1936e, 3fdbbc9 in effect"
+  },
+  {
+   "stage": "S2 M2 acceptance: F2-1..F2-10 three times each (three sessions of ten 2-episode batches)",
+   "date": "2026-10-15",
+   "user_reply": "run all three F2 sessions,go",
+   "proposal": "docs/planning/s2-budgets-proposal.md section 3 (D26 A)",
+   "proposal_version": "0.1",
+   "note": "M6 envelope; fault in episode 1 at 6.0 s run time, recovery in episode 2; judged by roboracer_f2.py; simulator exit/hang recorded as containment"
   }
  ],
  "not_authorized": [

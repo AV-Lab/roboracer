@@ -993,3 +993,10 @@
   - The live F1 path gets the automated pre-Connect check.
 - **Runs, all passed.** Stationary check; F1-7 (inhibited 0.50 s after the pause, stop 1.27 s); F1-8 (stop 1.22 s); reruns of F2-6 and F2-10. Player unchanged.
 - **S2-06 acceptance items now all passed.** The shutdown hang did not recur in this set (not yet proof of a fix). Report: [S2 §16](stages/S2.md).
+
+## 2026-10-15 — S2 completion report; stopped for stage review
+
+- **Request.** "go to next step".
+- **Replay ×3 rerun on current code:** analytical fixtures pass (identical reports); stationary recording 258/258 snapshots exact.
+- **Report:** [S2-completion.md](stages/S2-completion.md). All six S2 items delivered; all M2 acceptance parts passed; failures retained.
+- **Recommended boxes:** S2-01 to S2-06 (original plan 10/34 → 16/34). S3 needs entry confirmation.

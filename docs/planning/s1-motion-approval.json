@@ -24,7 +24,9 @@
   "D24": "approved (replay: exact equality on this host/environment; three fresh-process replays per fixture)",
   "D25": "approved (S2 budgets as in s2-budgets-proposal.md section 2)",
   "D26": "A (one 10-episode batch; any failure fails the item, retained, full rerun only with approval; F2 x3; five timing windows from episodes 1-5; replay x3 per fixture)",
-  "D27": "A (planned fresh player every 4 episodes, labelled 'planned restart', so each player's 256 MiB guard trace stays complete)"
+  "D27": "A (planned fresh player every 4 episodes, labelled 'planned restart', so each player's 256 MiB guard trace stays complete)",
+  "D28": "A (runner heartbeats from a dedicated thread, sent only while the runner's main loop has progressed within 0.3 s; pauses (F1-7) and runner exit (F1-8) stop them immediately; lease stays 500 ms)",
+  "D29": "A (a cleanup-time player shutdown hang stays a failure; cleanup stops the Devkit bridge directly before the player to test the Socket.IO hypothesis)"
  },
  "stages": [
   "M0",
@@ -238,6 +240,13 @@
    "proposal": "docs/planning/s2-budgets-proposal.md section 3 (D26 A)",
    "proposal_version": "0.1",
    "note": "M6 envelope; fault in episode 1 at 6.0 s run time, recovery in episode 2; judged by roboracer_f2.py; simulator exit/hang recorded as containment"
+  },
+  {
+   "stage": "S2 D28/D29 checks and reruns: stationary heartbeat-thread check (interlocked), F1-7 and F1-8 under motion (one fresh-process M6 episode each), rerun of r1 F2-6 and r2 F2-10 (two 2-episode batches)",
+   "date": "2026-10-15",
+   "user_reply": "D28 A, D29 A; run the checks and reruns, go",
+   "proposal": "docs/stages/S2.md section 15",
+   "note": "M6 envelope; F1 cases judged by roboracer_f1.py (stop <= 1.5 s, travel <= 0.40 m from onset), F2 reruns by roboracer_f2.py; automated D21 pre-Connect check (no desktop input)"
   }
  ],
  "not_authorized": [

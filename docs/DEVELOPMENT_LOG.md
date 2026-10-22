@@ -1014,3 +1014,13 @@
   - reuse the planners, the lateral controller and the MPC as-is, with C0 parameters;
   - the EAV24 longitudinal model and the Autoverse transport do not apply;
   - D30–D34 requested (plan wording, vendoring, bring-up pose, speed, initial conditions). No motion.
+
+## 2026-10-22 — S3: decisions D30–D34; A2RL port built; no-motion evidence
+
+- **Decisions.** D30 yes; D31 port (not vendor); D32 A, chosen by me after the user deferred it; D33 faster is better (staged speed); D34 A.
+- **Port** (`be95135`). A2RL racing line, velocity profile, lap tracker, lateral MPC and steering chain, each naming its source. Equivalence tests against the A2RL originals are exactly equal. Plugin 57/57, scripts 183/183.
+- **C0 plan.** The A2RL line moves at most 0.11 m on this narrow track. A coarse spacing would cut corners, so the builder refuses such lines.
+- **Closed-loop kinematic check** (0.18 s pose period, 0.3–0.345 s pose age).
+  - With A2RL's MPC, B laps up to 2 m/s (flying 15.5 s); at 0.3 m/s it laps in 103 s, against A's 123 s.
+  - Without the MPC it fails above 1 m/s. No slip is modelled.
+- Report: [S3](stages/S3.md). No motion.

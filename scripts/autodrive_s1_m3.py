@@ -104,7 +104,9 @@ def analyze(directory: Path) -> dict:
                               "accel_mps2": (b["encoder_speed_mps"] - a["encoder_speed_mps"]) / dt})
         initial = during[0]["encoder_speed_mps"] / max(during[0]["encoder_sim_time"] - start_sim, 1e-3) if during else None
         # Steady state: frames after the first (settling) frame agree within 5 % of their mean.
-        settled = during[1:]
+        # M3c: at up to 0.6 m/s the car needs two frames (~0.4 s) to settle, so the steady state is the frames
+        # from 0.4 s on (inside the 0.5 s settling criterion); M3/M3b keep "after the first frame".
+        settled = ([f for f in during if f["encoder_sim_time"] - start_sim >= 0.4] if m3c else during[1:])
         steady_reference = (sum(f["encoder_speed_mps"] for f in settled) / len(settled)) if settled else None
         plateau = bool(settled) and steady_reference > 0 and all(
             abs(f["encoder_speed_mps"] - steady_reference) <= 0.05 * steady_reference for f in settled)

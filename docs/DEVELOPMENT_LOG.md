@@ -1031,3 +1031,10 @@
 - **Built** (`73b9a95`). B joins the stack as A2RL does: the race-trajectory global planner on the committed, hash-checked C0 plan, plus the ported controller. Stage `s3b` is the M6 envelope unchanged; the runner and the supervisor refuse it until `S3B` is approved.
 - **Stationary shadow.** On the live IPS ego state, B saw the spawn 0.168 m right of its line, asked for 0.3 m/s and steered left toward the line. All processes exited 0; the player is unchanged.
 - **Next.** First B laps (3 fresh-process episodes on `s3b`), which need a run approval. Report: [S3 §4](stages/S3.md).
+
+
+## 2026-10-22 — First B laps on stage s3b: 3/3 clean
+
+- **Approval.** "approve" (`S3B` added; M6 envelope unchanged). Three fresh-process single-lap episodes, unattended. Player unchanged.
+- **Result.** Lap times 108.69 / 108.79 / 108.83 s (A lap: about 123 s). No contact or off-track; minimum clearance 0.314 m (A: 0.104 m). Lateral error to the line: p50 0.013 m, p95 0.047 m. No safe stop, no abort.
+- **Label.** Bring-up on the IPS pose (D32 A), not S3 results. Next: the speed-stage proposal (D33) and ICP. Report: [S3 §5](stages/S3.md).

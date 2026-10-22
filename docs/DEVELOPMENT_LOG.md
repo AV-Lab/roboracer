@@ -1005,3 +1005,12 @@
 
 - **Decision.** "accept S2-01 to S2-06". Original plan **16/34**: PRE, S1 and S2 complete. Amendment 10/10.
 - **S3 direction from the user.** Reuse the A2RL plugin's global planner, local planner and control, which reach about 60 s laps in Autoverse; do not develop RoboRacer planning or control from scratch. Read the latest A2RL `dev` branch first.
+
+## 2026-10-22 — S3 proposal v0.1: build B on the A2RL stack
+
+- **A2RL source.** `AV-Lab/a2rl` `origin/dev` fetched (`ae5436d` → `0b5cfa8`) and read from a clean export; the user's local checkout was not modified.
+- **Validated stack found.** `RaceGlobalPlanner` (min-curvature line + friction-limited velocity profile), AVLite `GreedyLatticePlanner`, `A2RLBaseStackController` with lateral MPC; 5-lap flying mean 62.72 s at stage 15C.
+- **Proposal.** [s3-proposal.md](planning/s3-proposal.md):
+  - reuse the planners, the lateral controller and the MPC as-is, with C0 parameters;
+  - the EAV24 longitudinal model and the Autoverse transport do not apply;
+  - D30–D34 requested (plan wording, vendoring, bring-up pose, speed, initial conditions). No motion.

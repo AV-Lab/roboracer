@@ -267,5 +267,40 @@ def case_s1_supervisor_client():
             "ego_mid_tick": [ego.x, ego.y], "io": bridge.request_io}
 
 
+def case_factory_s3b():
+    """S3 stage s3b assembly as the runner does it: AVLite's factory loads RacingLineController from the
+    plugin, then the committed hash-checked C0 plan and the M6-envelope config are installed."""
+    import importlib
+    from avlite.c40_execution.c49_settings import ExecutionSettings
+    from avlite.c60_apps.c62_factory import executor_factory
+    from avlite.c60_apps.c69_settings import AppSettings
+    AppSettings.c62_default_plugins = []
+    AppSettings.c62_community_plugins = {"roboracer": PLUGIN}
+    ExecutionSettings.c41_world_stack_capabilities = None
+    executer = executor_factory(
+        executer_type="SyncExecuter", bridge="AutoDriveBridge", perception_strategy_name="",
+        localization_strategy_name="", mapping_strategy_name="", global_planner_strategy_name="RaceLineGlobalPlanner",
+        local_planner_strategy_name="", controller_strategy_name="RacingLineController", execution_task_names=[],
+        default_global_trajectory_file=str(Path(PLUGIN) / "data/c0-s3b-plan.json"), map_file="", load_plugins=True)
+    s3b = importlib.import_module("avlite.plugins.roboracer.planning.s3b")
+    tracker, info = s3b.load_plan()
+    same_plan = [tuple(p) for p in executer.global_planner.global_plan.path] == [tuple(p) for p in tracker.path]
+    ctl = executer.controller
+    ctl.config, ctl.tj = s3b.controller_config(), tracker
+    ctl.reset()
+    ctl.enabled = False
+    run_ticks(executer)
+    disabled = dict(ctl.last)
+    ctl.enabled = True
+    run_ticks(executer)  # no telemetry: ego at the origin, far off the line
+    last = executer.world.last_request
+    return {"controller": type(ctl).__name__, "global_planner": type(executer.global_planner).__name__,
+            "same_plan": same_plan, "plan": {k: info[k] for k in ("points", "lap_m", "max_speed_mps")},
+            "config": {"speed_cap_mps": ctl.config.speed_cap_mps, "max_wheel_angle_rad": ctl.config.max_wheel_angle_rad,
+                       "mpc_lateral_mode": ctl.config.mpc_lateral_mode},
+            "disabled": disabled, "enabled_last": {k: ctl.last.get(k) for k in ("safe_stop", "target_speed")},
+            "accepted": executer.world.accepted, "rejections": executer.world.rejections,
+            "last_request": None if last is None else {"target_speed": last.target_speed, "steer": last.steer}}
+
 if __name__ == "__main__":
     print(json.dumps(globals()["case_" + CASE.replace("-", "_")]()))

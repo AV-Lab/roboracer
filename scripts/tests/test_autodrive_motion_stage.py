@@ -200,6 +200,12 @@ class SupervisorStageTests(unittest.TestCase):
                "steer": 0.2, "observation": {"telemetry_seq": 9, "stamp_ns": NOW - 200 * MS}}
         self.assertEqual("motion-not-authorized", a.submit(req, NOW).reason)
 
+    def test_s3b_is_the_m6_envelope(self):
+        """S3 B bring-up (D32 A) changes the controller, not the envelope."""
+        from autodrive_neutral import AVLITE_MOTION_STAGES
+        self.assertEqual(AVLITE_MOTION_STAGES["s3b"], AVLITE_MOTION_STAGES["m6"])
+        self.assertEqual(core.AVLITE_STAGES["s3b"], core.AVLITE_STAGES["m6"])
+
     def test_process_refuses_unconfirmed_stage(self):
         with tempfile.TemporaryDirectory() as scratch:
             bad = Path(scratch, "approval.json")

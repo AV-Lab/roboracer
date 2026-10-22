@@ -32,7 +32,7 @@ REPO = Path(__file__).resolve().parents[1]
 AVLITE = Path("/home/a2rl/avlite")
 APPROVAL = REPO / "docs/planning/s1-motion-approval.json"
 # Only the approved AVLite motion stages (M6: lap proposal v0.1, "approve D9, D10, D11; run M6").
-LIVE_STAGES = ("m4", "m5", "m6")
+LIVE_STAGES = ("m4", "m5", "m6", "s3b")  # s3b: S3 B bring-up (D32 A), M6 envelope
 
 
 def utc_now():

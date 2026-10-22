@@ -1,0 +1,50 @@
+{
+ "schema": "roboracer.s3-plan/1",
+ "plan_file": "c0-s3b-plan.json",
+ "plan_sha256": "5e4ea3569143c06da6c300af3461d870d7f9adea0bfc6318daa647c4096ef988",
+ "source": {
+  "geometry": "/home/a2rl/Workspace/roboracer/artifacts/s1/20261006T051902Z-s1-05/c0-geometry.json",
+  "geometry_sha256": "a6992771beb1dda691289f893bbffd7607b12d1665f18d89a35a8a88ecb64beb",
+  "track": "C0 = Infrastructure/Proto Track",
+  "centerline_points": 2000,
+  "note": "collider-derived S1-05 geometry, the same source as the scorer's; S3-01 must make the driving map a separate validated asset (S3-04)"
+ },
+ "a2rl_source": "AV-Lab/a2rl dev 0b5cfa8 (ported, D31)",
+ "parameters": {
+  "spacing_m": 0.1,
+  "boundary_margin_m": 0.3,
+  "start_pin_m": 0.05,
+  "profile": {
+   "min_speed_mps": 0.1,
+   "lateral_accel_mps2": 3.0,
+   "brake_decel_mps2": 2.0,
+   "accel_limit_mps2": 1.5,
+   "curvature_window_m": 0.4,
+   "curvature_hold_m": 0.5
+  },
+  "speed_cap_mps": 0.3
+ },
+ "code_sha256": {
+  "roboracer/planning/c0_track.py": "de07c8eae7bb6db7602a072339f490254f997c4d765f2a348fa32f141d43e166",
+  "roboracer/planning/racing_line.py": "5a3534943bd6182abda007e18f0075d0404bcd9926e30182b157b54094181a7d",
+  "roboracer/planning/velocity_profile.py": "b3725e67706844f3bff1f70ca44c14aaf72aafdefd12004a30a5e8f51df4e648"
+ },
+ "git_head_at_build": "5b970ac62335189ccf2b914e426f042dfc8b09f9",
+ "report": {
+  "points": 313,
+  "spacing_m": 0.1,
+  "boundary_margin_m": 0.3,
+  "optimizer_converged": true,
+  "reweight_iterations": 0,
+  "reference_length_m": 31.320098499067594,
+  "line_length_m": 31.24704843232965,
+  "min_edge_clearance_m": 0.4804654588280716,
+  "min_polyline_clearance_m": 0.4771622794805678,
+  "max_abs_offset_m": 0.09041759188511808,
+  "profile": {
+   "min_mps": 0.3,
+   "max_mps": 0.3,
+   "estimated_lap_s": 103.82330556814173
+  }
+ }
+}

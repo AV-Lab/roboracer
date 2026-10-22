@@ -87,6 +87,7 @@ class RacingLineController(ControlStrategy):
     def __init__(self, *args, config: RacingControllerConfig | None = None, **kwargs):
         super().__init__(*args, **kwargs)
         self.config = config or RacingControllerConfig()
+        self.enabled = True  # a runner holds it at standstill outside the driving window (as GapFollow)
         self.reset()
 
     def reset(self):
@@ -287,7 +288,9 @@ class RacingLineController(ControlStrategy):
         if plan is not None:
             self.tj = plan.as_trajectory() if hasattr(plan, "as_trajectory") else plan
         tj = getattr(self, "tj", None)
-        if tj is None or not tj.is_initialized:
+        if not self.enabled:
+            speed, steer, detail = 0.0, 0.0, {"reason": "disabled"}
+        elif tj is None or not tj.is_initialized:
             speed, steer, detail = 0.0, 0.0, {"reason": "no plan"}
         else:
             reference = tj.parent_trajectory or tj  # A2RL tracking mode "legacy": track the global line

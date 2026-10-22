@@ -45,7 +45,9 @@ STAGES = {"m0": {"throttle": (0.0,), "steering": (0.0, 0.1, -0.1, 0.5, -0.5, 1.0
 AVLITE_STAGES = {"m4": {"max_speed_mps": 0.3, "max_steer_rad": 0.0},
                  "m5": {"max_speed_mps": 0.3, "max_steer_rad": 0.35},
                  # S1-05 lap proposal v0.1 (D10; approved "approve D9, D10, D11; run M6"): M5 limits.
-                 "m6": {"max_speed_mps": 0.3, "max_steer_rad": 0.35}}
+                 "m6": {"max_speed_mps": 0.3, "max_steer_rad": 0.35},
+                 # S3 B bring-up (s3-proposal v0.2, D32 A): the M6 limits, unchanged.
+                 "s3b": {"max_speed_mps": 0.3, "max_steer_rad": 0.35}}
 STEER_LIMIT_RAD = 0.5235987755982988  # normalized steering 1.0 (M0)
 
 

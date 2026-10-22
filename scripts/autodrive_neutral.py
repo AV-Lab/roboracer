@@ -128,6 +128,8 @@ AVLITE_MOTION_STAGES = {"m4": {"throttle_max": 0.07, "steering_max": 0.0, "steer
                         # a lap returns to the start, so containment is the qualified C0 wall extent + 0.3 m.
                         "m6": {"throttle_max": 0.07, "steering_max": round(0.35 / 0.5235987755982988, 6),
                                "steer_feedback_rad": 0.3505, "containment_box": (-4.23, 2.12, -9.04, 7.65)}}
+# S3 B bring-up (s3-proposal v0.2, D32 A, D33): the ported A2RL controller inside the unchanged M6 envelope.
+AVLITE_MOTION_STAGES["s3b"] = dict(AVLITE_MOTION_STAGES["m6"])
 
 
 # Recorded build/evidence paths stay as written. The working environments moved once, by rename on the
@@ -576,6 +578,7 @@ def observe(args):
 def plugin_observe(args):
     """S1-02: the plugin's AutoDriveBridge, loaded by AVLite's own plugin loader, as one more
     read-only subscriber. Records every committed snapshot; never publishes or commands."""
+    import importlib
     import numpy as np
     from avlite.c60_apps.c63_plugins import import_plugin_modules
 
@@ -587,13 +590,17 @@ def plugin_observe(args):
         from avlite.c60_apps.c69_settings import AppSettings
         AppSettings.c62_default_plugins = []
         AppSettings.c62_community_plugins = {"roboracer": str(args.plugin)}
-        controller_name = {"m4": "SpeedStepController", "m5": "GapFollowController",
-                           "m6": "GapFollowController"}.get(args.stack_profile, "HoldController")
+        controller_name = {"m4": "SpeedStepController", "m5": "GapFollowController", "m6": "GapFollowController",
+                           "s3b": "RacingLineController"}.get(args.stack_profile, "HoldController")
+        # S3 s3b: A2RL's stack shape (D30) — the race trajectory as AVLite's global plan; no local planner
+        # (A2RL tracking mode "legacy": the controller tracks the global line).
+        s3b_plan = str(Path(args.plugin) / "data/c0-s3b-plan.json") if args.stack_profile == "s3b" else ""
         executer = executor_factory(
             executer_type="SyncExecuter", bridge="AutoDriveBridge", perception_strategy_name="",
-            localization_strategy_name="", mapping_strategy_name="", global_planner_strategy_name="",
+            localization_strategy_name="", mapping_strategy_name="",
+            global_planner_strategy_name="RaceLineGlobalPlanner" if s3b_plan else "",
             local_planner_strategy_name="", controller_strategy_name=controller_name, execution_task_names=[],
-            default_global_trajectory_file="", map_file="", load_plugins=True)
+            default_global_trajectory_file=s3b_plan, map_file="", load_plugins=True)
         plugin = sys.modules["avlite.plugins.roboracer"]
         bridge = executer.world
         if args.stack_profile:
@@ -602,6 +609,17 @@ def plugin_observe(args):
         if args.stack_profile == "m6":
             # D9 (lap proposal v0.1): A-lap = GapFollowController with LAP_PARAMS.
             executer.controller.params = sys.modules[type(executer.controller).__module__].LAP_PARAMS
+        s3b_info = None
+        if args.stack_profile == "s3b":
+            # S3 B bring-up (D32 A): the committed C0 plan (hash-checked) and the M6-envelope config. The
+            # controller reads the bridge's ego state, i.e. the IPS pose: bring-up, not an S3 result.
+            s3b = importlib.import_module("avlite.plugins.roboracer.planning.s3b")
+            tracker, s3b_info = s3b.load_plan()  # the same file the global planner loaded, hash-checked
+            if [tuple(p) for p in executer.global_planner.global_plan.path] != [tuple(p) for p in tracker.path]:
+                raise RuntimeError("s3b global plan and controller plan differ")
+            executer.controller.config = s3b.controller_config()
+            executer.controller.tj = tracker
+            executer.controller.reset()
     else:
         import_plugin_modules(str(args.plugin), pkg_name="roboracer")
         plugin = sys.modules["avlite.plugins.roboracer"]
@@ -615,7 +633,21 @@ def plugin_observe(args):
     params = getattr(executer.controller, "params", None) if executer else None
     if params is not None:
         state["controller_params"] = dict(params.__dict__)  # audit: A (M5) or A-lap (M6)
+    if executer is not None and args.stack_profile == "s3b":
+        state["controller_config"] = dict(executer.controller.config.__dict__)  # audit: B (S3)
+        state["s3b_plan"] = s3b_info
+        state["pose_source"] = "bridge ego state = simulator IPS (D32 A bring-up; not an S3 result)"
     stage = StackStage(args, executer, bridge, state) if args.stack_profile else None
+    shadow = None
+    if getattr(args, "s3b_shadow", False) and executer is not None and not args.stack_profile:
+        # S3: B (ported A2RL controller, committed C0 plan) computed on the stack's live ego state each tick and
+        # only logged; the stationary stack's HoldController stays the sole command source.
+        s3b = importlib.import_module("avlite.plugins.roboracer.planning.s3b")
+        shadow_tracker, shadow_info = s3b.load_plan()
+        shadow = sys.modules["avlite.plugins.roboracer"].RacingLineController(config=s3b.controller_config())
+        shadow.tj = shadow_tracker
+        state["s3b_shadow"] = {"plan": shadow_info, "config": dict(shadow.config.__dict__),
+                               "pose_source": "stack ego state = simulator IPS (D32 A bring-up)"}
     stop = []
 
     def checkpoint():
@@ -670,6 +702,12 @@ def plugin_observe(args):
                    "telemetry_seq": tick.telemetry_seq if tick else None, "request_seq": bridge._request_seq}
             if stage:
                 row.update(stage.tick_record())
+            if shadow is not None and tick is not None:
+                ego = executer.pm.ego_vehicle
+                target, steer, detail = shadow.steer_and_speed(shadow.tj, ego, period)
+                row["s3b_shadow"] = {"ego": [ego.x, ego.y, ego.theta, ego.velocity], "target_speed": target,
+                                     "steer": steer, **{k: detail.get(k) for k in (
+                                         "s_m", "lateral_error_m", "yaw_error_rad", "safe_stop")}}
             ticks.write(json.dumps(row) + "\n")
             state["ticks"] += 1
             next_tick += period
@@ -1392,7 +1430,8 @@ class StackStage:
     """Runs a confirmed AVLite motion stage inside the stack child: waits for arming, settles,
     checks the workspace, drives the test controller and applies the stage's abort rules.
     Aborting or finishing requests zero, then stops stepping, so the guard lease expires with
-    zero output. GT pose is used only for these labelled monitors, never by the controller."""
+    zero output. GT pose is used only for these labelled monitors, never by the controller, except on
+    stage s3b, whose controller tracks the IPS pose for B's labelled bring-up (S3, D32 A)."""
 
     def __init__(self, args, executer, bridge, state):
         self.args, self.executer, self.bridge, self.state = args, executer, bridge, state
@@ -1430,6 +1469,8 @@ class StackStage:
         self.start_pose = self.last_pose = None
         self.path_m, self.last_seq, self.last_new = 0.0, None, time.monotonic()
         self.state.update(abort=None, finish_reason=None, precheck=None, stage_number=self.number)
+        if self.profile == "s3b":
+            self.controller.reset()  # B: clear the safe-stop latch and the MPC's steering history
         self._request(0.0)
         self._set("wait-armed")
 
@@ -1537,7 +1578,8 @@ class StackStage:
                     self.blackout_written = True
                     self.state["blackout_written_ns"] = time.monotonic_ns()
             else:
-                distance, limit = (M6_DISTANCE_M, M6_TIME_S) if self.profile == "m6" else (M5_DISTANCE_M, M5_TIME_S)
+                distance, limit = ((M6_DISTANCE_M, M6_TIME_S) if self.profile in ("m6", "s3b")
+                                   else (M5_DISTANCE_M, M5_TIME_S))
                 if self.path_m >= distance or elapsed >= limit:
                     self._request(0.0)
                     self._set("stopping", finish_reason="distance" if self.path_m >= distance else "time")
@@ -2182,7 +2224,8 @@ def trial(args, context, out):
                     spawn("plugin-stack", [context["avlite_python"], "-B", own_script, "plugin-observe",
                                            "--results", str(out), "--plugin", str(PLUGIN_DIRECTORY),
                                            "--supervisor", supervisor_name,
-                                           *(["--record-inputs"] if args.record_inputs else [])], plugin_environment)
+                                           *(["--record-inputs"] if args.record_inputs else []),
+                                           *(["--s3b-shadow"] if args.s3b_shadow else [])], plugin_environment)
                     status_name = "plugin-observer-status.json"
                 while not read(out / status_name).get("ready"):
                     if any(p.poll() is not None for p, _, _ in children) or time.monotonic() > deadline:
@@ -2941,6 +2984,8 @@ def main():
                              "observe forwards zero requests for --duration, scenario runs the disarmed P1a cases; "
                              "calibration forwards a confirmed motion stage's requests (requires --motion-stage)")
     parser.add_argument("--stack-profile", choices=sorted(AVLITE_MOTION_STAGES), default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--s3b-shadow", action="store_true",
+                        help="S3: log B's commands on the live ego state in a stationary --plugin-stack run (no motion)")
     parser.add_argument("--f1-case", choices=F1_CASES, default=None,
                         help="S1-06 F1 fault case (M1 protocol v0.1); motion stage m6 only")
     parser.add_argument("--f2-case", choices=F2_CASES, default=None,
@@ -2992,6 +3037,8 @@ def main():
         parser.error("--f2-case runs only in an S2 batch on stage m6 (D22, D23)")
     if args.f2_case and args.f1_case:
         parser.error("one fault case per run")
+    if args.s3b_shadow and args.mode == "run" and (args.motion_stage or not args.plugin_stack):
+        parser.error("--s3b-shadow is for a stationary --plugin-stack run (no motion stage)")
     if args.sim_hang_test is not None and (args.motion_stage or args.mode != "run" or args.sim_hang_test <= 0):
         parser.error("--sim-hang-test is a stationary (no motion stage) run-mode test with a positive delay")
     if args.f1_case:

@@ -117,7 +117,9 @@ MOTION_STAGES = {"m0": {"throttle": (0.0,), "steering": (0.0, 0.1, -0.1, 0.5, -0
                  "m1": {"throttle": (0.0, 0.002, 0.005, 0.01, 0.02), "steering": (0.0,)},
                  "m2": {"throttle": (0.0, 0.01), "steering": (0.0,)},
                  "m3": {"throttle": (0.0, 0.005, 0.01, 0.02), "steering": (0.0,)},
-                 "m3b": {"throttle": (0.0, 0.03, 0.045, 0.06), "steering": (0.0,)}}
+                 "m3b": {"throttle": (0.0, 0.03, 0.045, 0.06), "steering": (0.0,)},
+                 # S3 speed proposal v0.1 (D38): identification holds up to ~0.6 m/s on the opening straight.
+                 "m3c": {"throttle": (0.0, 0.08, 0.10, 0.12), "steering": (0.0,)}}
 # S1-03 AVLite motion stages (proposal v0.2; mirrors supervisor_core.AVLITE_STAGES and
 # SpeedLoopParams.u_max): continuous normalized ranges instead of discrete values.
 AVLITE_MOTION_STAGES = {"m4": {"throttle_max": 0.07, "steering_max": 0.0, "steer_feedback_rad": 0.0,
@@ -130,6 +132,12 @@ AVLITE_MOTION_STAGES = {"m4": {"throttle_max": 0.07, "steering_max": 0.0, "steer
                                "steer_feedback_rad": 0.3505, "containment_box": (-4.23, 2.12, -9.04, 7.65)}}
 # S3 B bring-up (s3-proposal v0.2, D32 A, D33): the ported A2RL controller inside the unchanged M6 envelope.
 AVLITE_MOTION_STAGES["s3b"] = dict(AVLITE_MOTION_STAGES["m6"])
+# S3 speed step V1 (s3-speed-proposal v0.1, D35-D37): 0.5 m/s; only the throttle limit changes.
+AVLITE_MOTION_STAGES["s3v1"] = dict(AVLITE_MOTION_STAGES["m6"], throttle_max=0.12)
+# Calibration stages bounded by the qualified C0 wall box instead of a radius (m3c drives the opening straight).
+CALIBRATION_CONTAINMENT = {"m3c": {"containment_box": AVLITE_MOTION_STAGES["m6"]["containment_box"]}}
+# Stage overspeed abort (encoder speed) for AVLite stages; M4-M6 and s3b keep the S1 0.5 m/s.
+STAGE_SPEED_ABORT_MPS = {"s3v1": 0.7}
 
 
 # Recorded build/evidence paths stay as written. The working environments moved once, by rename on the
@@ -148,7 +156,7 @@ def relocated_path(path):
 def outside_containment(stage, reference, position):
     """Hard bridge containment for motion stages (fails closed): a radius from the first frame,
     or for M6 an axis-aligned box (x_min, x_max, y_min, y_max) in IPS coordinates."""
-    limits = AVLITE_MOTION_STAGES.get(stage, {})
+    limits = AVLITE_MOTION_STAGES.get(stage) or CALIBRATION_CONTAINMENT.get(stage, {})
     if "containment_box" in limits:
         x_min, x_max, y_min, y_max = limits["containment_box"]
         return not (x_min <= position[0] <= x_max and y_min <= position[1] <= y_max)
@@ -224,7 +232,7 @@ def motion_fields(data, stage=None):
                 result["Steering Feedback"] = value
                 continue
         # M1/M2: throttle feedback (reported to 3 decimals) must be one of the stage's values.
-        if key == "Throttle" and stage in ("m1", "m2", "m3", "m3b") and math.isfinite(value) and \
+        if key == "Throttle" and stage in ("m1", "m2", "m3", "m3b", "m3c") and math.isfinite(value) and \
                 any(abs(value - allowed) <= 0.0005 for allowed in MOTION_STAGES[stage]["throttle"]):
             result["Throttle Feedback"] = value
             continue
@@ -417,7 +425,7 @@ def bridge(args):
                 reference = motion
                 save(out / "first-raw-frame.json", data)
             changed = rejected_motion_fields(reference, motion, args.profile)
-            if args.motion_stage in ("m1", "m2", "m3", "m3b") or args.motion_stage in AVLITE_MOTION_STAGES:
+            if args.motion_stage in ("m1", "m2", "m3", "m3b", "m3c") or args.motion_stage in AVLITE_MOTION_STAGES:
                 # Motion is intended: only the hard containment bound stops the bridge here.
                 changed = ["Position"] if outside_containment(args.motion_stage, reference["Position"],
                                                               motion["Position"]) else []
@@ -591,10 +599,12 @@ def plugin_observe(args):
         AppSettings.c62_default_plugins = []
         AppSettings.c62_community_plugins = {"roboracer": str(args.plugin)}
         controller_name = {"m4": "SpeedStepController", "m5": "GapFollowController", "m6": "GapFollowController",
-                           "s3b": "RacingLineController"}.get(args.stack_profile, "HoldController")
+                           "s3b": "RacingLineController", "s3v1": "RacingLineController"}.get(args.stack_profile,
+                                                                                               "HoldController")
         # S3 s3b: A2RL's stack shape (D30) — the race trajectory as AVLite's global plan; no local planner
         # (A2RL tracking mode "legacy": the controller tracks the global line).
-        s3b_plan = str(Path(args.plugin) / "data/c0-s3b-plan.json") if args.stack_profile == "s3b" else ""
+        s3b_plan = (str(Path(args.plugin) / f"data/c0-{args.stack_profile}-plan.json")
+                    if args.stack_profile in ("s3b", "s3v1") else "")
         executer = executor_factory(
             executer_type="SyncExecuter", bridge="AutoDriveBridge", perception_strategy_name="",
             localization_strategy_name="", mapping_strategy_name="",
@@ -604,20 +614,21 @@ def plugin_observe(args):
         plugin = sys.modules["avlite.plugins.roboracer"]
         bridge = executer.world
         if args.stack_profile:
-            # Proposal v0.2 §4: 0.3 m/s for M4/M5/M6, in this process only (the shipped default stays 0).
-            plugin.PluginSettings.max_target_speed_mps = 0.3
+            # Proposal v0.2 §4: 0.3 m/s for M4/M5/M6, in this process only (the shipped default stays 0);
+            # S3 V1 (D36): 0.5 m/s on s3v1.
+            plugin.PluginSettings.max_target_speed_mps = 0.5 if args.stack_profile == "s3v1" else 0.3
         if args.stack_profile == "m6":
             # D9 (lap proposal v0.1): A-lap = GapFollowController with LAP_PARAMS.
             executer.controller.params = sys.modules[type(executer.controller).__module__].LAP_PARAMS
         s3b_info = None
-        if args.stack_profile == "s3b":
-            # S3 B bring-up (D32 A): the committed C0 plan (hash-checked) and the M6-envelope config. The
+        if args.stack_profile in ("s3b", "s3v1"):
+            # S3 B bring-up (D32 A): the committed C0 plan (hash-checked) and the stage's envelope config. The
             # controller reads the bridge's ego state, i.e. the IPS pose: bring-up, not an S3 result.
             s3b = importlib.import_module("avlite.plugins.roboracer.planning.s3b")
-            tracker, s3b_info = s3b.load_plan()  # the same file the global planner loaded, hash-checked
+            tracker, s3b_info = s3b.load_plan(args.stack_profile)  # the file the global planner loaded, hash-checked
             if [tuple(p) for p in executer.global_planner.global_plan.path] != [tuple(p) for p in tracker.path]:
                 raise RuntimeError("s3b global plan and controller plan differ")
-            executer.controller.config = s3b.controller_config()
+            executer.controller.config = s3b.controller_config(args.stack_profile)
             executer.controller.tj = tracker
             executer.controller.reset()
     else:
@@ -633,7 +644,7 @@ def plugin_observe(args):
     params = getattr(executer.controller, "params", None) if executer else None
     if params is not None:
         state["controller_params"] = dict(params.__dict__)  # audit: A (M5) or A-lap (M6)
-    if executer is not None and args.stack_profile == "s3b":
+    if executer is not None and args.stack_profile in ("s3b", "s3v1"):
         state["controller_config"] = dict(executer.controller.config.__dict__)  # audit: B (S3)
         state["s3b_plan"] = s3b_info
         state["pose_source"] = "bridge ego state = simulator IPS (D32 A bring-up; not an S3 result)"
@@ -643,8 +654,8 @@ def plugin_observe(args):
         # S3: B (ported A2RL controller, committed C0 plan) computed on the stack's live ego state each tick and
         # only logged; the stationary stack's HoldController stays the sole command source.
         s3b = importlib.import_module("avlite.plugins.roboracer.planning.s3b")
-        shadow_tracker, shadow_info = s3b.load_plan()
-        shadow = sys.modules["avlite.plugins.roboracer"].RacingLineController(config=s3b.controller_config())
+        shadow_tracker, shadow_info = s3b.load_plan("s3b")
+        shadow = sys.modules["avlite.plugins.roboracer"].RacingLineController(config=s3b.controller_config("s3b"))
         shadow.tj = shadow_tracker
         state["s3b_shadow"] = {"plan": shadow_info, "config": dict(shadow.config.__dict__),
                                "pose_source": "stack ego state = simulator IPS (D32 A bring-up)"}
@@ -777,7 +788,7 @@ def calibrate(args):
         return calibrate_m1(args)
     if args.motion_stage == "m2":
         return calibrate_m2(args)
-    if args.motion_stage in ("m3", "m3b"):
+    if args.motion_stage in ("m3", "m3b", "m3c"):
         return calibrate_m3(args)
     if args.motion_stage != "m0":
         raise SystemExit("Unknown motion stage")
@@ -1229,6 +1240,11 @@ M3_HOLD_TRAVEL_M = 0.4      # ... or at this encoder travel (keeps travel incl. 
 M3B_HOLDS = (0.03, 0.045, 0.06)
 M3B_HOLD_TRAVEL_M = 0.35
 M3_REST_MIN_S = 1.5         # after the hold ends, before the next may start (stop window)
+# M3c (S3 speed proposal v0.1, D38): up to ~0.6 m/s on the 7.6 m opening straight. Holds end at 0.65 m/s,
+# 2.0 s or 1.6 m; the abort caps rise to 0.75 m/s and 2.0 m per hold, 6.0 m per trial, 30 s armed.
+M3C_HOLDS = (0.08, 0.10, 0.12)
+M3C = {"speed_end": 0.65, "travel_end": 1.6, "speed_cap": 0.75, "hold_travel_cap": 2.0, "trial_travel": 6.0,
+       "armed_limit": 30.0}
 WHEEL_RADIUS_M = 0.059      # WheelCollider radius; encoder angle (rad) x radius = distance (M1)
 
 
@@ -1241,7 +1257,14 @@ def calibrate_m3(args):
     from avlite.c60_apps.c63_plugins import import_plugin_modules
 
     holds, hold_travel_end = ((M3B_HOLDS, M3B_HOLD_TRAVEL_M) if args.motion_stage == "m3b"
+                              else (M3C_HOLDS, M3C["travel_end"]) if args.motion_stage == "m3c"
                               else (M3_HOLDS, M3_HOLD_TRAVEL_M))
+    m3c = args.motion_stage == "m3c"
+    speed_end = M3C["speed_end"] if m3c else M3_SPEED_END_MPS
+    speed_cap = M3C["speed_cap"] if m3c else M1_SPEED_CAP_MPS
+    hold_travel_cap = M3C["hold_travel_cap"] if m3c else M1_TRAVEL_CAP_M
+    trial_travel_cap = M3C["trial_travel"] if m3c else M1_TRIAL_TRAVEL_M
+    armed_limit = M3C["armed_limit"] if m3c else M1_ARMED_LIMIT_S
     assert all(h in MOTION_STAGES[args.motion_stage]["throttle"] for h in holds)
 
     import_plugin_modules(str(args.plugin), pkg_name="roboracer")
@@ -1322,8 +1345,8 @@ def calibrate_m3(args):
                 yaw_change = abs(math.degrees(math.remainder(yaw - heading, math.tau)))
                 hold_travel = (angle - hold["start_angle"]) * WHEEL_RADIUS_M if hold else 0.0
                 reason = ("guard fault" if guard_state == "fault" else
-                          "speed %.3f m/s" % speed if speed > M1_SPEED_CAP_MPS else
-                          "hold travel %.3f m" % hold_travel if hold_travel > M1_TRAVEL_CAP_M else
+                          "speed %.3f m/s" % speed if speed > speed_cap else
+                          "hold travel %.3f m" % hold_travel if hold_travel > hold_travel_cap else
                           "yaw change %.1f deg" % yaw_change if yaw_change > 10 else
                           "lateral deviation %.3f m" % lateral if lateral > 0.15 else
                           "forward clearance %.2f m" % forward if forward < 1.0 else
@@ -1354,8 +1377,8 @@ def calibrate_m3(args):
                 done = state["holds"]
                 travelled = sum(h["travel_m"] for h in done)
                 reason = ("sequence complete" if len(done) >= len(holds) else
-                          "armed time" if now - armed_at + M3_HOLD_MAX_S + M3_REST_MIN_S + 1.0 > M1_ARMED_LIMIT_S else
-                          "trial travel" if travelled + M1_TRAVEL_CAP_M > M1_TRIAL_TRAVEL_M else
+                          "armed time" if now - armed_at + M3_HOLD_MAX_S + M3_REST_MIN_S + 1.0 > armed_limit else
+                          "trial travel" if travelled + hold_travel_cap > trial_travel_cap else
                           "forward clearance before hold" if forward < 1.5 else
                           "side clearance before hold" if min(left, right) < 0.4 else None)
                 if reason:
@@ -1374,7 +1397,7 @@ def calibrate_m3(args):
                 hold["max_speed_mps"] = max(hold["max_speed_mps"], speed)
                 travel = (angle - hold["start_angle"]) * WHEEL_RADIUS_M
                 hold_s = encoder_sim - hold["start_encoder_sim"]
-                end = ("speed" if speed >= M3_SPEED_END_MPS else "time" if hold_s >= M3_HOLD_MAX_S else
+                end = ("speed" if speed >= speed_end else "time" if hold_s >= M3_HOLD_MAX_S else
                        "travel" if travel >= hold_travel_end else None)
                 if end:
                     hold.update(end_reason=end, end_speed_mps=speed, end_encoder_sim=encoder_sim,
@@ -1431,7 +1454,7 @@ class StackStage:
     checks the workspace, drives the test controller and applies the stage's abort rules.
     Aborting or finishing requests zero, then stops stepping, so the guard lease expires with
     zero output. GT pose is used only for these labelled monitors, never by the controller, except on
-    stage s3b, whose controller tracks the IPS pose for B's labelled bring-up (S3, D32 A)."""
+    stages s3b and s3v1, whose controller tracks the IPS pose for B's labelled bring-up (S3, D32 A)."""
 
     def __init__(self, args, executer, bridge, state):
         self.args, self.executer, self.bridge, self.state = args, executer, bridge, state
@@ -1469,7 +1492,7 @@ class StackStage:
         self.start_pose = self.last_pose = None
         self.path_m, self.last_seq, self.last_new = 0.0, None, time.monotonic()
         self.state.update(abort=None, finish_reason=None, precheck=None, stage_number=self.number)
-        if self.profile == "s3b":
+        if self.profile in ("s3b", "s3v1"):
             self.controller.reset()  # B: clear the safe-stop latch and the MPC's steering history
         self._request(0.0)
         self._set("wait-armed")
@@ -1578,7 +1601,7 @@ class StackStage:
                     self.blackout_written = True
                     self.state["blackout_written_ns"] = time.monotonic_ns()
             else:
-                distance, limit = ((M6_DISTANCE_M, M6_TIME_S) if self.profile in ("m6", "s3b")
+                distance, limit = ((M6_DISTANCE_M, M6_TIME_S) if self.profile in ("m6", "s3b", "s3v1")
                                    else (M5_DISTANCE_M, M5_TIME_S))
                 if self.path_m >= distance or elapsed >= limit:
                     self._request(0.0)
@@ -1722,7 +1745,7 @@ class StackStage:
         gap = 0.6 if self.profile == "m4" else 0.5
         if now - self.last_new > gap:
             return "no new observation for %.2f s" % (now - self.last_new)
-        if speed is not None and speed > 0.5:
+        if speed is not None and speed > STAGE_SPEED_ABORT_MPS.get(self.profile, 0.5):
             return "speed %.3f m/s" % speed
         if self.requested_steer() > 0.35:
             return "requested steer %.3f rad" % self.requested_steer()
@@ -3043,8 +3066,9 @@ def main():
         parser.error("--sim-hang-test is a stationary (no motion stage) run-mode test with a positive delay")
     if args.f1_case:
         # S1-06 M1 protocol v0.1 (D14): F1 cases run only in the approved M6 envelope.
-        if args.mode == "run" and args.motion_stage != "m6":
-            parser.error("--f1-case requires --motion-stage m6")
+        if args.mode == "run" and not (args.motion_stage == "m6" or
+                                       (args.motion_stage == "s3v1" and args.f1_case in ("f1-3", "f1-7"))):
+            parser.error("--f1-case requires --motion-stage m6 (s3v1: F1-3 and F1-7 only, D38)")
         if args.f1_case == "f1-1" and args.mode == "run":
             # Stage-triggered LiDAR freeze; the runner passes the explicit flags on to its bridge child.
             args.freeze_test, args.freeze_trigger = "lidar", True

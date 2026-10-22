@@ -31,7 +31,11 @@
   "D31": "port (implement in the RoboRacer plugin following the A2RL dev 0b5cfa8 code; every ported function names its A2RL source; no vendored copies)",
   "D32": "A, chosen by the assistant after the user deferred it ('I cannot answer this'): bring-up on the simulator IPS pose labelled 'bring-up, not an S3 result'; every S3 result uses ICP",
   "D33": "faster is better: lap time is an S3 objective; speed rises in stages above the M6 cap, each stage with its own motion proposal, stop evidence and run approval",
-  "D34": "A (initial conditions: recorded poses reached by a scripted approach from the fixed spawn, checked against tolerances)"
+  "D34": "A (initial conditions: recorded poses reached by a scripted approach from the fixed spawn, checked against tolerances)",
+  "D35": "V1 = 0.5 m/s everywhere (first speed step)",
+  "D36": "V1 envelope: cap 0.5 m/s, u_max 0.12 (final value from the identification), overspeed 0.7 m/s, all other limits as M6",
+  "D37": "V1 stop criteria: rest <= 1.5 s and travel <= 0.65 m from fault onset",
+  "D38": "V1 run set: M3c identification x3, F1-3 x3 and F1-7 x3 on s3v1, B laps x3 on s3v1"
  },
  "stages": [
   "M0",
@@ -42,7 +46,9 @@
   "M4",
   "M5",
   "M6",
-  "S3B"
+  "S3B",
+  "M3C",
+  "S3V1"
  ],
  "stage_approvals": [
   {
@@ -260,17 +266,25 @@
    "user_reply": "approve",
    "proposal": "docs/stages/S3.md section 4-5; docs/planning/s3-proposal.md v0.2 (D30-D34)",
    "note": "M6 envelope unchanged (0.3 m/s, 0.35 rad, containment box, aborts, one lap); IPS pose, labelled 'bring-up, not an S3 result' (D32 A); automated D21 pre-Connect check; independent C0 scorer"
+  },
+  {
+   "stage": "S3 speed step V1: M3c identification x3, F1-3 x3 and F1-7 x3 on s3v1, B laps x3 on s3v1, run in that order, stopping at the first failure",
+   "date": "2026-10-22",
+   "user_reply": "confirm",
+   "proposal": "docs/planning/s3-speed-proposal.md",
+   "proposal_version": "0.1",
+   "note": "s3v1 = M6 envelope with cap 0.5 m/s, u_max 0.12, overspeed 0.7 m/s; IPS pose (bring-up label); D37 stop criteria (roboracer_f1.py --criteria v1)"
   }
  ],
  "not_authorized": [
-  "AVLite motion outside M4/M5/M6/S3B",
-  "speeds above 0.3 m/s",
+  "AVLite motion outside M4/M5/M6/S3B/S3V1",
+  "speeds above 0.3 m/s outside S3V1 and M3C (0.5 m/s cap; M3C holds to ~0.6 m/s)",
   "reverse",
   "more than one lap per episode",
   "steering beyond 0.35 rad while moving",
-  "steering while moving outside M5/M6/S3B",
+  "steering while moving outside M5/M6/S3B/S3V1",
   "unattended reset outside S2 batches (D22)",
-  "fault cases other than F1-1..F1-9 and F2-1..F2-10 (D23)",
+  "fault cases other than F1-1..F1-9 and F2-1..F2-10 (D23); on S3V1 only F1-3 and F1-7 (D38)",
   "any S2 live run set without its own run approval (D22)",
   "any S3 live run set without its own run approval"
  ],
@@ -285,6 +299,16 @@
     "D34"
    ],
    "user_reply": "D30. yes D31 参考其代码实现 D32这个我无法回答 D33速度肯定是越快越好 D34 yes"
+  },
+  {
+   "date": "2026-10-22",
+   "decisions": [
+    "D35",
+    "D36",
+    "D37",
+    "D38"
+   ],
+   "user_reply": "confirm"
   }
  ]
 }

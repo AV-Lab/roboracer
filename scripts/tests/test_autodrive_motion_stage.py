@@ -39,14 +39,14 @@ class RunnerStageTests(unittest.TestCase):
     def test_stage_tables_agree_and_approval_names_only_m0(self):
         self.assertEqual(core.STAGES, MOTION_STAGES)
         approval = json.loads(MOTION_APPROVAL.read_text())
-        self.assertEqual(("0.1", ["M0", "M1", "M2", "M3", "M3B", "M4", "M5", "M6", "S3B"], "A"),
+        self.assertEqual(("0.1", ["M0", "M1", "M2", "M3", "M3B", "M4", "M5", "M6", "S3B", "M3C", "S3V1"], "A"),
                          (approval["version"], approval["stages"], approval["decisions"]["D1"]))
         for throttle in (0.03, 0.045, 0.06):
             check_guard_request(f"1 sup-1 3 10 20 {throttle} 0 cal.3.t9", "m3b")
         with self.assertRaises(ValueError):
             check_guard_request("1 sup-1 3 10 20 0.07 0 cal.3.t9", "m3b")
-        for item in ("AVLite motion outside M4/M5/M6/S3B", "speeds above 0.3 m/s", "more than one lap per episode",
-                     "steering while moving outside M5/M6/S3B", "unattended reset outside S2 batches (D22)",
+        for item in ("AVLite motion outside M4/M5/M6/S3B/S3V1", "more than one lap per episode",
+                     "steering while moving outside M5/M6/S3B/S3V1", "unattended reset outside S2 batches (D22)",
                      "any S2 live run set without its own run approval (D22)"):
             self.assertIn(item, approval["not_authorized"])
 
@@ -54,7 +54,7 @@ class RunnerStageTests(unittest.TestCase):
         from autodrive_neutral import AVLITE_MOTION_STAGES
         self.assertEqual(set(core.AVLITE_STAGES), set(AVLITE_MOTION_STAGES))
         for stage, limits in AVLITE_MOTION_STAGES.items():
-            self.assertEqual(core.SpeedLoopParams().u_max, limits["throttle_max"])
+            self.assertEqual(core.AVLITE_STAGES[stage].get("u_max", core.SpeedLoopParams().u_max), limits["throttle_max"])
             self.assertAlmostEqual(core.AVLITE_STAGES[stage]["max_steer_rad"] / core.STEER_LIMIT_RAD,
                                    limits["steering_max"], places=6)
         check_guard_request("1 sup-1 3 10 20 0.0612 0 avlite.3.t9", "m4")
@@ -205,6 +205,27 @@ class SupervisorStageTests(unittest.TestCase):
         from autodrive_neutral import AVLITE_MOTION_STAGES
         self.assertEqual(AVLITE_MOTION_STAGES["s3b"], AVLITE_MOTION_STAGES["m6"])
         self.assertEqual(core.AVLITE_STAGES["s3b"], core.AVLITE_STAGES["m6"])
+
+    def test_s3v1_speed_step_envelope(self):
+        """S3 speed step V1 (D35-D37): 0.5 m/s, u_max 0.12, overspeed 0.7; every other limit as M6."""
+        from autodrive_neutral import AVLITE_MOTION_STAGES, M3C_HOLDS, MOTION_STAGES, STAGE_SPEED_ABORT_MPS
+        v1, m6 = AVLITE_MOTION_STAGES["s3v1"], AVLITE_MOTION_STAGES["m6"]
+        self.assertEqual({k: v for k, v in v1.items() if k != "throttle_max"}, {k: v for k, v in m6.items() if k != "throttle_max"})
+        self.assertEqual(0.12, v1["throttle_max"])
+        self.assertEqual(0.7, STAGE_SPEED_ABORT_MPS["s3v1"])
+        sup = core.SupervisorCore(origin="sup-1", stage="s3v1")
+        self.assertEqual((0.12, 0.7), (sup.speed_loop.p.u_max, sup.speed_loop.p.overspeed_abs_mps))
+        self.assertEqual((0.07, 0.5), (core.SupervisorCore(origin="sup-1", stage="s3b").speed_loop.p.u_max,
+                                       core.SupervisorCore(origin="sup-1", stage="s3b").speed_loop.p.overspeed_abs_mps))
+        check_guard_request("1 sup-1 3 10 20 0.12 0 avlite.3.t9", "s3v1")
+        with self.assertRaises(ValueError):
+            check_guard_request("1 sup-1 3 10 20 0.121 0 avlite.3.t9", "s3v1")
+        with self.assertRaises(ValueError):
+            check_guard_request("1 sup-1 3 10 20 0.08 0 avlite.3.t9", "s3b")
+        self.assertTrue(all(h in MOTION_STAGES["m3c"]["throttle"] for h in M3C_HOLDS))
+        check_guard_request("1 sup-1 3 10 20 0.12 0 cal.3.t9", "m3c")
+        with self.assertRaises(ValueError):
+            check_guard_request("1 sup-1 3 10 20 0.11 0 cal.3.t9", "m3c")
 
     def test_process_refuses_unconfirmed_stage(self):
         with tempfile.TemporaryDirectory() as scratch:

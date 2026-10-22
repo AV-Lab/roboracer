@@ -24,6 +24,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 STOP_SPEED_MPS, STOP_WITHIN_S, TRAVEL_MAX_M = 0.02, 1.5, 0.40
+# S3 speed step V1 (s3-speed-proposal v0.1, D37): onset-referenced as v0.2, travel <= 0.65 m (1.3 s x 0.5 m/s).
+TRAVEL_MAX_BY_CRITERIA = {"v1": 0.65}
 DETECTION_DEADLINE_S = 1.1
 
 
@@ -120,14 +122,16 @@ def analyze(run: Path, geometry: Path | None = None, episode: Path | None = None
         out["details"]["onset_after_injection_s"] = (ref - t0) / 1e9
     stop = stop_after(series, ref, rearm_ns)
     out["details"]["stop"] = stop
-    reference = "onset" if criteria == "v0.2" else "injection"
+    onset_referenced = criteria in ("v0.2", "v1")
+    travel_max = TRAVEL_MAX_BY_CRITERIA.get(criteria, TRAVEL_MAX_M)
+    reference = "onset" if onset_referenced else "injection"
     check(f"stop within 1.5 s of the {reference}", stop["stop_s"] is not None and stop["stop_s"] <= STOP_WITHIN_S,
           stop_s=stop["stop_s"])
     travel = stop["travel_m"] if criteria == "v0.1" else stop_after(series, t0, rearm_ns)["travel_m"]
     out["details"]["travel_after_injection_m"] = travel
-    check("travel after injection <= 0.40 m", travel <= TRAVEL_MAX_M, travel_m=travel)
+    check(f"travel after injection <= {travel_max:.2f} m", travel <= travel_max, travel_m=travel)
 
-    deadline = ref + int(DETECTION_DEADLINE_S * 1e9) if criteria == "v0.2" else t0 + int(DETECTION_DEADLINE_S * 1e9)
+    deadline = ref + int(DETECTION_DEADLINE_S * 1e9) if onset_referenced else t0 + int(DETECTION_DEADLINE_S * 1e9)
     window_end = rearm_ns or float("inf")
     late = [g for g in guard if g.get("k") == "step" and deadline <= g["mono"] < window_end and g["out"][0] != 0]
     if case not in ("f1-8", "f1-9") or guard:
@@ -157,7 +161,7 @@ def analyze(run: Path, geometry: Path | None = None, episode: Path | None = None
         snaps = [s["committed_monotonic_ns"] for s in rows(run / "plugin-snapshots.jsonl")]
         last_good = max((s for s in snaps if abort_tick and s <= abort_tick["start_ns"]), default=None)
         gap = (abort_tick["start_ns"] - last_good) / 1e9 if abort_tick and last_good else None
-        bound = 0.6 if criteria == "v0.1" else 0.7  # v0.2: stack rule 0.5 s + two 100 ms ticks
+        bound = 0.6 if criteria == "v0.1" else 0.7  # v0.2/v1: stack rule 0.5 s + two 100 ms ticks
         check(f"abort <= {bound} s after the last good snapshot", gap is not None and gap <= bound, gap_s=gap)
         check("supervisor refused stale observations", any(r["decision"] == "stale-observation" for r in after),
               decisions=sorted({r["decision"] for r in after}))
@@ -243,7 +247,7 @@ def main():
     parser.add_argument("--run", type=Path, required=True, help="run-01 directory")
     parser.add_argument("--geometry", type=Path)
     parser.add_argument("--episode", type=Path, help="episode.json (F1-8 reaping record)")
-    parser.add_argument("--criteria", choices=("v0.1", "v0.2"), default="v0.2",
+    parser.add_argument("--criteria", choices=("v0.1", "v0.2", "v1"), default="v0.2",
                         help="M1 protocol criteria: v0.1 (injection-referenced) or v0.2 (D17 A, onset-referenced)")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()

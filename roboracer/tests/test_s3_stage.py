@@ -34,7 +34,7 @@ class S3bStageTests(unittest.TestCase):
             payload["ReferenceSpeed"][5] = 3.0
             plan.write_text(json.dumps(payload) + "\n")
             with self.assertRaises(ValueError):
-                s3b.load_plan(plan, record)
+                s3b.load_plan("s3b", plan, record)
 
     def test_controller_config_stays_inside_the_m6_envelope(self):
         cfg = s3b.controller_config()

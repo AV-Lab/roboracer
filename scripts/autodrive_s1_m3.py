@@ -24,6 +24,9 @@ MOTOR_TORQUE_NM, BRAKE_NM, FIXED_STEP_S, LIFE_S = 85.6, 85.5999984741211, 0.001,
 SPEED_CAP, TRAVEL_CAP, STOP_SPEED, STOP_WINDOW_S, STOP_TRAVEL_M = 0.5, 0.5, 0.02, 1.5, 0.15
 WHEEL_RADIUS_M = 0.059
 M3_GAIN = 4.90  # m/s per unit throttle, measured in M3 (20261005T123651Z-m3)
+# M3c (S3 speed proposal v0.1, D38): caps 0.75 m/s and 2.3 m per hold (2.0 m abort + braking); each gain within
+# +/-10 % of the trial's median gain; settling <= 0.5 s; braking distance <= 0.25 s x speed and rest <= 1.5 s.
+M3C_SPEED_CAP, M3C_TRAVEL_CAP, M3C_SETTLE_S, M3C_BRAKE_S = 0.75, 2.3, 0.5, 0.25
 
 
 def rows(path):
@@ -37,6 +40,8 @@ def analyze(directory: Path) -> dict:
     frames = rows(directory / "calibration-frames.jsonl")
     bridge = [r for r in rows(directory / "bridge-frames.jsonl") if "provenance" in r]
     status = json.loads((directory / "calibration-status.json").read_text())
+    m3c = status.get("stage") == "m3c"
+    speed_cap, travel_cap = (M3C_SPEED_CAP, M3C_TRAVEL_CAP) if m3c else (SPEED_CAP, TRAVEL_CAP)
     supervisor = [r for r in rows(directory / "supervisor-trace.jsonl") if r["event"] == "request"]
     failures = []
 
@@ -147,9 +152,13 @@ def analyze(directory: Path) -> dict:
         checks = {
             "torque": torque_ok, "released": released, "forward": hold_travel > 0,
             "encoder_vs_ips": ips_travel is not None and abs(hold_travel - ips_travel) <= 0.005 + 0.05 * abs(hold_travel),
-            "caps": peak <= SPEED_CAP and hold_travel <= TRAVEL_CAP and (yaw or 0) <= 10 and (lateral or 0) <= 0.15,
+            "caps": peak <= speed_cap and hold_travel <= travel_cap and (yaw or 0) <= 10 and (lateral or 0) <= 0.15,
             "stop": stop_from_generation is not None and stop_from_generation <= STOP_WINDOW_S
-                    and travel_after_generation is not None and travel_after_generation < STOP_TRAVEL_M}
+                    and (brake_distance is not None and brake_start_speed is not None
+                         and brake_distance <= M3C_BRAKE_S * brake_start_speed if m3c else
+                         travel_after_generation is not None and travel_after_generation < STOP_TRAVEL_M)}
+        if m3c:
+            checks["settled"] = settle_s is not None and settle_s <= M3C_SETTLE_S
         row["checks"], row["passed"] = checks, all(checks.values())
         if not row["passed"]:
             failures.append(f"hold {index} throttle {throttle}: " + ", ".join(k for k, v in checks.items() if not v))
@@ -162,6 +171,12 @@ def analyze(directory: Path) -> dict:
                or abs(h["steady_gain_mps_per_unit_throttle"] / M3_GAIN - 1) > 0.10]
         if off or len(holds) != 3:
             failures.append(f"M3b gain outside 4.90 +/- 10 % (or not reached) at throttle {off}; holds {len(holds)}")
+    if m3c:
+        median = sorted(gains)[len(gains) // 2] if gains else None
+        off = [h["throttle"] for h in holds if not h["steady_gain_mps_per_unit_throttle"] or not median
+               or abs(h["steady_gain_mps_per_unit_throttle"] / median - 1) > 0.10]
+        if off or len(holds) != 3:
+            failures.append(f"M3c gain not linear within +/-10 % of the median {median} at throttle {off}; holds {len(holds)}")
     settles = [h["settle_within_s"] for h in holds if h["settle_within_s"] is not None]
     return {"run": str(directory), "holds": holds,
             "steady_gain_mps_per_unit_throttle": sorted(gains)[len(gains) // 2] if gains else None,

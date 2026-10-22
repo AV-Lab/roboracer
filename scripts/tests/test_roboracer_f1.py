@@ -21,6 +21,15 @@ import roboracer_f1 as f1  # noqa: E402
 from test_autodrive_guard import MS, simulate  # noqa: E402
 
 
+class CriteriaTests(unittest.TestCase):
+    def test_v1_speed_step_travel_limit(self):
+        """S3 V1 (D37): onset-referenced like v0.2, travel <= 0.65 m; v0.1/v0.2 keep the frozen 0.40 m."""
+        import roboracer_f1
+        self.assertEqual(0.65, roboracer_f1.TRAVEL_MAX_BY_CRITERIA["v1"])
+        self.assertEqual(0.40, roboracer_f1.TRAVEL_MAX_M)
+        self.assertNotIn("v0.2", roboracer_f1.TRAVEL_MAX_BY_CRITERIA)
+
+
 class GuardTriggerTests(unittest.TestCase):
     def test_f1_5_disarm_rearm_stale_epoch_then_one_final_expiry(self):
         def trigger(elapsed_ns):

@@ -29,7 +29,8 @@ def sha256(path: Path) -> str:
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--geometry", type=Path, required=True)
-    parser.add_argument("--speed-cap", type=float, default=0.3)
+    parser.add_argument("--stage", choices=("s3b", "s3v1"), default="s3b")
+    parser.add_argument("--speed-cap", type=float, default=None, help="default: the stage cap (s3b 0.3, s3v1 0.5)")
     parser.add_argument("--output-dir", type=Path, default=REPO / "roboracer/data")
     args = parser.parse_args()
 
@@ -37,19 +38,21 @@ def main():
     from roboracer.planning.c0_track import build_c0_plan
     from roboracer.planning.velocity_profile import VelocityProfileConfig
 
+    from roboracer.planning.s3b import SPEED_CAP_MPS
+    args.speed_cap = args.speed_cap if args.speed_cap is not None else SPEED_CAP_MPS[args.stage]
     geometry = json.loads(args.geometry.read_text())
     profile = VelocityProfileConfig(top_speed_mps=args.speed_cap, **PARAMS["profile"])
     payload, report = build_c0_plan(geometry["centerline"], wkt.loads(geometry["region_wkt"]),
                                     spacing_m=PARAMS["spacing_m"], boundary_margin_m=PARAMS["boundary_margin_m"],
                                     profile=profile, start_pin_m=PARAMS["start_pin_m"])
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    plan = args.output_dir / "c0-s3b-plan.json"
+    plan = args.output_dir / f"c0-{args.stage}-plan.json"
     plan.write_text(json.dumps(payload) + "\n")
     code = {name: sha256(REPO / name) for name in (
         "roboracer/planning/c0_track.py", "roboracer/planning/racing_line.py", "roboracer/planning/velocity_profile.py")}
     head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=REPO, capture_output=True, text=True).stdout.strip()
     provenance = {
-        "schema": "roboracer.s3-plan/1", "plan_file": plan.name, "plan_sha256": sha256(plan),
+        "schema": "roboracer.s3-plan/1", "stage": args.stage, "plan_file": plan.name, "plan_sha256": sha256(plan),
         "source": {"geometry": str(args.geometry), "geometry_sha256": sha256(args.geometry),
                    "track": geometry.get("track"), "centerline_points": len(geometry["centerline"]),
                    "note": "collider-derived S1-05 geometry, the same source as the scorer's; S3-01 must make the "
@@ -57,7 +60,7 @@ def main():
         "a2rl_source": "AV-Lab/a2rl dev 0b5cfa8 (ported, D31)",
         "parameters": dict(PARAMS, speed_cap_mps=args.speed_cap), "code_sha256": code, "git_head_at_build": head,
         "report": report}
-    (args.output_dir / "c0-s3b-plan.provenance.json").write_text(json.dumps(provenance, indent=1) + "\n")
+    (args.output_dir / f"c0-{args.stage}-plan.provenance.json").write_text(json.dumps(provenance, indent=1) + "\n")
     print(json.dumps({"plan": str(plan), "sha256": provenance["plan_sha256"], "report": report}, indent=1))
 
 

@@ -26,7 +26,12 @@
   "D26": "A (one 10-episode batch; any failure fails the item, retained, full rerun only with approval; F2 x3; five timing windows from episodes 1-5; replay x3 per fixture)",
   "D27": "A (planned fresh player every 4 episodes, labelled 'planned restart', so each player's 256 MiB guard trace stays complete)",
   "D28": "A (runner heartbeats from a dedicated thread, sent only while the runner's main loop has progressed within 0.3 s; pauses (F1-7) and runner exit (F1-8) stop them immediately; lease stays 500 ms)",
-  "D29": "A (a cleanup-time player shutdown hang stays a failure; cleanup stops the Devkit bridge directly before the player to test the Socket.IO hypothesis)"
+  "D29": "A (a cleanup-time player shutdown hang stays a failure; cleanup stops the Devkit bridge directly before the player to test the Socket.IO hypothesis)",
+  "D30": "yes (S3-03: B on the A2RL planning and control stack instead of plain Pure Pursuit; reusing the existing A2RL raceline generator is not new raceline development)",
+  "D31": "port (implement in the RoboRacer plugin following the A2RL dev 0b5cfa8 code; every ported function names its A2RL source; no vendored copies)",
+  "D32": "A, chosen by the assistant after the user deferred it ('I cannot answer this'): bring-up on the simulator IPS pose labelled 'bring-up, not an S3 result'; every S3 result uses ICP",
+  "D33": "faster is better: lap time is an S3 objective; speed rises in stages above the M6 cap, each stage with its own motion proposal, stop evidence and run approval",
+  "D34": "A (initial conditions: recorded poses reached by a scripted approach from the fixed spawn, checked against tolerances)"
  },
  "stages": [
   "M0",
@@ -126,7 +131,7 @@
   {
    "stage": "S1-06 M1 F1 matrix under protocol v0.2 (D17 A)",
    "date": "2026-10-07",
-   "user_reply": "resume D17 \u2192 chose \"A: time from fault onset (Recommended)\"",
+   "user_reply": "resume D17 → chose \"A: time from fault onset (Recommended)\"",
    "proposal": "docs/planning/s1-06-m1-protocol.md",
    "proposal_version": "0.2"
   },
@@ -259,5 +264,18 @@
   "unattended reset outside S2 batches (D22)",
   "fault cases other than F1-1..F1-9 and F2-1..F2-10 (D23)",
   "any S2 live run set without its own run approval (D22)"
+ ],
+ "decision_replies": [
+  {
+   "date": "2026-10-22",
+   "decisions": [
+    "D30",
+    "D31",
+    "D32",
+    "D33",
+    "D34"
+   ],
+   "user_reply": "D30. yes D31 参考其代码实现 D32这个我无法回答 D33速度肯定是越快越好 D34 yes"
+  }
  ]
 }

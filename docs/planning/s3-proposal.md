@@ -1,6 +1,6 @@
 # S3 proposal — B: known-map driving on the A2RL planning and control stack
 
-Version **0.1 — proposed 2026-10-22**, for confirmation. Entry: S2 accepted ("accept S2-01 to S2-06"). **Your direction for S3:** build on the A2RL plugin's global planner, local planner and control, which are validated in Autoverse, and do not develop RoboRacer planning or control from scratch.
+Version **0.2 — decisions recorded 2026-10-22**: "D30. yes D31 参考其代码实现 D32这个我无法回答 D33速度肯定是越快越好 D34 yes" ([record](s1-motion-approval.json); outcome in §7). Entry: S2 accepted ("accept S2-01 to S2-06"). **Your direction for S3:** build on the A2RL plugin's global planner, local planner and control, which are validated in Autoverse, and do not develop RoboRacer planning or control from scratch.
 
 **Nothing here authorizes motion.** Decisions D30–D34 are requested in §6.
 
@@ -94,3 +94,15 @@ Gains (`kp_steer_fb`, `lookahead_distance_yaw_m`, MPC weights) are **re-identifi
   - **A (recommended):** each initial condition is a recorded pose reached by a scripted approach from the fixed spawn under A, checked against tolerances before B takes over.
   - **B:** only the fixed spawn. That rescopes M3's initial-condition requirement.
   - (A simulator pose API is excluded by the D18 freeze.)
+
+## 7. Decisions (2026-10-22)
+
+| Decision | Outcome |
+| --- | --- |
+| D30 | **Yes.** S3-03 wording changed in the plan. |
+| D31 | **Port, not vendor.** The planners and the lateral control are implemented in the RoboRacer plugin following the A2RL `0b5cfa8` code. Each ported function names its A2RL source file and function, and equivalence tests compare the port with the A2RL code on the same inputs where the A2RL code runs standalone. |
+| D32 | **A, chosen by me after you deferred it.** The controller is brought up first on the simulator's IPS pose, labelled "bring-up, not an S3 result". Reason: if the first B laps also used the new ICP pose, a bad lap could not tell a tracking problem from a localization problem. Every S3 result uses ICP. |
+| D33 | **Faster is better.** Lap time becomes an S3 objective. Speed rises in stages above the M6 cap (0.3 m/s); each stage needs its own short motion proposal with measured stop distance and pose dead time, and its own run approval. The first such proposal follows the no-motion work. |
+| D34 | **A.** Initial conditions are recorded poses reached by a scripted approach from the fixed spawn. |
+
+**What D31 changes in §2:** "as-is" there now means *the same algorithm and structure, ported*, not copied files. §2's "How the code is brought in" (vendoring) is superseded.

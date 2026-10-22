@@ -1024,3 +1024,10 @@
   - With A2RL's MPC, B laps up to 2 m/s (flying 15.5 s); at 0.3 m/s it laps in 103 s, against A's 123 s.
   - Without the MPC it fails above 1 m/s. No slip is modelled.
 - Report: [S3](stages/S3.md). No motion.
+
+
+## 2026-10-22 — S3 stage s3b built; stationary shadow on the live stack passed
+
+- **Built** (`73b9a95`). B joins the stack as A2RL does: the race-trajectory global planner on the committed, hash-checked C0 plan, plus the ported controller. Stage `s3b` is the M6 envelope unchanged; the runner and the supervisor refuse it until `S3B` is approved.
+- **Stationary shadow.** On the live IPS ego state, B saw the spawn 0.168 m right of its line, asked for 0.3 m/s and steered left toward the line. All processes exited 0; the player is unchanged.
+- **Next.** First B laps (3 fresh-process episodes on `s3b`), which need a run approval. Report: [S3 §4](stages/S3.md).

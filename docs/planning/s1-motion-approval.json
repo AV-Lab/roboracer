@@ -41,7 +41,8 @@
   "M3B",
   "M4",
   "M5",
-  "M6"
+  "M6",
+  "S3B"
  ],
  "stage_approvals": [
   {
@@ -252,18 +253,26 @@
    "user_reply": "D28 A, D29 A; run the checks and reruns, go",
    "proposal": "docs/stages/S2.md section 15",
    "note": "M6 envelope; F1 cases judged by roboracer_f1.py (stop <= 1.5 s, travel <= 0.40 m from onset), F2 reruns by roboracer_f2.py; automated D21 pre-Connect check (no desktop input)"
+  },
+  {
+   "stage": "S3B: B bring-up laps (ported A2RL planner and controller on the committed C0 plan), three fresh-process single episodes",
+   "date": "2026-10-22",
+   "user_reply": "approve",
+   "proposal": "docs/stages/S3.md section 4-5; docs/planning/s3-proposal.md v0.2 (D30-D34)",
+   "note": "M6 envelope unchanged (0.3 m/s, 0.35 rad, containment box, aborts, one lap); IPS pose, labelled 'bring-up, not an S3 result' (D32 A); automated D21 pre-Connect check; independent C0 scorer"
   }
  ],
  "not_authorized": [
-  "AVLite motion outside M4/M5/M6",
+  "AVLite motion outside M4/M5/M6/S3B",
   "speeds above 0.3 m/s",
   "reverse",
   "more than one lap per episode",
   "steering beyond 0.35 rad while moving",
-  "steering while moving outside M5/M6",
+  "steering while moving outside M5/M6/S3B",
   "unattended reset outside S2 batches (D22)",
   "fault cases other than F1-1..F1-9 and F2-1..F2-10 (D23)",
-  "any S2 live run set without its own run approval (D22)"
+  "any S2 live run set without its own run approval (D22)",
+  "any S3 live run set without its own run approval"
  ],
  "decision_replies": [
   {

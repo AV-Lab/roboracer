@@ -1044,3 +1044,11 @@
 - **Request.** Raise the 0.3 m/s cap (D33).
 - **Binding constraint.** A fault stop in a corner, not tracking: the car runs straight for about 1.3 s × v after the guard lease expires. At 0.5 m/s it drifts about 0.15 m in the tightest corner (inside B's 0.31 m clearance); at 1.0 m/s about 0.6 m.
 - **Proposed** ([s3-speed-proposal.md](planning/s3-speed-proposal.md)). V1 = 0.5 m/s, `u_max` 0.12, overspeed 0.7 m/s, other limits unchanged. Stop criteria: ≤ 1.5 s and ≤ 0.65 m. Run set: speed identification ×3, F1-3 ×3, F1-7 ×3, B laps ×3. D35–D38 requested; no motion.
+
+
+## 2026-10-22 — S3 speed step V1: identification and F1-3 pass; F1-7 trial 2 at 1.512 s stops the step
+
+- **Passed.** M3c ×3: K = 5.034 m/s per unit, linear to 0.604 m/s; `u_max` 0.12 confirmed. F1-3 ×3 at 0.5 m/s: 0.69–0.76 s, 0.24–0.25 m.
+- **Failed.** F1-7 trial 1 passed (1.315 s, 0.540 m). Trial 2 took 1.512 s to rest against the 1.5 s limit (travel 0.532 m, inside 0.65 m), so the sequence stopped as agreed; the failure is retained. The difference is about one telemetry frame of rest detection; the detection chain (2 × 0.5 s leases) plus braking makes 1.5 s marginal at 0.5 m/s.
+- **Analysis fix** (`51c8c91`). M3c steady state is taken from 0.4 s; the flagged first analysis of m3c-1 is retained.
+- **D39 options.** A rerun unchanged; B time ≤ 1.7 s with travel as the binding criterion (recommended); C a shorter runner lease. Report: [S3 §6](stages/S3.md).

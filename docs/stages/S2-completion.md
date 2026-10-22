@@ -14,7 +14,7 @@ Date: **2026-10-15**. Request: "go to next step", after the D28/D29 checks and r
 - **No failure is waived.** Five failed acceptance attempts are retained, each with a cause found and fixed before the next approved run (§4). Simulator exit and hang are recorded only as containment.
 - **No manual step is hidden.** Every pre-Connect check in an acceptance run was the automated D21 check. The one human step is your single review of the reference image (2026-10-09), recorded as setup.
 - **Three open issues** carry into S3 (§5). None blocks the S2 criteria.
-- **Stage review requested (§6).** Nothing beyond S2 has started.
+- **Stage review: accepted 2026-10-22** ("accept S2-01 to S2-06"). All boxes in §6 are ticked: **S2 is complete**; the original plan is at 16/34.
 
 ## 1. S2 items
 

@@ -1000,3 +1000,8 @@
 - **Replay ×3 rerun on current code:** analytical fixtures pass (identical reports); stationary recording 258/258 snapshots exact.
 - **Report:** [S2-completion.md](stages/S2-completion.md). All six S2 items delivered; all M2 acceptance parts passed; failures retained.
 - **Recommended boxes:** S2-01 to S2-06 (original plan 10/34 → 16/34). S3 needs entry confirmation.
+
+## 2026-10-22 — S2 stage review: boxes accepted; S3 direction
+
+- **Decision.** "accept S2-01 to S2-06". Original plan **16/34**: PRE, S1 and S2 complete. Amendment 10/10.
+- **S3 direction from the user.** Reuse the A2RL plugin's global planner, local planner and control, which reach about 60 s laps in Autoverse; do not develop RoboRacer planning or control from scratch. Read the latest A2RL `dev` branch first.

@@ -1038,3 +1038,9 @@
 - **Approval.** "approve" (`S3B` added; M6 envelope unchanged). Three fresh-process single-lap episodes, unattended. Player unchanged.
 - **Result.** Lap times 108.69 / 108.79 / 108.83 s (A lap: about 123 s). No contact or off-track; minimum clearance 0.314 m (A: 0.104 m). Lateral error to the line: p50 0.013 m, p95 0.047 m. No safe stop, no abort.
 - **Label.** Bring-up on the IPS pose (D32 A), not S3 results. Next: the speed-stage proposal (D33) and ICP. Report: [S3 §5](stages/S3.md).
+
+## 2026-10-22 — S3 speed proposal v0.1: first step V1 = 0.5 m/s
+
+- **Request.** Raise the 0.3 m/s cap (D33).
+- **Binding constraint.** A fault stop in a corner, not tracking: the car runs straight for about 1.3 s × v after the guard lease expires. At 0.5 m/s it drifts about 0.15 m in the tightest corner (inside B's 0.31 m clearance); at 1.0 m/s about 0.6 m.
+- **Proposed** ([s3-speed-proposal.md](planning/s3-speed-proposal.md)). V1 = 0.5 m/s, `u_max` 0.12, overspeed 0.7 m/s, other limits unchanged. Stop criteria: ≤ 1.5 s and ≤ 0.65 m. Run set: speed identification ×3, F1-3 ×3, F1-7 ×3, B laps ×3. D35–D38 requested; no motion.

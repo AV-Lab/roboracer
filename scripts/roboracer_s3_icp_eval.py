@@ -78,7 +78,7 @@ def main():
         truth = (snap.pose.x, snap.pose.y, snap.pose.yaw)
         st = ours.status
         row = {"telemetry_seq": snap.telemetry_seq, "state": st["state"], "truth": truth}
-        if "pose" in st and st["state"] != "initialized":
+        if "inlier_fraction" in st:  # a scan was matched (not just initialized/verified/rejected)
             x, y, th = st["pose"]
             row.update(pos_err=math.hypot(x - truth[0], y - truth[1]), yaw_err=math.remainder(th - truth[2], math.tau),
                        inlier_fraction=st["inlier_fraction"], inlier_rms_m=st["inlier_rms_m"],

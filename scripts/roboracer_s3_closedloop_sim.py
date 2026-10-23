@@ -106,6 +106,8 @@ def main():
     parser.add_argument("--geometry", type=Path, required=True)
     parser.add_argument("--caps", type=float, nargs="+", default=[0.3, 0.5, 1.0, 1.5, 2.0, 3.0])
     parser.add_argument("--lateral-accel", type=float, default=3.0, help="profile assumption, m/s^2")
+    parser.add_argument("--accel", type=float, default=1.5,
+                        help="profile and plant acceleration limit, m/s^2 (the supervisor's throttle rise 0.10/s x K ~ 0.5)")
     parser.add_argument("--pose-period", type=float, default=0.18)
     parser.add_argument("--pose-age", type=float, default=0.3)
     parser.add_argument("--mpc", nargs="+", default=["off", "apply"])
@@ -121,12 +123,13 @@ def main():
     results = []
     for cap in args.caps:
         profile = VelocityProfileConfig(top_speed_mps=cap, min_speed_mps=min(0.3, cap), lateral_accel_mps2=args.lateral_accel,
-                                        brake_decel_mps2=2.0, accel_limit_mps2=1.5, curvature_window_m=0.4,
+                                        brake_decel_mps2=2.0, accel_limit_mps2=args.accel, curvature_window_m=0.4,
                                         curvature_hold_m=0.5)
         payload, plan = build_c0_plan(geometry["centerline"], region, spacing_m=0.1, boundary_margin_m=0.3,
                                       profile=profile, start_pin_m=0.05)
         for mpc in args.mpc:
-            row = simulate(payload, geometry, region, cap, mpc=mpc, pose_period=args.pose_period, pose_age=args.pose_age)
+            row = simulate(payload, geometry, region, cap, mpc=mpc, pose_period=args.pose_period, pose_age=args.pose_age,
+                           accel=args.accel)
             row["profile_estimated_lap_s"] = plan["profile"]["estimated_lap_s"]
             results.append(row)
             print(json.dumps({k: (round(v, 3) if isinstance(v, float) else v) for k, v in row.items()}), flush=True)

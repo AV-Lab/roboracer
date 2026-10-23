@@ -1060,3 +1060,9 @@
 - **Desktop.** One Escape, sent on the user's instruction, closed the Activities overview.
 - **Result.** F1-7 ×3: 1.27–1.38 s, 0.49–0.54 m. B laps ×3 at 0.5 m/s: 67.71 / 67.59 / 67.42 s, clearance 0.315 m, lateral p95 0.046 m, no abort or safe stop. Player unchanged.
 - **Next.** A V2 proposal (corner-limited speed and/or a shorter runner lease), and ICP. Report: [S3 §7](stages/S3.md).
+
+## 2026-10-23 — S3 speed proposal V2: 1.0 m/s straights, fault-bounded corners
+
+- **Request.** "go for my call": proceed with the speed proposal.
+- **Key result.** The fault-stop drift d²/(2R) with d = k·v caps v²/R at 2δ/k², which is A2RL's profile lateral-acceleration limit. At 0.24 m/s² (δ 0.20 m, k 1.3 s) every plan up to 1.5 m/s straights keeps ≥ 0.12 m in a geometric fault sweep. Unlimited corners already fail at 1.0 m/s.
+- **Proposed** ([s3-speed-v2-proposal.md](planning/s3-speed-v2-proposal.md)). V2 at 1.0 m/s straights, about 41 s real (37.8 s in the closed-loop model); `u_max` 0.24; overspeed 1.2 m/s; stops ≤ 1.3 m and ≤ 2.0 s; run set M3d ×3, F1-3 ×3, F1-7 ×3, B laps ×3. D40–D43 requested; no motion.

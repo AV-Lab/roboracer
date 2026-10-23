@@ -26,6 +26,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 STOP_SPEED_MPS, STOP_WITHIN_S, TRAVEL_MAX_M = 0.02, 1.5, 0.40
 # S3 speed step V1 (s3-speed-proposal v0.1, D37): onset-referenced as v0.2, travel <= 0.65 m (1.3 s x 0.5 m/s).
 TRAVEL_MAX_BY_CRITERIA = {"v1": 0.65}
+# D39 B: speed steps judge time-to-rest as 1.5 s plus one telemetry frame; travel stays the binding criterion.
+STOP_WITHIN_BY_CRITERIA = {"v1": 1.7}
 DETECTION_DEADLINE_S = 1.1
 
 
@@ -124,8 +126,9 @@ def analyze(run: Path, geometry: Path | None = None, episode: Path | None = None
     out["details"]["stop"] = stop
     onset_referenced = criteria in ("v0.2", "v1")
     travel_max = TRAVEL_MAX_BY_CRITERIA.get(criteria, TRAVEL_MAX_M)
+    stop_within = STOP_WITHIN_BY_CRITERIA.get(criteria, STOP_WITHIN_S)
     reference = "onset" if onset_referenced else "injection"
-    check(f"stop within 1.5 s of the {reference}", stop["stop_s"] is not None and stop["stop_s"] <= STOP_WITHIN_S,
+    check(f"stop within {stop_within:.1f} s of the {reference}", stop["stop_s"] is not None and stop["stop_s"] <= stop_within,
           stop_s=stop["stop_s"])
     travel = stop["travel_m"] if criteria == "v0.1" else stop_after(series, t0, rearm_ns)["travel_m"]
     out["details"]["travel_after_injection_m"] = travel

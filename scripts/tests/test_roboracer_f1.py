@@ -28,6 +28,9 @@ class CriteriaTests(unittest.TestCase):
         self.assertEqual(0.65, roboracer_f1.TRAVEL_MAX_BY_CRITERIA["v1"])
         self.assertEqual(0.40, roboracer_f1.TRAVEL_MAX_M)
         self.assertNotIn("v0.2", roboracer_f1.TRAVEL_MAX_BY_CRITERIA)
+        # D39 B: 1.5 s plus one telemetry frame for speed steps; S1 criteria keep 1.5 s.
+        self.assertEqual(1.7, roboracer_f1.STOP_WITHIN_BY_CRITERIA["v1"])
+        self.assertEqual(1.5, roboracer_f1.STOP_WITHIN_S)
 
 
 class GuardTriggerTests(unittest.TestCase):

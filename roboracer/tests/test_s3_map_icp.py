@@ -156,6 +156,23 @@ class MapIcpTests(unittest.TestCase):
             self.assertTrue(result["accepted"], (pose, result))
             self.assertLess(result["forward_range_error_median_m"], 0.03, pose)
 
+    def test_along_track_initialization_is_never_accepted_wrong(self):
+        """As at the C0 spawn: a long corridor with its end wall 8 m ahead. For along-track errors the check
+        either rejects or accepts with the refined pose within ~5 cm of the truth (0.05 m limit + noise) -- never accepts it wrong
+        (offline suite before the facing-beam rule: 0.2 m was accepted and stayed 0.2 m wrong to the corner)."""
+        self.use_rings([[(-25, -2), (9, -2), (9, 2), (-25, 2)], [(-23, -0.3), (7, -0.3), (7, 0.3), (-23, 0.3)]])
+        true_pose = (0.5, -1.15, 0.0)  # end wall at x = 9: 8.5 m ahead
+        for offset in (-0.5, -0.2, -0.1, 0.1, 0.2, 0.5):
+            loc, pm = self.localizer()
+            loc.initialize(true_pose[0] + offset, true_pose[1], true_pose[2])
+            result = loc.verify_initialization(self.frame(true_pose, 0.0))
+            if result["accepted"]:
+                rx, ry, _ = result["refined_pose"]
+                self.assertLess(math.hypot(rx - true_pose[0], ry - true_pose[1]), 0.06, (offset, result))
+        loc, pm = self.localizer()
+        loc.initialize(*true_pose)
+        self.assertTrue(loc.verify_initialization(self.frame(true_pose, 1.0))["accepted"])
+
     def test_tampered_map_is_refused(self):
         self.map_file.write_text(self.map_file.read_text().replace("-5", "-6", 1))
         with self.assertRaises(ValueError):

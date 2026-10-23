@@ -15,7 +15,8 @@ Extended:
   corridor gives ICP no along-track information (found on the first offline evaluation: the estimate stood
   still while the car moved 0.5 m down the opening straight), so odometry carries that direction.
 - **Initialization check** (``verify_initialization``), required before any estimate: at the configured pose
-  the forward beams (+-15 deg) are compared with ranges ray-cast into the map target from the LiDAR, and the
+  the forward beams (+-15 deg) that meet the map nearly head-on are compared with ranges ray-cast into the map
+  target from the LiDAR (at least 5 such beams are required), and the
   scan's inlier fraction is checked. The forward ranges see the end of a straight, so an along-track
   initialization error -- which a straight corridor otherwise hides from ICP (offline: a 0.5 m along-track
   offset stayed "valid but wrong" for 43 scans) -- is rejected before driving. Rejection is sticky until
@@ -113,7 +114,7 @@ class MapIcpLocalization(LidarLocalization):
         self.status = {"state": "initialized", "source": source, "pose": [self._x, self._y, self._theta]}
 
     def _ray_range(self, origin: np.ndarray, direction: np.ndarray, max_range: float = 10.0,
-                   half_width: float = 0.03) -> float:
+                   half_width: float = 0.03) -> tuple[float, int | None]:
         """Range from ``origin`` along unit ``direction`` to the map: the point closest to the ray's centre line
         among those near the first map points within ``half_width`` of it. (Taking the nearest point in the band
         alone reads short where the ray meets a wall at a shallow angle, because the band then covers
@@ -123,13 +124,15 @@ class MapIcpLocalization(LidarLocalization):
         lateral = np.abs(rel[:, 0] * direction[1] - rel[:, 1] * direction[0])
         hit = (t > 0.05) & (t <= max_range) & (lateral <= half_width)
         if not hit.any():
-            return math.inf
+            return math.inf, None
         first = t[hit].min()
-        near = hit & (t <= first + 0.5)
-        return float(t[near][np.argmin(lateral[near])])
+        near = np.flatnonzero(hit & (t <= first + 0.5))
+        best = near[np.argmin(lateral[near])]
+        return float(t[best]), int(best)
 
-    def verify_initialization(self, sensors, forward_deg: float = 15.0, max_range_error_m: float = 0.10,
-                              min_inlier_fraction: float = 0.7) -> dict:
+    def verify_initialization(self, sensors, forward_deg: float = 15.0, max_range_error_m: float = 0.05,
+                              min_inlier_fraction: float = 0.7, min_facing_cos: float = 0.85,
+                              min_facing_beams: int = 5) -> dict:
         """Check the configured pose against the first scan before any estimate (see module notes)."""
         if not self._initialized:
             raise RuntimeError("initialize() first")
@@ -152,16 +155,21 @@ class MapIcpLocalization(LidarLocalization):
         origin = mount @ rot + pose_xy
         rel_body = body - mount
         bearing = np.degrees(np.arctan2(rel_body[:, 1], rel_body[:, 0]))
+        # Only beams that meet the map nearly head-on measure along-track position: a hit on a side wall
+        # slides along the wall when the pose shifts along-track, so its range hardly changes (first offline
+        # suite: a 0.5 m along-track error moved the all-beam median by only ~0.11 m).
         errors = []
         for point in world[np.abs(bearing) <= forward_deg]:
             measured = float(np.linalg.norm(point - origin))
-            predicted = self._ray_range(origin, (point - origin) / max(measured, 1e-9))
-            if math.isfinite(predicted):
+            direction = (point - origin) / max(measured, 1e-9)
+            predicted, index = self._ray_range(origin, direction)
+            if math.isfinite(predicted) and abs(float(self._normals[index] @ direction)) >= min_facing_cos:
                 errors.append(measured - predicted)
         d, _ = self._tree.query(world)
         fraction = float(np.mean(d <= self.limits["inlier_m"]))
-        median_error = float(np.median(np.abs(errors))) if errors else math.inf
-        accepted = (bool(errors) and median_error <= max_range_error_m and fraction >= min_inlier_fraction
+        median_error = float(np.median(np.abs(errors))) if errors else math.inf  # facing beams only
+        accepted = (len(errors) >= min_facing_beams and median_error <= max_range_error_m
+                    and fraction >= min_inlier_fraction
                     and correction_m <= self.limits["max_correction_m"]
                     and correction_rad <= self.limits["max_correction_rad"])
         result = {"accepted": accepted, "refined_pose": [x, y, theta], "correction_m": correction_m,
@@ -169,7 +177,8 @@ class MapIcpLocalization(LidarLocalization):
                   "forward_beams": len(errors), "forward_range_error_median_m": median_error,
                   "forward_range_error_signed_median_m": float(np.median(errors)) if errors else None,
                   "inlier_fraction": fraction, "limits": {"forward_deg": forward_deg,
-                  "max_range_error_m": max_range_error_m, "min_inlier_fraction": min_inlier_fraction}}
+                  "max_range_error_m": max_range_error_m, "min_inlier_fraction": min_inlier_fraction,
+                  "min_facing_cos": min_facing_cos, "min_facing_beams": min_facing_beams}}
         self._verified = accepted
         if accepted:
             self._x, self._y, self._theta = x, y, theta

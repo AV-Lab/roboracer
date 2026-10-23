@@ -1052,3 +1052,11 @@
 - **Failed.** F1-7 trial 1 passed (1.315 s, 0.540 m). Trial 2 took 1.512 s to rest against the 1.5 s limit (travel 0.532 m, inside 0.65 m), so the sequence stopped as agreed; the failure is retained. The difference is about one telemetry frame of rest detection; the detection chain (2 × 0.5 s leases) plus braking makes 1.5 s marginal at 0.5 m/s.
 - **Analysis fix** (`51c8c91`). M3c steady state is taken from 0.4 s; the flagged first analysis of m3c-1 is retained.
 - **D39 options.** A rerun unchanged; B time ≤ 1.7 s with travel as the binding criterion (recommended); C a shorter runner lease. Report: [S3 §6](stages/S3.md).
+
+
+## 2026-10-23 — S3 speed step V1 passed: B laps at 0.5 m/s in 67.4–67.7 s
+
+- **Decision.** "D39 B; run the rest of V1": time-to-rest ≤ 1.7 s for speed steps, travel binding. F1-7 trial 2 stays retained as a failure.
+- **Desktop.** One Escape, sent on the user's instruction, closed the Activities overview.
+- **Result.** F1-7 ×3: 1.27–1.38 s, 0.49–0.54 m. B laps ×3 at 0.5 m/s: 67.71 / 67.59 / 67.42 s, clearance 0.315 m, lateral p95 0.046 m, no abort or safe stop. Player unchanged.
+- **Next.** A V2 proposal (corner-limited speed and/or a shorter runner lease), and ICP. Report: [S3 §7](stages/S3.md).

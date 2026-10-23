@@ -146,6 +146,16 @@ class MapIcpTests(unittest.TestCase):
         loc.initialize(*true_pose)
         self.assertTrue(loc.verify_initialization(self.frame(true_pose, 2.0))["accepted"])
 
+    def test_initialization_accepted_at_the_true_pose_with_shallow_wall_angles(self):
+        """Forward beams at 10-15 deg meet the corridor's side walls at shallow angles; the true pose must pass
+        (the first ray-cast read short there and rejected it)."""
+        loc, pm = self.localizer()
+        for pose in ((-4.0, -1.15, 0.0), (-2.0, 1.15, 0.0), (4.0, 1.0, math.pi / 2)):
+            loc.initialize(*pose)
+            result = loc.verify_initialization(self.frame(pose, 0.0))
+            self.assertTrue(result["accepted"], (pose, result))
+            self.assertLess(result["forward_range_error_median_m"], 0.03, pose)
+
     def test_tampered_map_is_refused(self):
         self.map_file.write_text(self.map_file.read_text().replace("-5", "-6", 1))
         with self.assertRaises(ValueError):

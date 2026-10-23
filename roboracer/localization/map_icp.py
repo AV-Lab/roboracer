@@ -114,12 +114,19 @@ class MapIcpLocalization(LidarLocalization):
 
     def _ray_range(self, origin: np.ndarray, direction: np.ndarray, max_range: float = 10.0,
                    half_width: float = 0.03) -> float:
-        """Range from ``origin`` along unit ``direction`` to the nearest map point within ``half_width`` of the ray."""
+        """Range from ``origin`` along unit ``direction`` to the map: the point closest to the ray's centre line
+        among those near the first map points within ``half_width`` of it. (Taking the nearest point in the band
+        alone reads short where the ray meets a wall at a shallow angle, because the band then covers
+        half_width / sin(angle) of wall; on C0 that biased the forward check by +0.15 m.)"""
         rel = self._map - origin
         t = rel @ direction
         lateral = np.abs(rel[:, 0] * direction[1] - rel[:, 1] * direction[0])
         hit = (t > 0.05) & (t <= max_range) & (lateral <= half_width)
-        return float(t[hit].min()) if hit.any() else math.inf
+        if not hit.any():
+            return math.inf
+        first = t[hit].min()
+        near = hit & (t <= first + 0.5)
+        return float(t[near][np.argmin(lateral[near])])
 
     def verify_initialization(self, sensors, forward_deg: float = 15.0, max_range_error_m: float = 0.10,
                               min_inlier_fraction: float = 0.7) -> dict:

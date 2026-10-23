@@ -107,7 +107,7 @@ def main():
                     "inlier_fraction": stats([r["inlier_fraction"] for r in scored]),
                     "inlier_rms_m": stats([r["inlier_rms_m"] for r in scored]),
                     "degenerate_scans": sum(1 for r in scored if r.get("degenerate")),
-                    "compute_ms": {k: v * 1000 for k, v in stats([r["compute_s"] for r in scored]).items()},
+                    "compute_ms": {k: v * 1000 for k, v in (stats([r["compute_s"] for r in scored]) or {}).items()},
                     "limits": ours.limits},
         "stock_avlite_icp": {"position_error_m": stats([r["stock_pos_err"] for r in rows]),
                              "yaw_error_rad": stats([r["stock_yaw_err"] for r in rows]),

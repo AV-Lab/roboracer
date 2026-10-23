@@ -89,6 +89,7 @@ class MapIcpTests(unittest.TestCase):
     def test_converges_from_a_small_offset_at_an_end(self):
         loc, pm = self.localizer()
         loc.initialize(4.0 + 0.08, 1.0 - 0.05, math.pi / 2 + 0.05)
+        self.assertTrue(loc.verify_initialization(self.frame((4.0, 1.0, math.pi / 2), 0.5))["accepted"])
         loc.localize(pm, self.frame((4.0, 1.0, math.pi / 2), 1.0))
         self.assertEqual("valid", loc.status["state"], loc.status)
         self.assertLess(math.hypot(pm.ego_vehicle.x - 4.0, pm.ego_vehicle.y - 1.0), 0.01)
@@ -100,6 +101,7 @@ class MapIcpTests(unittest.TestCase):
         loc, pm = self.localizer()
         x, y = -2.0, -1.15
         loc.initialize(x, y, 0.0)
+        loc._verified = True  # no end wall in range: the forward-range check cannot apply (see the next test)
         for k in range(1, 8):
             loc.add_odometry(0.2)  # the car moves 0.2 m along +x between scans
             loc.localize(pm, self.frame((x + 0.2 * k, y, 0.0), float(k)))
@@ -108,6 +110,7 @@ class MapIcpTests(unittest.TestCase):
         self.assertLess(abs(pm.ego_vehicle.x - (x + 1.4)), 0.02)
         without, pm2 = self.localizer()
         without.initialize(x, y, 0.0)
+        without._verified = True
         for k in range(1, 8):  # no odometry: the estimate cannot follow along the corridor
             without.localize(pm2, self.frame((x + 0.2 * k, y, 0.0), float(k)))
         self.assertGreater(abs(pm2.ego_vehicle.x - (x + 1.4)), 0.5)
@@ -115,6 +118,7 @@ class MapIcpTests(unittest.TestCase):
     def test_wrong_place_is_reported_and_loss_is_sticky(self):
         loc, pm = self.localizer(loss_after=3)
         loc.initialize(-2.0, -1.15, 0.0)
+        self.assertTrue(loc.verify_initialization(self.frame((-2.0, -1.15, 0.0), -1.0))["accepted"])
         other = [[(-1, -1), (1, -1), (1, 1), (-1, 1)]]  # the scan comes from a different, small room
         for k in range(4):
             lidar = Lidar(sensor_name="lidar", points=raycast(other, (0, 0, 0)), stamp=float(k))
@@ -124,8 +128,23 @@ class MapIcpTests(unittest.TestCase):
         loc.localize(pm, self.frame((-2.0, -1.15, 0.0), 9.0))  # even a good scan does not clear a loss
         self.assertEqual("lost", loc.status["state"])
         loc.initialize(-2.0, -1.15, 0.0)  # only operator/configuration reinitialization does
+        loc.verify_initialization(self.frame((-2.0, -1.15, 0.0), 9.5))
         loc.localize(pm, self.frame((-2.0, -1.15, 0.0), 10.0))
         self.assertEqual("valid", loc.status["state"])
+
+    def test_along_track_initialization_error_is_rejected_before_driving(self):
+        """Facing the end wall 3 m ahead along a straight: a 0.5 m along-track error passes ICP's corridor
+        geometry but not the forward-range check; nothing is estimated until reinitialized and verified."""
+        loc, pm = self.localizer()
+        true_pose = (2.0, -1.15, 0.0)  # end wall at x = 5, so the forward beams see it 3 m ahead
+        loc.initialize(true_pose[0] - 0.5, true_pose[1], true_pose[2])
+        result = loc.verify_initialization(self.frame(true_pose, 0.0))
+        self.assertFalse(result["accepted"], result)
+        self.assertAlmostEqual(-0.5, result["forward_range_error_signed_median_m"], delta=0.05)
+        loc.localize(pm, self.frame(true_pose, 1.0))
+        self.assertEqual("init-rejected", loc.status["state"])
+        loc.initialize(*true_pose)
+        self.assertTrue(loc.verify_initialization(self.frame(true_pose, 2.0))["accepted"])
 
     def test_tampered_map_is_refused(self):
         self.map_file.write_text(self.map_file.read_text().replace("-5", "-6", 1))

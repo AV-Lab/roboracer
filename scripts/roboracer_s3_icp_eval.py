@@ -60,6 +60,9 @@ def main():
 
     rows = []
     previous_angle = None
+    first = lap[0]
+    initialization = ours.verify_initialization(SensorFrame(lidars={"lidar": first.lidar}, primary_lidar_name="lidar",
+                                                            stamp=first.lidar.stamp, frame_id="base_link"))
     for snap in lap:
         # Wheel odometry (allowed sensor): mean encoder angle x wheel radius 0.059 m (S1 M1).
         angle = sum(snap.encoder_angles_rad) / 2
@@ -94,7 +97,8 @@ def main():
     path = sum(math.dist(a["truth"][:2], b["truth"][:2]) for a, b in zip(rows, rows[1:]))
     report = {
         "schema": "roboracer.s3-icp-eval/1", "run": str(args.run), "episode": args.episode, "scans": len(rows),
-        "path_m": path, "initialization": {"source": "configuration", "pose": init, "offset": args.init_offset}, "map_sha256": ours.map_sha256,
+        "path_m": path, "initialization": {"source": "configuration", "pose": init, "offset": args.init_offset,
+                           "check": initialization}, "map_sha256": ours.map_sha256,
         "map_icp": {"states": states, "lost": any(r["state"] == "lost" for r in rows),
                     "first_lost_scan": next((i for i, r in enumerate(rows) if r["state"] == "lost"), None),
                     "valid_but_wrong_scans": sum(1 for r in valid if r["pos_err"] > 0.10 or abs(r["yaw_err"]) > 0.1),

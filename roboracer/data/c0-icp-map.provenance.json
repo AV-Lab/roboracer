@@ -1,0 +1,59 @@
+{
+ "schema": "roboracer.icp-map-provenance/1",
+ "map_file": "c0-icp-map.json",
+ "map_sha256": "4d6103138c62e05f7e28b221b55f2554750f4fc67c5fc40dd10dced605053a12",
+ "source": {
+  "geometry": "/home/a2rl/Workspace/roboracer/artifacts/s1/20261006T051902Z-s1-05/c0-geometry.json",
+  "geometry_sha256": "a6992771beb1dda691289f893bbffd7607b12d1665f18d89a35a8a88ecb64beb",
+  "track": "C0 = Infrastructure/Proto Track",
+  "region": "drivable-region edges (wall inner faces)"
+ },
+ "validation": {
+  "run": "/home/a2rl/Workspace/roboracer/artifacts/s2/20261015T092708Z-m2-acceptance-10lap-d27-rerun/batch10/session-01/run-01",
+  "episode": 1,
+  "snapshots_used": 200,
+  "criteria": {
+   "median_max_m": 0.02,
+   "within_m": 0.05,
+   "within_fraction": 0.9
+  },
+  "variants": {
+   "as recorded": {
+    "points": 215106,
+    "median_m": 0.005671158030811061,
+    "p95_m": 0.009963624575548653,
+    "within_fraction": 0.999902373713425,
+    "passes": true
+   },
+   "yaw sign flipped": {
+    "points": 215106,
+    "median_m": 0.3594472507272396,
+    "p95_m": 0.9030806829937064,
+    "within_fraction": 0.08560895558468848,
+    "passes": false
+   },
+   "origin shifted 0.10 m": {
+    "points": 215106,
+    "median_m": 0.09713869294902613,
+    "p95_m": 0.10231631596387784,
+    "within_fraction": 0.11954571234647104,
+    "passes": false
+   },
+   "y mirrored": {
+    "points": 215106,
+    "median_m": 0.37044422709970604,
+    "p95_m": 1.2273065493610587,
+    "within_fraction": 0.11186112893178247,
+    "passes": false
+   },
+   "scale x1.05": {
+    "points": 215106,
+    "median_m": 0.10065837551672285,
+    "p95_m": 0.3736585833413153,
+    "within_fraction": 0.378678419012022,
+    "passes": false
+   }
+  }
+ },
+ "code_sha256": "fbb7f5cf02a85e8bf71fd23e5d042f28bebed7e41da7eb5b67ecf432576d6434"
+}

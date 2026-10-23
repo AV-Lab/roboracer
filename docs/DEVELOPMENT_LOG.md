@@ -1077,3 +1077,15 @@
   - B laps: 44.57 / 44.77 / 44.57 s, clearance 0.309 m, lateral p95 0.075 m, no abort or safe stop.
 - **Progression.** 108.7 → 67.5 → 44.6 s. The real laps were about 18 % over the kinematic model.
 - **Next.** ICP; optionally a shorter detection chain for faster corners. Report: [S3 §8](stages/S3.md).
+
+
+## 2026-10-23 — S3-01/02: ICP map target and map ICP localization, offline-qualified
+
+- **Map target.** Drivable-region edges, 3,152 points. Validated against 200 recorded scans: median 5.7 mm, 100 % within 5 cm. Wrong conventions are all rejected.
+- **Localizer.** `MapIcpLocalization` extends AVLite's ICP with a validated map, a KD-tree, configuration start plus a start-up check, odometry prediction (straights are along-track degenerate), validity and degeneracy reporting, and sticky loss.
+- **Offline results.**
+  - 5 laps: every scan valid; position p95 7–9 mm, max 15 mm; 3 ms per scan. Stock ICP on the same data: 5 m median error.
+  - Start faults: across-track and small heading errors are corrected; large heading errors are rejected.
+  - Along-track at the spawn is unobservable and reported as such: 0.2 m is corrected at the first corner, 0.5 m becomes a loss there.
+- **Own defects found and fixed** (ray-cast bias, side-wall beams, no facing beams at the spawn); retained. Report: [S3 §9](stages/S3.md).
+- **Next.** S3-03 integration, then ICP laps (needs a run approval).

@@ -16,7 +16,8 @@ Extended:
   still while the car moved 0.5 m down the opening straight), so odometry carries that direction.
 - **Initialization check** (``verify_initialization``), required before any estimate: at the configured pose
   the forward beams (+-15 deg) that meet the map nearly head-on are compared with ranges ray-cast into the map
-  target from the LiDAR (at least 5 such beams are required), and the
+  target from the LiDAR (when at least 5 such beams exist; otherwise along-track is reported "unobservable"
+  and rests on the configured pose, as at the C0 spawn, where the straight opens into the first corner), and the
   scan's inlier fraction is checked. The forward ranges see the end of a straight, so an along-track
   initialization error -- which a straight corridor otherwise hides from ICP (offline: a 0.5 m along-track
   offset stayed "valid but wrong" for 43 scans) -- is rejected before driving. Rejection is sticky until
@@ -82,7 +83,7 @@ class MapIcpLocalization(LidarLocalization):
     def __init__(self, perception_model, setting=PerceptionSettings, *, map_file: Path = MAP_FILE,
                  provenance_file: Path = MAP_PROVENANCE, max_correspondence_m: float = 0.3, max_iterations: int = 30,
                  tolerance_m: float = 1e-4, inlier_m: float = 0.05, min_inlier_fraction: float = 0.7,
-                 max_inlier_rms_m: float = 0.03, max_correction_m: float = 0.25, max_correction_rad: float = 0.2,
+                 max_inlier_rms_m: float = 0.03, max_correction_m: float = 0.05, max_correction_rad: float = 0.2,
                  loss_after: int = 3, min_constraint_ratio: float = 0.05):
         super().__init__(perception_model, setting)
         self._max_correspondence_dist = max_correspondence_m
@@ -132,7 +133,8 @@ class MapIcpLocalization(LidarLocalization):
 
     def verify_initialization(self, sensors, forward_deg: float = 15.0, max_range_error_m: float = 0.05,
                               min_inlier_fraction: float = 0.7, min_facing_cos: float = 0.85,
-                              min_facing_beams: int = 5) -> dict:
+                              min_facing_beams: int = 5, max_init_correction_m: float = 0.25,
+                              max_init_correction_rad: float = 0.2) -> dict:
         """Check the configured pose against the first scan before any estimate (see module notes)."""
         if not self._initialized:
             raise RuntimeError("initialize() first")
@@ -168,17 +170,22 @@ class MapIcpLocalization(LidarLocalization):
         d, _ = self._tree.query(world)
         fraction = float(np.mean(d <= self.limits["inlier_m"]))
         median_error = float(np.median(np.abs(errors))) if errors else math.inf  # facing beams only
-        accepted = (len(errors) >= min_facing_beams and median_error <= max_range_error_m
-                    and fraction >= min_inlier_fraction
-                    and correction_m <= self.limits["max_correction_m"]
-                    and correction_rad <= self.limits["max_correction_rad"])
-        result = {"accepted": accepted, "refined_pose": [x, y, theta], "correction_m": correction_m,
+        # Along-track is checkable only where enough beams meet the map head-on. At the C0 spawn none do within
+        # the 10 m range (the straight opens into the first corner), so it is reported unobservable and rests on
+        # the configured spawn; any along-track error is then corrected at the first corner (offline suite).
+        along_track = "checked" if len(errors) >= min_facing_beams else "unobservable"
+        along_ok = along_track == "unobservable" or median_error <= max_range_error_m
+        accepted = (along_ok and fraction >= min_inlier_fraction
+                    and correction_m <= max_init_correction_m and correction_rad <= max_init_correction_rad)
+        result = {"accepted": accepted, "along_track": along_track, "refined_pose": [x, y, theta],
+                  "correction_m": correction_m,
                   "correction_rad": correction_rad,
                   "forward_beams": len(errors), "forward_range_error_median_m": median_error,
                   "forward_range_error_signed_median_m": float(np.median(errors)) if errors else None,
                   "inlier_fraction": fraction, "limits": {"forward_deg": forward_deg,
                   "max_range_error_m": max_range_error_m, "min_inlier_fraction": min_inlier_fraction,
-                  "min_facing_cos": min_facing_cos, "min_facing_beams": min_facing_beams}}
+                  "min_facing_cos": min_facing_cos, "min_facing_beams": min_facing_beams,
+                  "max_init_correction_m": max_init_correction_m, "max_init_correction_rad": max_init_correction_rad}}
         self._verified = accepted
         if accepted:
             self._x, self._y, self._theta = x, y, theta

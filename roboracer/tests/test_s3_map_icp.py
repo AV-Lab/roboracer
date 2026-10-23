@@ -171,7 +171,19 @@ class MapIcpTests(unittest.TestCase):
                 self.assertLess(math.hypot(rx - true_pose[0], ry - true_pose[1]), 0.06, (offset, result))
         loc, pm = self.localizer()
         loc.initialize(*true_pose)
-        self.assertTrue(loc.verify_initialization(self.frame(true_pose, 1.0))["accepted"])
+        result = loc.verify_initialization(self.frame(true_pose, 1.0))
+        self.assertTrue(result["accepted"])
+        self.assertEqual("checked", result["along_track"])
+
+    def test_no_wall_ahead_reports_along_track_unobservable(self):
+        """End walls beyond the scan range (as at the C0 spawn): the check says so instead of pretending."""
+        self.use_rings([[(-25, -2), (25, -2), (25, 2), (-25, 2)], [(-23, -0.3), (23, -0.3), (23, 0.3), (-23, 0.3)]])
+        loc, pm = self.localizer()
+        loc.initialize(0.0, -1.15, 0.0)
+        result = loc.verify_initialization(self.frame((0.0, -1.15, 0.0), 0.0))
+        self.assertTrue(result["accepted"], result)
+        self.assertEqual("unobservable", result["along_track"])
+        self.assertEqual(0, result["forward_beams"])
 
     def test_tampered_map_is_refused(self):
         self.map_file.write_text(self.map_file.read_text().replace("-5", "-6", 1))

@@ -25,9 +25,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 STOP_SPEED_MPS, STOP_WITHIN_S, TRAVEL_MAX_M = 0.02, 1.5, 0.40
 # S3 speed step V1 (s3-speed-proposal v0.1, D37): onset-referenced as v0.2, travel <= 0.65 m (1.3 s x 0.5 m/s).
-TRAVEL_MAX_BY_CRITERIA = {"v1": 0.65}
+TRAVEL_MAX_BY_CRITERIA = {"v1": 0.65, "v2": 1.3}  # v2: S3 V2 (D42), 1.3 s x 1.0 m/s
 # D39 B: speed steps judge time-to-rest as 1.5 s plus one telemetry frame; travel stays the binding criterion.
-STOP_WITHIN_BY_CRITERIA = {"v1": 1.7}
+STOP_WITHIN_BY_CRITERIA = {"v1": 1.7, "v2": 2.0}  # v2 (D42): 1.7 s + braking from 1.0 instead of 0.5 m/s
 DETECTION_DEADLINE_S = 1.1
 
 
@@ -124,7 +124,7 @@ def analyze(run: Path, geometry: Path | None = None, episode: Path | None = None
         out["details"]["onset_after_injection_s"] = (ref - t0) / 1e9
     stop = stop_after(series, ref, rearm_ns)
     out["details"]["stop"] = stop
-    onset_referenced = criteria in ("v0.2", "v1")
+    onset_referenced = criteria in ("v0.2", "v1", "v2")
     travel_max = TRAVEL_MAX_BY_CRITERIA.get(criteria, TRAVEL_MAX_M)
     stop_within = STOP_WITHIN_BY_CRITERIA.get(criteria, STOP_WITHIN_S)
     reference = "onset" if onset_referenced else "injection"
@@ -250,7 +250,7 @@ def main():
     parser.add_argument("--run", type=Path, required=True, help="run-01 directory")
     parser.add_argument("--geometry", type=Path)
     parser.add_argument("--episode", type=Path, help="episode.json (F1-8 reaping record)")
-    parser.add_argument("--criteria", choices=("v0.1", "v0.2", "v1"), default="v0.2",
+    parser.add_argument("--criteria", choices=("v0.1", "v0.2", "v1", "v2"), default="v0.2",
                         help="M1 protocol criteria: v0.1 (injection-referenced) or v0.2 (D17 A, onset-referenced)")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()

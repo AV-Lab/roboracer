@@ -3,7 +3,7 @@
 The plan file is built offline by ``scripts/roboracer_s3_plan.py`` and committed with a provenance
 record holding its sha256; ``load_plan`` refuses a file that does not match or exceeds the stage cap.
 The controller config keeps B inside the stage envelope: s3b 0.3 m/s (the unchanged M6 envelope), s3v1
-0.5 m/s (speed step V1, D36); 0.35 rad steering on both; lateral MPC applied as in A2RL's latest presets.
+0.5 m/s (speed step V1, D36), s3v2 1.0 m/s straights with fault-bounded corners (V2, D40); 0.35 rad steering; lateral MPC applied as in A2RL's latest presets.
 
 Bring-up only: the controller reads the bridge's ego state, i.e. the simulator IPS pose. Laps on this
 stage are labelled "bring-up, not an S3 result"; S3 results use ICP (D32 A).
@@ -22,7 +22,7 @@ DATA = Path(__file__).resolve().parents[1] / "data"
 PLAN_FILE = DATA / "c0-s3b-plan.json"
 PROVENANCE_FILE = DATA / "c0-s3b-plan.provenance.json"
 # Speed cap per stage: s3b the M6 envelope; s3v1 the first speed step (s3-speed-proposal v0.1, D35/D36).
-SPEED_CAP_MPS = {"s3b": 0.3, "s3v1": 0.5}
+SPEED_CAP_MPS = {"s3b": 0.3, "s3v1": 0.5, "s3v2": 1.0}
 
 
 def plan_files(stage: str) -> tuple[Path, Path]:

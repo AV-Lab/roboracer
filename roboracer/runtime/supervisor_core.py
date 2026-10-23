@@ -41,7 +41,9 @@ STAGES = {"m0": {"throttle": (0.0,), "steering": (0.0, 0.1, -0.1, 0.5, -0.5, 1.0
           "m3": {"throttle": (0.0, 0.005, 0.01, 0.02), "steering": (0.0,)},
           "m3b": {"throttle": (0.0, 0.03, 0.045, 0.06), "steering": (0.0,)},
           # S3 speed proposal v0.1 (D38): identification holds up to ~0.6 m/s, steering 0.
-          "m3c": {"throttle": (0.0, 0.08, 0.10, 0.12), "steering": (0.0,)}}
+          "m3c": {"throttle": (0.0, 0.08, 0.10, 0.12), "steering": (0.0,)},
+          # S3 speed proposal V2 (D43): identification holds up to ~1.2 m/s, steering 0.
+          "m3d": {"throttle": (0.0, 0.16, 0.20, 0.24), "steering": (0.0,)}}
 # Confirmed S1-03 stages where AVLite target-speed requests drive the vehicle through the
 # speed loop (s1-03-controller-proposal.md v0.2, D5/D8; approved "yes run M4 and M5").
 AVLITE_STAGES = {"m4": {"max_speed_mps": 0.3, "max_steer_rad": 0.0},
@@ -51,7 +53,9 @@ AVLITE_STAGES = {"m4": {"max_speed_mps": 0.3, "max_steer_rad": 0.0},
                  # S3 B bring-up (s3-proposal v0.2, D32 A): the M6 limits, unchanged.
                  "s3b": {"max_speed_mps": 0.3, "max_steer_rad": 0.35},
                  # S3 speed step V1 (s3-speed-proposal v0.1, D35-D37): 0.5 m/s, u_max 0.12, overspeed 0.7 m/s.
-                 "s3v1": {"max_speed_mps": 0.5, "max_steer_rad": 0.35, "u_max": 0.12, "overspeed_abs_mps": 0.7}}
+                 "s3v1": {"max_speed_mps": 0.5, "max_steer_rad": 0.35, "u_max": 0.12, "overspeed_abs_mps": 0.7},
+                 # S3 speed step V2 (s3-speed-v2-proposal v0.1, D40-D41): 1.0 m/s, u_max 0.24, overspeed 1.2 m/s.
+                 "s3v2": {"max_speed_mps": 1.0, "max_steer_rad": 0.35, "u_max": 0.24, "overspeed_abs_mps": 1.2}}
 STEER_LIMIT_RAD = 0.5235987755982988  # normalized steering 1.0 (M0)
 
 

@@ -22,6 +22,12 @@ PARAMS = {"spacing_m": 0.1, "boundary_margin_m": 0.3, "start_pin_m": 0.05,
                       "accel_limit_mps2": 1.5, "curvature_window_m": 0.4, "curvature_hold_m": 0.5}}
 
 
+# V2 (D40): corners bounded by the fault drift, lateral 2 x 0.20 m / 1.3 s^2 ~ 0.24 m/s^2; acceleration as the
+# supervisor's throttle rise allows (0.10/s x K ~ 0.5 m/s^2).
+STAGE_PROFILE = {"s3v2": {"lateral_accel_mps2": 0.24, "accel_limit_mps2": 0.5}}
+FAULT_SWEEP_K_S, FAULT_SWEEP_MIN_M, FAULT_SWEEP_GATED = 1.3, 0.05, ("s3v2",)
+
+
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -29,7 +35,7 @@ def sha256(path: Path) -> str:
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--geometry", type=Path, required=True)
-    parser.add_argument("--stage", choices=("s3b", "s3v1"), default="s3b")
+    parser.add_argument("--stage", choices=("s3b", "s3v1", "s3v2"), default="s3b")
     parser.add_argument("--speed-cap", type=float, default=None, help="default: the stage cap (s3b 0.3, s3v1 0.5)")
     parser.add_argument("--output-dir", type=Path, default=REPO / "roboracer/data")
     args = parser.parse_args()
@@ -41,10 +47,18 @@ def main():
     from roboracer.planning.s3b import SPEED_CAP_MPS
     args.speed_cap = args.speed_cap if args.speed_cap is not None else SPEED_CAP_MPS[args.stage]
     geometry = json.loads(args.geometry.read_text())
-    profile = VelocityProfileConfig(top_speed_mps=args.speed_cap, **PARAMS["profile"])
+    profile_params = dict(PARAMS["profile"], **STAGE_PROFILE.get(args.stage, {}))
+    profile = VelocityProfileConfig(top_speed_mps=args.speed_cap, **profile_params)
     payload, report = build_c0_plan(geometry["centerline"], wkt.loads(geometry["region_wkt"]),
                                     spacing_m=PARAMS["spacing_m"], boundary_margin_m=PARAMS["boundary_margin_m"],
                                     profile=profile, start_pin_m=PARAMS["start_pin_m"])
+    # D40: every plan point's straight-ahead fault sweep (1.3 s x speed) keeps >= 0.05 m to the walls.
+    from roboracer_s3_fault_envelope import sweep_clearance
+    sweep, worst_point = sweep_clearance(payload, geometry, wkt.loads(geometry["region_wkt"]), FAULT_SWEEP_K_S)
+    report["fault_sweep"] = {"k_s": FAULT_SWEEP_K_S, "min_clearance_m": sweep, "worst_point": worst_point,
+                             "required_m": FAULT_SWEEP_MIN_M}
+    if args.stage in FAULT_SWEEP_GATED and sweep < FAULT_SWEEP_MIN_M:
+        raise SystemExit(f"{args.stage} plan fails the fault sweep: {sweep:.3f} m < {FAULT_SWEEP_MIN_M} m")
     args.output_dir.mkdir(parents=True, exist_ok=True)
     plan = args.output_dir / f"c0-{args.stage}-plan.json"
     plan.write_text(json.dumps(payload) + "\n")
@@ -58,7 +72,7 @@ def main():
                    "note": "collider-derived S1-05 geometry, the same source as the scorer's; S3-01 must make the "
                            "driving map a separate validated asset (S3-04)"},
         "a2rl_source": "AV-Lab/a2rl dev 0b5cfa8 (ported, D31)",
-        "parameters": dict(PARAMS, speed_cap_mps=args.speed_cap), "code_sha256": code, "git_head_at_build": head,
+        "parameters": dict(PARAMS, profile=profile_params, speed_cap_mps=args.speed_cap), "code_sha256": code, "git_head_at_build": head,
         "report": report}
     (args.output_dir / f"c0-{args.stage}-plan.provenance.json").write_text(json.dumps(provenance, indent=1) + "\n")
     print(json.dumps({"plan": str(plan), "sha256": provenance["plan_sha256"], "report": report}, indent=1))

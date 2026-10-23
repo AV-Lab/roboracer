@@ -39,14 +39,14 @@ class RunnerStageTests(unittest.TestCase):
     def test_stage_tables_agree_and_approval_names_only_m0(self):
         self.assertEqual(core.STAGES, MOTION_STAGES)
         approval = json.loads(MOTION_APPROVAL.read_text())
-        self.assertEqual(("0.1", ["M0", "M1", "M2", "M3", "M3B", "M4", "M5", "M6", "S3B", "M3C", "S3V1"], "A"),
+        self.assertEqual(("0.1", ["M0", "M1", "M2", "M3", "M3B", "M4", "M5", "M6", "S3B", "M3C", "S3V1", "M3D", "S3V2"], "A"),
                          (approval["version"], approval["stages"], approval["decisions"]["D1"]))
         for throttle in (0.03, 0.045, 0.06):
             check_guard_request(f"1 sup-1 3 10 20 {throttle} 0 cal.3.t9", "m3b")
         with self.assertRaises(ValueError):
             check_guard_request("1 sup-1 3 10 20 0.07 0 cal.3.t9", "m3b")
-        for item in ("AVLite motion outside M4/M5/M6/S3B/S3V1", "more than one lap per episode",
-                     "steering while moving outside M5/M6/S3B/S3V1", "unattended reset outside S2 batches (D22)",
+        for item in ("AVLite motion outside M4/M5/M6/S3B/S3V1/S3V2", "more than one lap per episode",
+                     "steering while moving outside M5/M6/S3B/S3V1/S3V2", "unattended reset outside S2 batches (D22)",
                      "any S2 live run set without its own run approval (D22)"):
             self.assertIn(item, approval["not_authorized"])
 
@@ -226,6 +226,23 @@ class SupervisorStageTests(unittest.TestCase):
         check_guard_request("1 sup-1 3 10 20 0.12 0 cal.3.t9", "m3c")
         with self.assertRaises(ValueError):
             check_guard_request("1 sup-1 3 10 20 0.11 0 cal.3.t9", "m3c")
+
+    def test_s3v2_speed_step_envelope(self):
+        """S3 speed step V2 (D40-D42): 1.0 m/s, u_max 0.24, overspeed 1.2; every other limit as M6."""
+        from autodrive_neutral import AVLITE_MOTION_STAGES, M3D_HOLDS, MOTION_STAGES, STAGE_SPEED_ABORT_MPS
+        v2, m6 = AVLITE_MOTION_STAGES["s3v2"], AVLITE_MOTION_STAGES["m6"]
+        self.assertEqual({k: v for k, v in v2.items() if k != "throttle_max"}, {k: v for k, v in m6.items() if k != "throttle_max"})
+        self.assertEqual((0.24, 1.2), (v2["throttle_max"], STAGE_SPEED_ABORT_MPS["s3v2"]))
+        sup = core.SupervisorCore(origin="sup-1", stage="s3v2")
+        self.assertEqual((0.24, 1.2), (sup.speed_loop.p.u_max, sup.speed_loop.p.overspeed_abs_mps))
+        self.assertEqual(1.0, core.AVLITE_STAGES["s3v2"]["max_speed_mps"])
+        check_guard_request("1 sup-1 3 10 20 0.24 0 avlite.3.t9", "s3v2")
+        with self.assertRaises(ValueError):
+            check_guard_request("1 sup-1 3 10 20 0.241 0 avlite.3.t9", "s3v2")
+        self.assertTrue(all(h in MOTION_STAGES["m3d"]["throttle"] for h in M3D_HOLDS))
+        check_guard_request("1 sup-1 3 10 20 0.24 0 cal.3.t9", "m3d")
+        with self.assertRaises(ValueError):
+            check_guard_request("1 sup-1 3 10 20 0.12 0 cal.3.t9", "m3d")
 
     def test_process_refuses_unconfirmed_stage(self):
         with tempfile.TemporaryDirectory() as scratch:

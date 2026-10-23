@@ -25,6 +25,17 @@ class S3bStageTests(unittest.TestCase):
         provenance = json.loads(s3b.PROVENANCE_FILE.read_text())
         self.assertGreaterEqual(provenance["report"]["min_polyline_clearance_m"], 0.28)
 
+    def test_speed_step_plans_respect_their_caps_and_the_fault_sweep(self):
+        for stage, cap in (("s3v1", 0.5), ("s3v2", 1.0)):
+            _, info = s3b.load_plan(stage)
+            self.assertLessEqual(info["max_speed_mps"], cap)
+        v2 = json.loads(s3b.plan_files("s3v2")[1].read_text())
+        self.assertGreaterEqual(v2["report"]["fault_sweep"]["min_clearance_m"], 0.05)
+        self.assertEqual(0.24, v2["parameters"]["profile"]["lateral_accel_mps2"])
+        self.assertGreater(v2["report"]["profile"]["min_mps"], 0.5)  # corners near V1's speed, straights faster
+        with self.assertRaises(ValueError):  # a faster plan file is refused for a slower stage
+            s3b.load_plan("s3v1", *s3b.plan_files("s3v2"))
+
     def test_tampered_plan_is_refused(self):
         with tempfile.TemporaryDirectory() as scratch:
             plan, record = Path(scratch) / "plan.json", Path(scratch) / "plan.provenance.json"

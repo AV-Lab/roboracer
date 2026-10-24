@@ -55,7 +55,8 @@
   "M3C",
   "S3V1",
   "M3D",
-  "S3V2"
+  "S3V2",
+  "S3V1I"
  ],
  "stage_approvals": [
   {
@@ -296,17 +297,24 @@
    "proposal": "docs/planning/s3-speed-v2-proposal.md",
    "proposal_version": "0.1",
    "note": "s3v2 = M6 envelope with straights 1.0 m/s, corners from the fault-drift bound, u_max 0.24, overspeed 1.2 m/s; IPS pose (bring-up label); D42 criteria (roboracer_f1.py --criteria v2)"
+  },
+  {
+   "stage": "S3 first laps on ICP pose (stage s3v1i): B laps x3, then F1-1 LiDAR freeze x3, stopping at the first failure",
+   "date": "2026-10-24",
+   "user_reply": "Approve the ICP labs.",
+   "proposal": "docs/stages/S3.md section 11",
+   "note": "s3v1i = the V1 envelope (0.5 m/s, u_max 0.12, overspeed 0.7) with MapIcpLocalization; simulator pose filtered out of the stack; laps judged by the independent scorer (clearance >= 0.20 m); F1-1 by roboracer_f1.py --criteria v1 (<= 1.7 s, <= 0.65 m)"
   }
  ],
  "not_authorized": [
-  "AVLite motion outside M4/M5/M6/S3B/S3V1/S3V2",
-  "speeds above 0.3 m/s outside S3V1, S3V2, M3C and M3D (S3V1 0.5 m/s; S3V2 1.0 m/s straights; M3C/M3D holds to ~0.6/~1.2 m/s)",
+  "AVLite motion outside M4/M5/M6/S3B/S3V1/S3V2/S3V1I",
+  "speeds above 0.3 m/s outside S3V1, S3V1I, S3V2, M3C and M3D (S3V1 0.5 m/s; S3V2 1.0 m/s straights; M3C/M3D holds to ~0.6/~1.2 m/s)",
   "reverse",
   "more than one lap per episode",
   "steering beyond 0.35 rad while moving",
-  "steering while moving outside M5/M6/S3B/S3V1/S3V2",
+  "steering while moving outside M5/M6/S3B/S3V1/S3V2/S3V1I",
   "unattended reset outside S2 batches (D22)",
-  "fault cases other than F1-1..F1-9 and F2-1..F2-10 (D23); on S3V1 and S3V2 only F1-3 and F1-7 (D38, D43)",
+  "fault cases other than F1-1..F1-9 and F2-1..F2-10 (D23); on S3V1 and S3V2 only F1-3 and F1-7 (D38, D43); on S3V1I only F1-1",
   "any S2 live run set without its own run approval (D22)",
   "any S3 live run set without its own run approval"
  ],

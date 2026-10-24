@@ -39,14 +39,14 @@ class RunnerStageTests(unittest.TestCase):
     def test_stage_tables_agree_and_approval_names_only_m0(self):
         self.assertEqual(core.STAGES, MOTION_STAGES)
         approval = json.loads(MOTION_APPROVAL.read_text())
-        self.assertEqual(("0.1", ["M0", "M1", "M2", "M3", "M3B", "M4", "M5", "M6", "S3B", "M3C", "S3V1", "M3D", "S3V2"], "A"),
+        self.assertEqual(("0.1", ["M0", "M1", "M2", "M3", "M3B", "M4", "M5", "M6", "S3B", "M3C", "S3V1", "M3D", "S3V2", "S3V1I"], "A"),
                          (approval["version"], approval["stages"], approval["decisions"]["D1"]))
         for throttle in (0.03, 0.045, 0.06):
             check_guard_request(f"1 sup-1 3 10 20 {throttle} 0 cal.3.t9", "m3b")
         with self.assertRaises(ValueError):
             check_guard_request("1 sup-1 3 10 20 0.07 0 cal.3.t9", "m3b")
-        for item in ("AVLite motion outside M4/M5/M6/S3B/S3V1/S3V2", "more than one lap per episode",
-                     "steering while moving outside M5/M6/S3B/S3V1/S3V2", "unattended reset outside S2 batches (D22)",
+        for item in ("AVLite motion outside M4/M5/M6/S3B/S3V1/S3V2/S3V1I", "more than one lap per episode",
+                     "steering while moving outside M5/M6/S3B/S3V1/S3V2/S3V1I", "unattended reset outside S2 batches (D22)",
                      "any S2 live run set without its own run approval (D22)"):
             self.assertIn(item, approval["not_authorized"])
 

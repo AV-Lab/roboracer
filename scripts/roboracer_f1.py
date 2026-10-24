@@ -160,7 +160,10 @@ def analyze(run: Path, geometry: Path | None = None, episode: Path | None = None
         key = "scan/pose skew" if case == "f1-1" else "scan layout differs from the qualified convention"
         check(f"snapshots rejected: {key}", stats.get("rejections", {}).get(key, 0) > 0,
               rejections=stats.get("rejections"))
-        check("stack aborted on no new observation", abort.startswith("no new observation"), abort=abort)
+        # On ICP stages (s3v1i) the frozen scan also leaves the localizer without a fix from a new scan; that rule
+        # and the observation gap both run at 0.5 s, so either may stop the stack first.
+        check("stack aborted on no new observation (or no new localization fix)",
+              abort.startswith(("no new observation", "no valid localization", "localization lost")), abort=abort)
         snaps = [s["committed_monotonic_ns"] for s in rows(run / "plugin-snapshots.jsonl")]
         last_good = max((s for s in snaps if abort_tick and s <= abort_tick["start_ns"]), default=None)
         gap = (abort_tick["start_ns"] - last_good) / 1e9 if abort_tick and last_good else None

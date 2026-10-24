@@ -244,6 +244,13 @@ class SupervisorStageTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             check_guard_request("1 sup-1 3 10 20 0.12 0 cal.3.t9", "m3d")
 
+    def test_s3v1i_is_the_v1_envelope_on_icp(self):
+        from autodrive_neutral import AVLITE_MOTION_STAGES, S3_ICP_STAGES, STAGE_SPEED_ABORT_MPS
+        self.assertEqual(AVLITE_MOTION_STAGES["s3v1i"], AVLITE_MOTION_STAGES["s3v1"])
+        self.assertEqual(core.AVLITE_STAGES["s3v1i"], core.AVLITE_STAGES["s3v1"])
+        self.assertEqual(STAGE_SPEED_ABORT_MPS["s3v1i"], STAGE_SPEED_ABORT_MPS["s3v1"])
+        self.assertEqual(("s3v1i",), S3_ICP_STAGES)
+
     def test_process_refuses_unconfirmed_stage(self):
         with tempfile.TemporaryDirectory() as scratch:
             bad = Path(scratch, "approval.json")

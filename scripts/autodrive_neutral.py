@@ -138,12 +138,17 @@ AVLITE_MOTION_STAGES["s3b"] = dict(AVLITE_MOTION_STAGES["m6"])
 AVLITE_MOTION_STAGES["s3v1"] = dict(AVLITE_MOTION_STAGES["m6"], throttle_max=0.12)
 # S3 speed step V2 (s3-speed-v2-proposal v0.1, D40-D42): 1.0 m/s straights; only the throttle limit changes here.
 AVLITE_MOTION_STAGES["s3v2"] = dict(AVLITE_MOTION_STAGES["m6"], throttle_max=0.24)
-S3_STAGES = ("s3b", "s3v1", "s3v2")
-S3_TARGET_CAP_MPS = {"s3b": 0.3, "s3v1": 0.5, "s3v2": 1.0}
+# S3-03: the V1 envelope with B on ICP pose (MapIcpLocalization; simulator pose filtered out of the stack).
+AVLITE_MOTION_STAGES["s3v1i"] = dict(AVLITE_MOTION_STAGES["s3v1"])
+S3_STAGES = ("s3b", "s3v1", "s3v2", "s3v1i")
+S3_ICP_STAGES = ("s3v1i",)
+S3_TARGET_CAP_MPS = {"s3b": 0.3, "s3v1": 0.5, "s3v2": 1.0, "s3v1i": 0.5}
+ICP_SPAWN_POSE = (0.741, 3.158, -math.pi / 2)  # configured C0 spawn (initialization by configuration, S3-02)
+ICP_INVALID_ABORT_S = 0.5   # no valid ICP fix for this long while driving -> abort (as the observation gap)
 # Calibration stages bounded by the qualified C0 wall box instead of a radius (m3c drives the opening straight).
 CALIBRATION_CONTAINMENT = {s: {"containment_box": AVLITE_MOTION_STAGES["m6"]["containment_box"]} for s in ("m3c", "m3d")}
 # Stage overspeed abort (encoder speed) for AVLite stages; M4-M6 and s3b keep the S1 0.5 m/s.
-STAGE_SPEED_ABORT_MPS = {"s3v1": 0.7, "s3v2": 1.2}
+STAGE_SPEED_ABORT_MPS = {"s3v1": 0.7, "s3v2": 1.2, "s3v1i": 0.7}
 
 
 # Recorded build/evidence paths stay as written. The working environments moved once, by rename on the
@@ -608,11 +613,18 @@ def plugin_observe(args):
                                **{s: "RacingLineController" for s in S3_STAGES}).get(args.stack_profile, "HoldController")
         # S3 s3b: A2RL's stack shape (D30) — the race trajectory as AVLite's global plan; no local planner
         # (A2RL tracking mode "legacy": the controller tracks the global line).
-        s3b_plan = (str(Path(args.plugin) / f"data/c0-{args.stack_profile}-plan.json")
+        plan_stage = {"s3v1i": "s3v1"}.get(args.stack_profile, args.stack_profile)
+        s3b_plan = (str(Path(args.plugin) / f"data/c0-{plan_stage}-plan.json")
                     if args.stack_profile in S3_STAGES else "")
+        icp = args.stack_profile in S3_ICP_STAGES
+        if icp:
+            # S3-03 truth isolation: the bridge's ground-truth LOCALIZATION is filtered out, so AVLite runs the
+            # localization strategy and never copies the simulator pose into the stack.
+            from avlite.c40_execution.c49_settings import ExecutionSettings
+            ExecutionSettings.c41_world_stack_capabilities = []
         executer = executor_factory(
             executer_type="SyncExecuter", bridge="AutoDriveBridge", perception_strategy_name="",
-            localization_strategy_name="", mapping_strategy_name="",
+            localization_strategy_name="MapIcpLocalization" if icp else "", mapping_strategy_name="",
             global_planner_strategy_name="RaceLineGlobalPlanner" if s3b_plan else "",
             local_planner_strategy_name="", controller_strategy_name=controller_name, execution_task_names=[],
             default_global_trajectory_file=s3b_plan, map_file="", load_plugins=True)
@@ -652,7 +664,13 @@ def plugin_observe(args):
     if executer is not None and args.stack_profile in S3_STAGES:
         state["controller_config"] = dict(executer.controller.config.__dict__)  # audit: B (S3)
         state["s3b_plan"] = s3b_info
-        state["pose_source"] = "bridge ego state = simulator IPS (D32 A bring-up; not an S3 result)"
+        state["pose_source"] = ("MapIcpLocalization (ICP on the validated C0 map; simulator pose filtered out)"
+                                if args.stack_profile in S3_ICP_STAGES else
+                                "bridge ego state = simulator IPS (D32 A bring-up; not an S3 result)")
+        if args.stack_profile in S3_ICP_STAGES:
+            state["localization"] = {"strategy": type(executer.localization).__name__,
+                                     "map_sha256": executer.localization.map_sha256,
+                                     "limits": executer.localization.limits, "spawn_pose": ICP_SPAWN_POSE}
     stage = StackStage(args, executer, bridge, state) if args.stack_profile else None
     shadow = None
     if getattr(args, "s3b_shadow", False) and executer is not None and not args.stack_profile:
@@ -664,6 +682,13 @@ def plugin_observe(args):
         shadow.tj = shadow_tracker
         state["s3b_shadow"] = {"plan": shadow_info, "config": dict(shadow.config.__dict__),
                                "pose_source": "stack ego state = simulator IPS (D32 A bring-up)"}
+        # S3-03: map ICP on the live sensor frames (with wheel odometry) in its own perception model; logged
+        # against IPS only, never fed to anything.
+        from avlite.c10_perception.c11_perception_model import EgoState, PerceptionModel
+        icp_pm = PerceptionModel(ego_vehicle=EgoState(x=ICP_SPAWN_POSE[0], y=ICP_SPAWN_POSE[1], theta=ICP_SPAWN_POSE[2]))
+        icp_shadow = sys.modules["avlite.plugins.roboracer"].MapIcpLocalization(icp_pm)
+        icp_shadow.initialize(*ICP_SPAWN_POSE)
+        icp_init = None
     stop = []
 
     def checkpoint():
@@ -719,6 +744,19 @@ def plugin_observe(args):
             if stage:
                 row.update(stage.tick_record())
             if shadow is not None and tick is not None:
+                frame = bridge.get_sensor_frame()
+                if icp_init is None and frame.get_lidar() is not None and frame.get_lidar().points is not None:
+                    icp_init = icp_shadow.verify_initialization(frame)
+                    state["s3b_shadow"]["icp_initialization"] = icp_init
+                elif icp_init is not None:
+                    icp_shadow.localize(icp_pm, frame)
+                st = icp_shadow.status
+                truth = bridge.latest().pose
+                row["icp_shadow"] = {"state": st.get("state"), "pose": st.get("pose"),
+                                     "ips": [truth.x, truth.y, truth.yaw],
+                                     "odometry_mps": frame.wheel_odometry.linear_velocity if frame.wheel_odometry else None,
+                                     **{k: st.get(k) for k in ("inlier_fraction", "inlier_rms_m", "correction_m",
+                                                                "degenerate", "compute_s")}}
                 ego = executer.pm.ego_vehicle
                 target, steer, detail = shadow.steer_and_speed(shadow.tj, ego, period)
                 row["s3b_shadow"] = {"ego": [ego.x, ego.y, ego.theta, ego.velocity], "target_speed": target,
@@ -1504,6 +1542,8 @@ class StackStage:
         self.state.update(abort=None, finish_reason=None, precheck=None, stage_number=self.number)
         if self.profile in S3_STAGES:
             self.controller.reset()  # B: clear the safe-stop latch and the MPC's steering history
+        if self.profile in S3_ICP_STAGES:
+            self.executer.localization.reset()  # reinitialized and re-verified at the next settle
         self._request(0.0)
         self._set("wait-armed")
 
@@ -1567,6 +1607,17 @@ class StackStage:
                 check["passed"] = (check["spawn_offset_m"] <= 0.020 and check["forward_min_m"] >= 1.5
                                    and min(check["left_min_m"], check["right_min_m"]) >= 0.4)
                 self.state["precheck"] = check
+                if check["passed"] and self.profile in S3_ICP_STAGES:
+                    # S3-03: configuration initialization and the start-up check before any motion.
+                    loc = self.executer.localization
+                    loc.initialize(*ICP_SPAWN_POSE)
+                    init = loc.verify_initialization(self.bridge.get_sensor_frame())
+                    check["localization_initialization"] = init
+                    check["passed"] = bool(init["accepted"])
+                    self.last_valid_fix = now
+                    if not check["passed"]:
+                        self._set("stopping", abort="localization initialization rejected")
+                        return True
                 if check["passed"]:
                     self.start_pose = (snap.pose.x, snap.pose.y, snap.pose.yaw)
                     self._set("run")
@@ -1752,6 +1803,14 @@ class StackStage:
     def _abort_reason(self, now, snap, speed, guard_state):
         if guard_state == "fault":
             return "guard fault"
+        if self.profile in S3_ICP_STAGES:
+            loc = self.executer.localization
+            if loc.status.get("state") == "valid":
+                self.last_valid_fix = now
+            if loc.lost:
+                return "localization lost"
+            if now - getattr(self, "last_valid_fix", now) > ICP_INVALID_ABORT_S:
+                return "no valid localization for %.2f s" % (now - self.last_valid_fix)
         gap = 0.6 if self.profile == "m4" else 0.5
         if now - self.last_new > gap:
             return "no new observation for %.2f s" % (now - self.last_new)
@@ -1793,6 +1852,11 @@ class StackStage:
             record["target_speed"] = self.controller.target_speed
         else:
             record["controller"] = getattr(self.controller, "last", None)
+        if self.profile in S3_ICP_STAGES:
+            st = self.executer.localization.status
+            record["localization"] = {k: st.get(k) for k in (
+                "state", "pose", "inlier_fraction", "inlier_rms_m", "correction_m", "degenerate", "odometry_m",
+                "compute_s", "failed")}
         return record
 
 

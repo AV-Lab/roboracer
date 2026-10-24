@@ -302,5 +302,36 @@ def case_factory_s3b():
             "accepted": executer.world.accepted, "rejections": executer.world.rejections,
             "last_request": None if last is None else {"target_speed": last.target_speed, "steer": last.steer}}
 
+def case_factory_s3v1i():
+    """S3-03 stage s3v1i as the runner assembles it: MapIcpLocalization as the stack's localization, the bridge's
+    ground-truth LOCALIZATION filtered out, the V1 plan and controller config."""
+    import importlib
+    from avlite.c40_execution.c49_settings import ExecutionSettings
+    from avlite.c60_apps.c62_factory import executor_factory
+    from avlite.c60_apps.c69_settings import AppSettings
+    AppSettings.c62_default_plugins = []
+    AppSettings.c62_community_plugins = {"roboracer": PLUGIN}
+    ExecutionSettings.c41_world_stack_capabilities = []
+    executer = executor_factory(
+        executer_type="SyncExecuter", bridge="AutoDriveBridge", perception_strategy_name="",
+        localization_strategy_name="MapIcpLocalization", mapping_strategy_name="",
+        global_planner_strategy_name="RaceLineGlobalPlanner", local_planner_strategy_name="",
+        controller_strategy_name="RacingLineController", execution_task_names=[],
+        default_global_trajectory_file=str(Path(PLUGIN) / "data/c0-s3v1-plan.json"), map_file="", load_plugins=True)
+    s3b = importlib.import_module("avlite.plugins.roboracer.planning.s3b")
+    tracker, info = s3b.load_plan("s3v1i")
+    ctl = executer.controller
+    ctl.config, ctl.tj = s3b.controller_config("s3v1i"), tracker
+    ctl.reset()
+    ctl.enabled = False
+    before = [executer.pm.ego_vehicle.x, executer.pm.ego_vehicle.y]
+    run_ticks(executer)
+    loc = executer.localization
+    return {"localization": type(loc).__name__, "map_points": int(len(loc._map)), "state": loc.status["state"],
+            "gt_localization_capabilities": sorted(c.name for c in executer.world.stack_capabilities),
+            "ego_unchanged": [executer.pm.ego_vehicle.x, executer.pm.ego_vehicle.y] == before,
+            "plan_stage_cap": info["max_speed_mps"], "speed_cap_mps": ctl.config.speed_cap_mps}
+
+
 if __name__ == "__main__":
     print(json.dumps(globals()["case_" + CASE.replace("-", "_")]()))

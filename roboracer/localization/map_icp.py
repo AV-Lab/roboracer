@@ -95,6 +95,7 @@ class MapIcpLocalization(LidarLocalization):
         self._normals = _map_normals(map_points, self._tree)
         self._odometry_m = 0.0
         self._odometry_used = False  # set once odometry is fed; then prediction uses it
+        self._last_scan_stamp = None
         self.limits = {"inlier_m": inlier_m, "min_inlier_fraction": min_inlier_fraction,
                        "max_inlier_rms_m": max_inlier_rms_m, "max_correction_m": max_correction_m,
                        "max_correction_rad": max_correction_rad, "loss_after": loss_after,
@@ -110,6 +111,7 @@ class MapIcpLocalization(LidarLocalization):
         self._history = []
         self._invalid_run = 0
         self._odometry_m = 0.0
+        self._last_scan_stamp = None
         self._initialized = True
         self._verified = False
         self.status = {"state": "initialized", "source": source, "pose": [self._x, self._y, self._theta]}
@@ -249,7 +251,18 @@ class MapIcpLocalization(LidarLocalization):
         scan = self._squash(lidar.to_base(lidar.points))
         if scan is None or len(scan) < 10:
             return
-        stamp = float(getattr(lidar, "stamp", None) or time.monotonic())
+        raw_stamp = getattr(lidar, "stamp", None)
+        stamp = float(raw_stamp) if raw_stamp is not None else time.monotonic()  # 0.0 is a valid stamp
+        if self._last_scan_stamp is not None and stamp <= self._last_scan_stamp:
+            return  # the stack ticks faster (0.1 s) than scans arrive (~0.18 s): each scan is matched once
+        # S3-03: wheel odometry from the sensor frame (encoder speed x time since the previous scan), and the
+        # stack's ego velocity from the same qualified observation.
+        odometry = getattr(sensors, "wheel_odometry", None)
+        if odometry is not None and math.isfinite(odometry.linear_velocity):
+            if self._last_scan_stamp is not None and stamp > self._last_scan_stamp:
+                self.add_odometry(odometry.linear_velocity * (stamp - self._last_scan_stamp))
+            self.perception_model.ego_vehicle.velocity = float(odometry.linear_velocity)
+        self._last_scan_stamp = stamp
         started = time.perf_counter()
         px, py, pth = self._predict(stamp)
         odometry_m, self._odometry_m = self._odometry_m, 0.0

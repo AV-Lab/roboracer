@@ -36,6 +36,14 @@ class S3bStageTests(unittest.TestCase):
         with self.assertRaises(ValueError):  # a faster plan file is refused for a slower stage
             s3b.load_plan("s3v1", *s3b.plan_files("s3v2"))
 
+    def test_factory_assembles_s3v1i_with_icp_and_no_ground_truth_pose(self):
+        r = probe("factory_s3v1i")
+        self.assertEqual("MapIcpLocalization", r["localization"])
+        self.assertEqual(3152, r["map_points"])
+        self.assertEqual("uninitialized", r["state"])  # nothing is estimated before configuration init + check
+        self.assertTrue(r["ego_unchanged"])  # the simulator pose is never copied into the stack
+        self.assertEqual((0.5, 0.5), (r["plan_stage_cap"], r["speed_cap_mps"]))
+
     def test_tampered_plan_is_refused(self):
         with tempfile.TemporaryDirectory() as scratch:
             plan, record = Path(scratch) / "plan.json", Path(scratch) / "plan.provenance.json"

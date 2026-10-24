@@ -11,7 +11,7 @@ import unittest
 import numpy as np
 
 from avlite.c10_perception.c11_perception_model import EgoState, PerceptionModel
-from avlite.c50_common.c52_world_sensor_datatypes import Lidar, SensorFrame
+from avlite.c50_common.c52_world_sensor_datatypes import Lidar, SensorFrame, WheelOdometry
 
 from roboracer.localization.map_icp import MapIcpLocalization, load_map
 
@@ -184,6 +184,24 @@ class MapIcpTests(unittest.TestCase):
         self.assertTrue(result["accepted"], result)
         self.assertEqual("unobservable", result["along_track"])
         self.assertEqual(0, result["forward_beams"])
+
+    def test_wheel_odometry_in_the_sensor_frame_drives_prediction_and_velocity(self):
+        """S3-03: the bridge's wheel_odometry (encoder speed) is integrated between scans and becomes the stack's
+        ego velocity; a repeated scan (stack tick faster than scans) is matched once."""
+        self.use_rings([[(-25, -2), (25, -2), (25, 2), (-25, 2)], [(-23, -0.3), (23, -0.3), (23, 0.3), (-23, 0.3)]])
+        loc, pm = self.localizer()
+        x, y = -2.0, -1.15
+        loc.initialize(x, y, 0.0)
+        loc._verified = True  # corridor without end walls in range (along-track unobservable; see above)
+        for k in range(8):
+            frame = self.frame((x + 0.2 * k, y, 0.0), 1.0 + k)
+            frame.wheel_odometry = WheelOdometry(sensor_name="wheel_odometry", linear_velocity=0.2,
+                                                 yaw_rate=float("nan"), stamp=1.0 + k)
+            loc.localize(pm, frame)
+            loc.localize(pm, frame)  # same scan again: skipped
+            self.assertEqual("valid", loc.status["state"], loc.status)
+        self.assertLess(abs(pm.ego_vehicle.x - (x + 1.4)), 0.02)
+        self.assertEqual(0.2, pm.ego_vehicle.velocity)
 
     def test_tampered_map_is_refused(self):
         self.map_file.write_text(self.map_file.read_text().replace("-5", "-6", 1))

@@ -9,9 +9,10 @@ from .control.hold import HoldController
 from .control.racing_controller import RacingLineController
 from .control.speed_step import SpeedStepController
 from .integration.autodrive_bridge import AutoDriveBridge
+from .localization.map_icp import MapIcpLocalization
 from .planning.race_global_planner import RaceLineGlobalPlanner
 from .runtime.commands import TargetSpeedSteeringCommand
 from .settings import PluginSettings
 
-__all__ = ["AutoDriveBridge", "GapFollowController", "HoldController", "RaceLineGlobalPlanner",
+__all__ = ["AutoDriveBridge", "GapFollowController", "HoldController", "MapIcpLocalization", "RaceLineGlobalPlanner",
            "RacingLineController", "SpeedStepController", "TargetSpeedSteeringCommand", "PluginSettings"]

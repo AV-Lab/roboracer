@@ -29,7 +29,7 @@ from avlite.c10_perception.c11_perception_model import EgoState
 from avlite.c30_control.c31_control_model import ControlCommandBase
 from avlite.c40_execution.c41_world_bridge import WorldBridge
 from avlite.c50_common.c51_capabilities import StackCapability, WorldCapability
-from avlite.c50_common.c52_world_sensor_datatypes import Imu, Lidar, SensorFrame
+from avlite.c50_common.c52_world_sensor_datatypes import Imu, Lidar, SensorFrame, WheelOdometry
 
 from ..runtime.commands import TargetSpeedSteeringCommand
 from ..settings import PluginSettings
@@ -161,8 +161,15 @@ class AutoDriveBridge(WorldBridge):
             frame = SensorFrame(lidars={"lidar": lidar}, primary_lidar_name="lidar", stamp=time.monotonic(),
                                 frame_id="base_link")
         else:
+            # S3-03: the encoder speed of the same snapshot as wheel odometry (an allowed motion observation),
+            # stamped with the scan's acquisition time; yaw rate is not measured by the encoders (NaN).
+            with self._lock:
+                speed = self._encoder_speed.get(snapshot.telemetry_seq)
+            odometry = (WheelOdometry(sensor_name="wheel_odometry", linear_velocity=float(speed), yaw_rate=float("nan"),
+                                      stamp=snapshot.lidar.stamp) if speed is not None else None)
             frame = SensorFrame(lidars={"lidar": replace(snapshot.lidar)}, primary_lidar_name="lidar",
-                                imu=replace(snapshot.imu), stamp=time.monotonic(), frame_id="base_link")
+                                imu=replace(snapshot.imu), wheel_odometry=odometry, stamp=time.monotonic(),
+                                frame_id="base_link")
         return self._apply_world_capability_filter(frame)
 
     def get_lidar_data(self, agent_id: int = 0):

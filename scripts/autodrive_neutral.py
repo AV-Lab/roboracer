@@ -1805,7 +1805,10 @@ class StackStage:
             return "guard fault"
         if self.profile in S3_ICP_STAGES:
             loc = self.executer.localization
-            if loc.status.get("state") == "valid":
+            # A fix counts only when a new scan produced it: a frozen or missing LiDAR leaves the last status
+            # "valid", so its scan stamp must advance (otherwise the 0.5 s abort below would never fire).
+            if loc.status.get("state") == "valid" and loc.status.get("stamp") != getattr(self, "last_fix_stamp", None):
+                self.last_fix_stamp = loc.status.get("stamp")
                 self.last_valid_fix = now
             if loc.lost:
                 return "localization lost"

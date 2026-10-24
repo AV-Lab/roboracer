@@ -3144,8 +3144,9 @@ def main():
     if args.f1_case:
         # S1-06 M1 protocol v0.1 (D14): F1 cases run only in the approved M6 envelope.
         if args.mode == "run" and not (args.motion_stage == "m6" or
-                                       (args.motion_stage in ("s3v1", "s3v2") and args.f1_case in ("f1-3", "f1-7"))):
-            parser.error("--f1-case requires --motion-stage m6 (s3v1/s3v2: F1-3 and F1-7 only, D38/D43)")
+                                       (args.motion_stage in ("s3v1", "s3v2") and args.f1_case in ("f1-3", "f1-7")) or
+                                       (args.motion_stage == "s3v1i" and args.f1_case == "f1-1")):
+            parser.error("--f1-case requires --motion-stage m6 (s3v1/s3v2: F1-3, F1-7; s3v1i: F1-1 LiDAR freeze)")
         if args.f1_case == "f1-1" and args.mode == "run":
             # Stage-triggered LiDAR freeze; the runner passes the explicit flags on to its bridge child.
             args.freeze_test, args.freeze_trigger = "lidar", True

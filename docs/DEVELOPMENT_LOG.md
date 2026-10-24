@@ -1089,3 +1089,13 @@
   - Along-track at the spawn is unobservable and reported as such: 0.2 m is corrected at the first corner, 0.5 m becomes a loss there.
 - **Own defects found and fixed** (ray-cast bias, side-wall beams, no facing beams at the spawn); retained. Report: [S3 §9](stages/S3.md).
 - **Next.** S3-03 integration, then ICP laps (needs a run approval).
+
+
+## 2026-10-24 — S3-03: B on ICP pose in the live stack; stationary live check passed
+
+- **Built.**
+  - Wheel odometry is carried through AVLite's sensor frame.
+  - Stage `s3v1i`: the V1 envelope with `MapIcpLocalization`, the simulator pose filtered out of the stack, start-up check at settle, and aborts on loss or 0.5 s without a valid fix from a new scan.
+  - Fixed: a falsy-zero stamp bug, and a stale-"valid" gap found before any run.
+- **Stationary live check.** Start-up accepted at the spawn (along-track unobservable); 330 of 331 ticks valid; median error against IPS 1.5 mm; 1.65 ms per scan.
+- **Proposed run set.** B laps ×3 and F1-1 ×3 on `s3v1i`. These would be the first S3-result laps. Report: [S3 §10–11](stages/S3.md).

@@ -22,9 +22,9 @@ DATA = Path(__file__).resolve().parents[1] / "data"
 PLAN_FILE = DATA / "c0-s3b-plan.json"
 PROVENANCE_FILE = DATA / "c0-s3b-plan.provenance.json"
 # Speed cap per stage: s3b the M6 envelope; s3v1 the first speed step (s3-speed-proposal v0.1, D35/D36).
-SPEED_CAP_MPS = {"s3b": 0.3, "s3v1": 0.5, "s3v2": 1.0, "s3v1i": 0.5}
+SPEED_CAP_MPS = {"s3b": 0.3, "s3v1": 0.5, "s3v2": 1.0, "s3v1i": 0.5, "s3m3a": 0.5, "s3m3b": 0.5}
 # Stages that drive another stage's committed plan (s3v1i: V1 on ICP pose uses the V1 plan).
-PLAN_STAGE = {"s3v1i": "s3v1"}
+PLAN_STAGE = {"s3v1i": "s3v1", "s3m3a": "s3v1", "s3m3b": "s3v1"}
 
 
 def plan_files(stage: str) -> tuple[Path, Path]:

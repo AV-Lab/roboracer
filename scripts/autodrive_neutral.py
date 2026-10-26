@@ -140,15 +140,26 @@ AVLITE_MOTION_STAGES["s3v1"] = dict(AVLITE_MOTION_STAGES["m6"], throttle_max=0.1
 AVLITE_MOTION_STAGES["s3v2"] = dict(AVLITE_MOTION_STAGES["m6"], throttle_max=0.24)
 # S3-03: the V1 envelope with B on ICP pose (MapIcpLocalization; simulator pose filtered out of the stack).
 AVLITE_MOTION_STAGES["s3v1i"] = dict(AVLITE_MOTION_STAGES["s3v1"])
-S3_STAGES = ("s3b", "s3v1", "s3v2", "s3v1i")
-S3_ICP_STAGES = ("s3v1i",)
-S3_TARGET_CAP_MPS = {"s3b": 0.3, "s3v1": 0.5, "s3v2": 1.0, "s3v1i": 0.5}
+# S3-05 M3 A/B baseline (s3-m3-proposal v0.1, D44-D47): A or B on ICP in the V1 envelope, from one of five ICs.
+AVLITE_MOTION_STAGES["s3m3a"] = dict(AVLITE_MOTION_STAGES["s3v1"])
+AVLITE_MOTION_STAGES["s3m3b"] = dict(AVLITE_MOTION_STAGES["s3v1"])
+S3_M3_STAGES = ("s3m3a", "s3m3b")
+S3_STAGES = ("s3b", "s3v1", "s3v2", "s3v1i", *S3_M3_STAGES)
+S3_ICP_STAGES = ("s3v1i", *S3_M3_STAGES)
+S3_TARGET_CAP_MPS = {"s3b": 0.3, "s3v1": 0.5, "s3v2": 1.0, "s3v1i": 0.5, "s3m3a": 0.5, "s3m3b": 0.5}
+M3_IC_S_M = (0.0, 6.25, 12.5, 18.75, 25.0)  # D44: positions on B's committed line (IC0 = the spawn)
+M3_IC_TOLERANCE = (0.10, math.radians(5.0))  # D44: position (m), heading (rad)
+M3_IC_HOLD_S = 2.0
+M3_APPROACH_DECEL = 0.5   # approach target speed sqrt(2 a d): slows to the creep speed near the IC
+M3_APPROACH_CREEP = 0.10  # m/s for the last M3_APPROACH_CREEP_ZONE_M, so the stop lands within the tolerance
+M3_APPROACH_CREEP_ZONE_M = 0.20
+M3_APPROACH_STOP_M = 0.03   # stop requested this far before the IC: ~0.3 s command latency at the creep speed
 ICP_SPAWN_POSE = (0.741, 3.158, -math.pi / 2)  # configured C0 spawn (initialization by configuration, S3-02)
 ICP_INVALID_ABORT_S = 0.5   # no valid ICP fix for this long while driving -> abort (as the observation gap)
 # Calibration stages bounded by the qualified C0 wall box instead of a radius (m3c drives the opening straight).
 CALIBRATION_CONTAINMENT = {s: {"containment_box": AVLITE_MOTION_STAGES["m6"]["containment_box"]} for s in ("m3c", "m3d")}
 # Stage overspeed abort (encoder speed) for AVLite stages; M4-M6 and s3b keep the S1 0.5 m/s.
-STAGE_SPEED_ABORT_MPS = {"s3v1": 0.7, "s3v2": 1.2, "s3v1i": 0.7}
+STAGE_SPEED_ABORT_MPS = {"s3v1": 0.7, "s3v2": 1.2, "s3v1i": 0.7, "s3m3a": 0.7, "s3m3b": 0.7}
 
 
 # Recorded build/evidence paths stay as written. The working environments moved once, by rename on the
@@ -613,7 +624,7 @@ def plugin_observe(args):
                                **{s: "RacingLineController" for s in S3_STAGES}).get(args.stack_profile, "HoldController")
         # S3 s3b: A2RL's stack shape (D30) — the race trajectory as AVLite's global plan; no local planner
         # (A2RL tracking mode "legacy": the controller tracks the global line).
-        plan_stage = {"s3v1i": "s3v1"}.get(args.stack_profile, args.stack_profile)
+        plan_stage = {"s3v1i": "s3v1", "s3m3a": "s3v1", "s3m3b": "s3v1"}.get(args.stack_profile, args.stack_profile)
         s3b_plan = (str(Path(args.plugin) / f"data/c0-{plan_stage}-plan.json")
                     if args.stack_profile in S3_STAGES else "")
         icp = args.stack_profile in S3_ICP_STAGES
@@ -682,6 +693,14 @@ def plugin_observe(args):
                                      "map_sha256": executer.localization.map_sha256,
                                      "limits": executer.localization.limits, "spawn_pose": ICP_SPAWN_POSE}
     stage = StackStage(args, executer, bridge, state) if args.stack_profile else None
+    if stage is not None and args.stack_profile in S3_M3_STAGES:
+        plugin_a = sys.modules["avlite.plugins.roboracer"]
+        a_controller = plugin_a.GapFollowController()
+        a_controller.params = sys.modules[type(a_controller).__module__].LAP_PARAMS  # approved A-lap (D9, D45)
+        a_controller.enabled = False
+        stage.m3_setup(args.m3_ic, a_controller if args.stack_profile == "s3m3a" else None)
+        state["m3"] = {"ic": args.m3_ic, "algorithm": "A" if args.stack_profile == "s3m3a" else "B",
+                       "ic_s_m": M3_IC_S_M[args.m3_ic], "a_params": dict(a_controller.params.__dict__)}
     shadow = None
     if getattr(args, "s3b_shadow", False) and executer is not None and not args.stack_profile:
         # S3: B (ported A2RL controller, committed C0 plan) computed on the stack's live ego state each tick and
@@ -1535,6 +1554,29 @@ class StackStage:
                      f2_case=self.f2, stage_episodes=[])
         self._request(0.0)
 
+    def m3_setup(self, ic: int, a_controller) -> None:
+        """S3-05 (D44/D45): B approaches IC ``ic`` on ICP; the episode then runs A (if given) or B from there."""
+        import numpy as np
+        self.m3_ic, self.m3_a = ic, a_controller
+        self.m3_b = self.controller
+        tj = self.m3_b.tj
+        s_target = M3_IC_S_M[ic]
+        self.m3_target = (s_target, float(np.interp(s_target, tj.path_s, tj.path_x)),
+                          float(np.interp(s_target, tj.path_s, tj.path_y)),
+                          float(np.interp(s_target, tj.path_s, np.unwrap(np.asarray(tj.path_heading, dtype=float)))))
+
+    def _m3_start_episode(self, now, snap):
+        """Begin the measured lap at the reached IC: reset the lap distance, hand over to A for configuration A."""
+        self.path_m = 0.0
+        self.m3_b.config.speed_cap_mps = S3_TARGET_CAP_MPS[self.profile]
+        if self.m3_a is not None:
+            self.m3_b.enabled = False
+            self.executer.controller = self.controller = self.m3_a
+        self.state["m3"]["episode_start_ns"] = time.monotonic_ns()
+        self.start_pose = (snap.pose.x, snap.pose.y, snap.pose.yaw)
+        self._request(1.0)
+        self._set("run")
+
     def _report_episode(self):
         """Append the finished episode for the bridge-side batch driver and the scorer."""
         entry = {"number": self.number, "episode": self.episode, "finish_reason": self.state.get("finish_reason"),
@@ -1628,11 +1670,60 @@ class StackStage:
                     if not check["passed"]:
                         self._set("stopping", abort="localization initialization rejected")
                         return True
+                if check["passed"] and self.profile in S3_M3_STAGES:
+                    self.start_pose = (snap.pose.x, snap.pose.y, snap.pose.yaw)
+                    if self.m3_ic == 0:
+                        self.state["m3"].update(approach=None, reached={"ips": [snap.pose.x, snap.pose.y, snap.pose.yaw]})
+                        self._m3_start_episode(now, snap)
+                    else:
+                        self.m3_s0 = None
+                        self._request(1.0)  # B (the executor's controller) drives the approach
+                        self._set("approach")
+                    return True
                 if check["passed"]:
                     self.start_pose = (snap.pose.x, snap.pose.y, snap.pose.yaw)
                     self._set("run")
                 else:
                     self._set("stopping", abort="workspace precheck")
+            return True
+        if self.phase == "approach":
+            # D44: B on ICP to the IC; speed sqrt(2 a d) down to a creep, then stop. Aborts as while driving.
+            reason = self._abort_reason(now, snap, speed, guard_state)
+            if reason:
+                self._request(0.0)
+                self._set("stopping", abort=reason)
+                return True
+            last = self.m3_b.last or {}
+            s_now = last.get("s_m")
+            if s_now is not None:
+                lap = float(self.m3_b.tj.path_s[-1])
+                remaining = (self.m3_target[0] - s_now) % lap
+                if remaining > lap - 0.5:  # just past the target (wrap)
+                    remaining = 0.0
+                self.m3_b.config.speed_cap_mps = (M3_APPROACH_CREEP if remaining <= M3_APPROACH_CREEP_ZONE_M else max(
+                    M3_APPROACH_CREEP, min(S3_TARGET_CAP_MPS[self.profile], math.sqrt(2 * M3_APPROACH_DECEL * remaining))))
+                if remaining <= M3_APPROACH_STOP_M or elapsed > M6_TIME_S:
+                    self._request(0.0)
+                    self.state["m3"]["approach"] = {"s_at_stop_request": s_now, "duration_s": elapsed,
+                                                    "timed_out": elapsed > M6_TIME_S}
+                    self._set("ic-hold")
+            return True
+        if self.phase == "ic-hold":
+            self._request(0.0)
+            if elapsed >= M3_IC_HOLD_S and snap is not None and (speed is None or abs(speed) < 0.02):
+                s_t, x_t, y_t, h_t = self.m3_target
+                dpos = math.dist((snap.pose.x, snap.pose.y), (x_t, y_t))
+                dyaw = abs(math.remainder(snap.pose.yaw - h_t, math.tau))
+                loc = self.executer.localization.status.get("pose")
+                self.state["m3"]["reached"] = {"ips": [snap.pose.x, snap.pose.y, snap.pose.yaw], "icp": loc,
+                                               "configured": [x_t, y_t, h_t], "deviation_m": dpos,
+                                               "deviation_rad": dyaw}
+                if dpos > M3_IC_TOLERANCE[0] or dyaw > M3_IC_TOLERANCE[1] or self.state["m3"]["approach"]["timed_out"]:
+                    self._set("stopping", abort="initial condition outside tolerance (initialization failure)")
+                    return True
+                self._m3_start_episode(now, snap)
+            elif elapsed > M3_IC_HOLD_S + 5.0:
+                self._set("stopping", abort="car not at rest at the initial condition")
             return True
         if self.phase == "hang":
             # F1-3: the process stays alive but AVLite is not stepped, so no request is generated.
@@ -1865,6 +1956,8 @@ class StackStage:
             record["target_speed"] = self.controller.target_speed
         else:
             record["controller"] = getattr(self.controller, "last", None)
+        if self.profile in S3_M3_STAGES:
+            record["m3_phase"] = self.phase
         if self.profile in S3_ICP_STAGES:
             st = self.executer.localization.status
             record["localization"] = {k: st.get(k) for k in (
@@ -2318,6 +2411,7 @@ def trial(args, context, out):
                                            "--results", str(out), "--plugin", str(PLUGIN_DIRECTORY),
                                            "--supervisor", supervisor_name, "--stack-profile", args.motion_stage,
                                            *(["--f1-case", args.f1_case] if args.f1_case else []),
+                                           *(["--m3-ic", str(args.m3_ic)] if args.m3_ic is not None else []),
                                            *(["--f2-case", args.f2_case] if args.f2_case else []),
                                            *(["--record-inputs"] if args.record_inputs else []),
                                            "--episodes", str(args.episodes)],
@@ -3096,6 +3190,8 @@ def main():
     parser.add_argument("--stack-profile", choices=sorted(AVLITE_MOTION_STAGES), default=None, help=argparse.SUPPRESS)
     parser.add_argument("--s3b-shadow", action="store_true",
                         help="S3: log B's commands on the live ego state in a stationary --plugin-stack run (no motion)")
+    parser.add_argument("--m3-ic", type=int, choices=range(5), default=None,
+                        help="S3-05 M3 initial condition 0-4 (stages s3m3a/s3m3b, D44)")
     parser.add_argument("--f1-case", choices=F1_CASES, default=None,
                         help="S1-06 F1 fault case (M1 protocol v0.1); motion stage m6 only")
     parser.add_argument("--f2-case", choices=F2_CASES, default=None,
@@ -3147,6 +3243,9 @@ def main():
         parser.error("--f2-case runs only in an S2 batch on stage m6 (D22, D23)")
     if args.f2_case and args.f1_case:
         parser.error("one fault case per run")
+    if args.mode in ("run", "plugin-observe") and (args.motion_stage in S3_M3_STAGES or args.stack_profile in S3_M3_STAGES) \
+            != (args.m3_ic is not None):
+        parser.error("--m3-ic is required for, and only for, stages s3m3a/s3m3b")
     if args.s3b_shadow and args.mode == "run" and (args.motion_stage or not args.plugin_stack):
         parser.error("--s3b-shadow is for a stationary --plugin-stack run (no motion stage)")
     if args.sim_hang_test is not None and (args.motion_stage or args.mode != "run" or args.sim_hang_test <= 0):

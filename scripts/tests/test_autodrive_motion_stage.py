@@ -249,7 +249,10 @@ class SupervisorStageTests(unittest.TestCase):
         self.assertEqual(AVLITE_MOTION_STAGES["s3v1i"], AVLITE_MOTION_STAGES["s3v1"])
         self.assertEqual(core.AVLITE_STAGES["s3v1i"], core.AVLITE_STAGES["s3v1"])
         self.assertEqual(STAGE_SPEED_ABORT_MPS["s3v1i"], STAGE_SPEED_ABORT_MPS["s3v1"])
-        self.assertEqual(("s3v1i",), S3_ICP_STAGES)
+        self.assertEqual(("s3v1i", "s3m3a", "s3m3b"), S3_ICP_STAGES)
+        for stage in ("s3m3a", "s3m3b"):  # D45/D47: A and B share the V1 envelope
+            self.assertEqual(AVLITE_MOTION_STAGES[stage], AVLITE_MOTION_STAGES["s3v1"])
+            self.assertEqual(core.AVLITE_STAGES[stage], core.AVLITE_STAGES["s3v1"])
 
     def test_process_refuses_unconfirmed_stage(self):
         with tempfile.TemporaryDirectory() as scratch:

@@ -57,7 +57,10 @@ AVLITE_STAGES = {"m4": {"max_speed_mps": 0.3, "max_steer_rad": 0.0},
                  # S3 speed step V2 (s3-speed-v2-proposal v0.1, D40-D41): 1.0 m/s, u_max 0.24, overspeed 1.2 m/s.
                  "s3v2": {"max_speed_mps": 1.0, "max_steer_rad": 0.35, "u_max": 0.24, "overspeed_abs_mps": 1.2},
                  # S3-03: the V1 envelope with B on ICP pose (first S3-result laps).
-                 "s3v1i": {"max_speed_mps": 0.5, "max_steer_rad": 0.35, "u_max": 0.12, "overspeed_abs_mps": 0.7}}
+                 "s3v1i": {"max_speed_mps": 0.5, "max_steer_rad": 0.35, "u_max": 0.12, "overspeed_abs_mps": 0.7},
+                 # S3-05 M3 A/B baseline (D44-D47): the V1 envelope for both configurations.
+                 "s3m3a": {"max_speed_mps": 0.5, "max_steer_rad": 0.35, "u_max": 0.12, "overspeed_abs_mps": 0.7},
+                 "s3m3b": {"max_speed_mps": 0.5, "max_steer_rad": 0.35, "u_max": 0.12, "overspeed_abs_mps": 0.7}}
 STEER_LIMIT_RAD = 0.5235987755982988  # normalized steering 1.0 (M0)
 
 

@@ -40,7 +40,11 @@
   "D40": "V2 speed shape: straights 1.0 m/s, corners bounded by the fault drift (profile lateral 0.24 m/s^2 for 0.20 m drift at 1.3 s x speed); the plan must pass the fault sweep (>= 0.05 m)",
   "D41": "V2 envelope s3v2: u_max 0.24 (final from the identification), overspeed 1.2 m/s, all other limits as M6",
   "D42": "V2 stop criteria: travel <= 1.3 m, rest <= 2.0 s (roboracer_f1.py --criteria v2)",
-  "D43": "V2 run set: M3d x3, F1-3 x3 and F1-7 x3 on s3v2, B laps x3 on s3v2"
+  "D43": "V2 run set: M3d x3, F1-3 x3 and F1-7 x3 on s3v2, B laps x3 on s3v2",
+  "D44": "M3 initial conditions: s = 0 / 6.25 / 12.5 / 18.75 / 25 m on B's committed line, heading along the line; reached by a scripted B approach on ICP from the spawn; tolerance +-0.10 m, +-5 deg; outside is a retained initialization failure",
+  "D45": "M3 configurations: A = approved A-lap gap-follow (own speed rule, <= 0.3 m/s) with the same ICP running for scores and stops; B = the A2RL stack on ICP; same V1 envelope and stack otherwise",
+  "D46": "S3-05 baseline: 10 fresh-process episodes (5 ICs x A/B x 1), alternating order, external scores",
+  "D47": "M3 speed: the V1 envelope (0.5 m/s)"
  },
  "stages": [
   "M0",
@@ -356,6 +360,16 @@
     "D43"
    ],
    "user_reply": "confirm D40–D43 and run V2"
+  },
+  {
+   "date": "2026-10-26",
+   "decisions": [
+    "D44",
+    "D45",
+    "D46",
+    "D47"
+   ],
+   "user_reply": "confirm"
   }
  ]
 }

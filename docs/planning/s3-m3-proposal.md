@@ -1,6 +1,6 @@
 # S3-05 proposal — the M3 A/B baseline on ICP
 
-Version **0.1 — proposed 2026-10-26**, for confirmation. Basis:
+Version **0.1 — confirmed 2026-10-26** ("confirm": D44–D47; [record](s1-motion-approval.json)). The baseline run itself still needs a run approval. Basis:
 - the development plan's M3 row: C0, five start/heading cases × ten repetitions per configuration for acceptance, A against B on the same qualified ICP and motion-state provider, GT filters off, identical observation and actuation limits;
 - S3-05: a bounded baseline first, then thresholds (S3-06), then the acceptance matrix (S3-07);
 - D34 A: initial conditions reached by a scripted approach from the fixed spawn.

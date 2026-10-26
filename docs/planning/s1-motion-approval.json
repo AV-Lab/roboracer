@@ -60,7 +60,9 @@
   "S3V1",
   "M3D",
   "S3V2",
-  "S3V1I"
+  "S3V1I",
+  "S3M3A",
+  "S3M3B"
  ],
  "stage_approvals": [
   {
@@ -308,15 +310,23 @@
    "user_reply": "Approve the ICP labs.",
    "proposal": "docs/stages/S3.md section 11",
    "note": "s3v1i = the V1 envelope (0.5 m/s, u_max 0.12, overspeed 0.7) with MapIcpLocalization; simulator pose filtered out of the stack; laps judged by the independent scorer (clearance >= 0.20 m); F1-1 by roboracer_f1.py --criteria v1 (<= 1.7 s, <= 0.65 m)"
+  },
+  {
+   "stage": "S3-05 M3 A/B baseline: 10 fresh-process episodes, IC0-IC4 x A (s3m3a) / B (s3m3b), alternating order",
+   "date": "2026-10-26",
+   "user_reply": "approve",
+   "proposal": "docs/planning/s3-m3-proposal.md",
+   "proposal_version": "0.1",
+   "note": "V1 envelope on ICP for both; B approach to the IC, +-0.10 m / +-5 deg check; one lap from the IC; scored by scripts/roboracer_s3_m3.py; failures retained"
   }
  ],
  "not_authorized": [
-  "AVLite motion outside M4/M5/M6/S3B/S3V1/S3V2/S3V1I",
-  "speeds above 0.3 m/s outside S3V1, S3V1I, S3V2, M3C and M3D (S3V1 0.5 m/s; S3V2 1.0 m/s straights; M3C/M3D holds to ~0.6/~1.2 m/s)",
+  "AVLite motion outside M4/M5/M6/S3B/S3V1/S3V2/S3V1I/S3M3A/S3M3B",
+  "speeds above 0.3 m/s outside S3V1, S3V1I, S3M3A, S3M3B, S3V2, M3C and M3D (S3V1 0.5 m/s; S3V2 1.0 m/s straights; M3C/M3D holds to ~0.6/~1.2 m/s)",
   "reverse",
   "more than one lap per episode",
   "steering beyond 0.35 rad while moving",
-  "steering while moving outside M5/M6/S3B/S3V1/S3V2/S3V1I",
+  "steering while moving outside M5/M6/S3B/S3V1/S3V2/S3V1I/S3M3A/S3M3B",
   "unattended reset outside S2 batches (D22)",
   "fault cases other than F1-1..F1-9 and F2-1..F2-10 (D23); on S3V1 and S3V2 only F1-3 and F1-7 (D38, D43); on S3V1I only F1-1",
   "any S2 live run set without its own run approval (D22)",

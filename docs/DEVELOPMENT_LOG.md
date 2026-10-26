@@ -1151,3 +1151,13 @@
 - **Built** (`185f95a`): D49 approach, the F3 configured-pose fault hook, T1–T8 checks (the baseline passes 10/10), F3 analysis.
 - **F3-4 ×3:** map tampering refused. **F3-5 ×3:** B's outputs bit-identical under perturbed truth.
 - **Ready.** The F3 motion session (about 15 min) and five per-IC sessions (about 55 min each) need run approvals. Report: [S3 §17](stages/S3.md).
+
+
+## 2026-10-27 — S3-07 M3 acceptance: B 49/50, A 50/50, F3 15/15
+
+- **Run.** "approve F3 and all sessions": unattended, 14:19–23:57 UTC; player unchanged.
+- **F3 all pass.** Freeze stops 1.03–1.09 s; heading init rejected; along-track init → loss → stop 0.73–0.81 s; map and truth cases pass.
+- **B on ICP.** 49/50 pass T1–T8: laps 62.7–63.1 s, clearance 0.314 m, ICP p95 ≤ 0.028 m, no loss, IC ≤ 0.037 m.
+- **A.** 50/50.
+- **The only failure.** IC0 r07 B: the player came up with a blank window, the pre-Connect check refused, and the car never moved (retained).
+- **D53 proposed.** Rerun one replacement B episode (recommended). Report: [S3 §18](stages/S3.md).

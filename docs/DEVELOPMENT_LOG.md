@@ -1114,3 +1114,11 @@
 - **Proof.** Replaying two recorded laps through bridge → map ICP → B with all IPS and IMU-orientation truth perturbed gives **bit-identical** B outputs (831 and 832 steps). The negative control (B on IPS) changed about 790 commands.
 - **Found.** A first IPS-only perturbation broke the assembler's value pairing; both are now perturbed consistently.
 - **Next.** S3-05 A/B baseline proposal. Report: [S3 §13](stages/S3.md).
+
+## 2026-10-26 — S3-05 proposal: the M3 A/B baseline on ICP
+
+- **Proposed** ([s3-m3-proposal.md](planning/s3-m3-proposal.md)).
+  - Five initial conditions at fifths of the lap, reached by a scripted B approach on ICP from the spawn (D34 A); tolerance ±0.10 m, ±5°.
+  - A = approved gap-follow with the same ICP running for scores and stops; B = A2RL stack on ICP; V1 envelope.
+  - Baseline: 10 fresh-process episodes, alternating. The stock vs extended ICP fixture comparison is already in S3 §9.
+- **Requested.** D44–D47. No motion.

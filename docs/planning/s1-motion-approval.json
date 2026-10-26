@@ -44,7 +44,12 @@
   "D44": "M3 initial conditions: s = 0 / 6.25 / 12.5 / 18.75 / 25 m on B's committed line, heading along the line; reached by a scripted B approach on ICP from the spawn; tolerance +-0.10 m, +-5 deg; outside is a retained initialization failure",
   "D45": "M3 configurations: A = approved A-lap gap-follow (own speed rule, <= 0.3 m/s) with the same ICP running for scores and stops; B = the A2RL stack on ICP; same V1 envelope and stack otherwise",
   "D46": "S3-05 baseline: 10 fresh-process episodes (5 ICs x A/B x 1), alternating order, external scores",
-  "D47": "M3 speed: the V1 envelope (0.5 m/s)"
+  "D47": "M3 speed: the V1 envelope (0.5 m/s)",
+  "D48": "S3 thresholds T1-T8 (s3-acceptance-proposal v0.1 section 2): ICP valid >= 99 % and no loss; matched position error p95 <= 0.05 m, max <= 0.10 m; yaw p95 <= 0.03 rad, max <= 0.06 rad; ICP compute p95 <= 10 ms, max <= 50 ms; valid lap without contact/off-track/abort; B clearance >= 0.20 m; B lap from the IC <= 66.0 s; IC +-0.10 m, +-5 deg. B gates; A is the comparator",
+  "D49": "IC approach: deceleration 0.25 m/s^2, creep zone 0.5 m at 0.1 m/s; tolerance unchanged",
+  "D50": "F3 cases F3-1 to F3-5 (section 4), each three times",
+  "D51": "M3 acceptance matrix: 5 ICs x 10 x A/B = 100 fresh-process episodes + F3, in five per-IC sessions",
+  "D52": "failure rule: any B episode failing T1-T8 fails the item (retained; rerun only with approval); A reported only"
  },
  "stages": [
   "M0",
@@ -378,6 +383,17 @@
     "D45",
     "D46",
     "D47"
+   ],
+   "user_reply": "confirm"
+  },
+  {
+   "date": "2026-10-26",
+   "decisions": [
+    "D48",
+    "D49",
+    "D50",
+    "D51",
+    "D52"
    ],
    "user_reply": "confirm"
   }

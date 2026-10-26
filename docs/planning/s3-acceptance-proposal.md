@@ -1,6 +1,6 @@
 # S3-06 proposal — ICP thresholds and the M3 acceptance matrix
 
-Version **0.1 — proposed 2026-10-26**, for confirmation. Basis:
+Version **0.1 — confirmed 2026-10-26** ("confirm": D48–D52; [record](s1-motion-approval.json)). Each run session still needs its own run approval. Basis:
 - the S3-05 baseline (10/10 valid, [S3 §15](../stages/S3.md));
 - the first ICP laps and F1-1 (§12);
 - the offline ICP qualification and the initialization faults (§9);

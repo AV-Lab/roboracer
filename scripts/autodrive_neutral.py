@@ -150,9 +150,9 @@ S3_TARGET_CAP_MPS = {"s3b": 0.3, "s3v1": 0.5, "s3v2": 1.0, "s3v1i": 0.5, "s3m3a"
 M3_IC_S_M = (0.0, 6.25, 12.5, 18.75, 25.0)  # D44: positions on B's committed line (IC0 = the spawn)
 M3_IC_TOLERANCE = (0.10, math.radians(5.0))  # D44: position (m), heading (rad)
 M3_IC_HOLD_S = 2.0
-M3_APPROACH_DECEL = 0.5   # approach target speed sqrt(2 a d): slows to the creep speed near the IC
+M3_APPROACH_DECEL = 0.25  # approach target speed sqrt(2 a d) (D49; baseline 0.5): slows to the creep speed
 M3_APPROACH_CREEP = 0.10  # m/s for the last M3_APPROACH_CREEP_ZONE_M, so the stop lands within the tolerance
-M3_APPROACH_CREEP_ZONE_M = 0.20
+M3_APPROACH_CREEP_ZONE_M = 0.50  # D49 (baseline 0.20): IC1 B stopped 0.091 m past its IC
 M3_APPROACH_STOP_M = 0.03   # stop requested this far before the IC: ~0.3 s command latency at the creep speed
 ICP_SPAWN_POSE = (0.741, 3.158, -math.pi / 2)  # configured C0 spawn (initialization by configuration, S3-02)
 ICP_INVALID_ABORT_S = 0.5   # no valid ICP fix for this long while driving -> abort (as the observation gap)
@@ -686,7 +686,11 @@ def plugin_observe(args):
                 "withheld_from_stack": ["IPS pose (world LOCALIZATION capability filtered out)",
                                         "IMU (orientation labelled simulator truth)"],
                 "truth_users": ["labelled safety monitors (spawn precheck, containment, clearance)", "independent scorer"]}
-            state["initialization_provenance"] = {"source": "configuration", "pose": ICP_SPAWN_POSE,
+            offset = list(args.icp_init_offset) if args.icp_init_offset else [0.0, 0.0, 0.0]
+            if any(offset):
+                state["fault_injection"] = {"case": "configured-pose offset (F3-2/F3-3)", "offset": offset,
+                                            "label": "fault case, not an S3 result"}
+            state["initialization_provenance"] = {"source": "configuration", "pose": ICP_SPAWN_POSE, "offset": offset,
                                                   "defined_in": "scripts/autodrive_neutral.py ICP_SPAWN_POSE",
                                                   "check": "MapIcpLocalization.verify_initialization at settle"}
             state["localization"] = {"strategy": type(executer.localization).__name__,
@@ -1662,8 +1666,11 @@ class StackStage:
                 if check["passed"] and self.profile in S3_ICP_STAGES:
                     # S3-03: configuration initialization and the start-up check before any motion.
                     loc = self.executer.localization
-                    loc.initialize(*ICP_SPAWN_POSE)
+                    offset = getattr(self.args, "icp_init_offset", None) or (0.0, 0.0, 0.0)
+                    configured = tuple(p + d for p, d in zip(ICP_SPAWN_POSE, offset))  # F3-2/F3-3: offset != 0
+                    loc.initialize(*configured)
                     init = loc.verify_initialization(self.bridge.get_sensor_frame())
+                    init["configured_pose"], init["injected_offset"] = list(configured), list(offset)
                     check["localization_initialization"] = init
                     check["passed"] = bool(init["accepted"])
                     self.last_valid_fix = now
@@ -2412,6 +2419,8 @@ def trial(args, context, out):
                                            "--supervisor", supervisor_name, "--stack-profile", args.motion_stage,
                                            *(["--f1-case", args.f1_case] if args.f1_case else []),
                                            *(["--m3-ic", str(args.m3_ic)] if args.m3_ic is not None else []),
+                                           *(["--icp-init-offset", *map(str, args.icp_init_offset)]
+                                             if args.icp_init_offset else []),
                                            *(["--f2-case", args.f2_case] if args.f2_case else []),
                                            *(["--record-inputs"] if args.record_inputs else []),
                                            "--episodes", str(args.episodes)],
@@ -3190,6 +3199,8 @@ def main():
     parser.add_argument("--stack-profile", choices=sorted(AVLITE_MOTION_STAGES), default=None, help=argparse.SUPPRESS)
     parser.add_argument("--s3b-shadow", action="store_true",
                         help="S3: log B's commands on the live ego state in a stationary --plugin-stack run (no motion)")
+    parser.add_argument("--icp-init-offset", type=float, nargs=3, default=None, metavar=("DX", "DY", "DYAW"),
+                        help="S3 F3-2/F3-3: offset added to the configured ICP spawn pose (ICP stages only; a fault case)")
     parser.add_argument("--m3-ic", type=int, choices=range(5), default=None,
                         help="S3-05 M3 initial condition 0-4 (stages s3m3a/s3m3b, D44)")
     parser.add_argument("--f1-case", choices=F1_CASES, default=None,
@@ -3246,6 +3257,9 @@ def main():
     if args.mode in ("run", "plugin-observe") and (args.motion_stage in S3_M3_STAGES or args.stack_profile in S3_M3_STAGES) \
             != (args.m3_ic is not None):
         parser.error("--m3-ic is required for, and only for, stages s3m3a/s3m3b")
+    if args.icp_init_offset and args.mode in ("run", "plugin-observe") and not (
+            args.motion_stage in S3_ICP_STAGES or args.stack_profile in S3_ICP_STAGES):
+        parser.error("--icp-init-offset is for ICP stages only (S3 F3-2/F3-3)")
     if args.s3b_shadow and args.mode == "run" and (args.motion_stage or not args.plugin_stack):
         parser.error("--s3b-shadow is for a stationary --plugin-stack run (no motion stage)")
     if args.sim_hang_test is not None and (args.motion_stage or args.mode != "run" or args.sim_hang_test <= 0):

@@ -87,6 +87,24 @@ def analyze(run: Path, geometry: dict) -> dict:
     }
     row["valid_episode"] = (row["abort"] is None and lap_ok and clean and approach_clean
                             and not row["localization_lost"])
+    # D48 thresholds T1-T8 (s3-acceptance-proposal v0.1); B gates acceptance, A is reported (D52).
+    valid_share = states.get("valid", 0) / max(1, sum(states.values()))
+    me, my, mc = row["icp_error_matched_m"], row["icp_yaw_error_matched_rad"], row["icp_compute_ms"]
+    checks = {
+        "T1 ICP valid >= 99 % and no loss": valid_share >= 0.99 and not row["localization_lost"],
+        "T2 position error p95 <= 0.05 m, max <= 0.10 m": me["p95"] is not None and me["p95"] <= 0.05 and me["max"] <= 0.10,
+        "T3 yaw error p95 <= 0.03 rad, max <= 0.06 rad": my["p95"] is not None and my["p95"] <= 0.03 and my["max"] <= 0.06,
+        "T4 ICP compute p95 <= 10 ms, max <= 50 ms": mc["p95"] is not None and mc["p95"] <= 10 and mc["max"] <= 50,
+        "T5 valid lap, no contact/off-track/abort": row["valid_episode"],
+        "T8 IC within 0.10 m and 5 deg": (row["ic"] == 0 or (row["ic_deviation_m"] is not None and
+                                          row["ic_deviation_m"] <= 0.10 and row["ic_deviation_rad"] <= math.radians(5))),
+    }
+    if row["algorithm"] == "B":
+        checks["T6 B clearance >= 0.20 m"] = row["min_clearance_m"] is not None and row["min_clearance_m"] >= 0.20
+        checks["T7 B lap from the IC <= 66.0 s"] = row["lap_time_s"] is not None and row["lap_time_s"] <= 66.0
+    row["thresholds"] = checks
+    row["passes_thresholds"] = all(checks.values())
+    row["gates_acceptance"] = row["algorithm"] == "B"
     return row
 
 
@@ -103,14 +121,15 @@ def main():
         mine = [r for r in rows if r["algorithm"] == algorithm]
         times = [r["lap_time_s"] for r in mine if r["lap_time_s"]]
         summary[algorithm] = {"episodes": len(mine), "valid": sum(r["valid_episode"] for r in mine),
+                              "pass_thresholds": sum(r["passes_thresholds"] for r in mine),
                               "lap_time_s": {"min": min(times, default=None), "max": max(times, default=None)},
                               "min_clearance_m": min((r["min_clearance_m"] for r in mine if r["min_clearance_m"] is not None),
                                                      default=None)}
     report = {"schema": "roboracer.s3-m3/1", "episodes": rows, "summary": summary}
     args.output.write_text(json.dumps(report, indent=1) + "\n")
     for r in rows:
-        print(json.dumps({k: r[k] for k in ("ic", "algorithm", "valid_episode", "lap_time_s", "min_clearance_m",
-                                            "ic_deviation_m", "abort", "localization_states")}))
+        print(json.dumps({k: r[k] for k in ("ic", "algorithm", "valid_episode", "passes_thresholds", "lap_time_s",
+                                            "min_clearance_m", "ic_deviation_m", "abort", "localization_states")}))
     print(json.dumps(summary))
 
 

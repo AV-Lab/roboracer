@@ -228,6 +228,7 @@ def main():
     live.add_argument("--build-record", type=Path, required=True)
     live.add_argument("--f1-case", default=None, help="S1-06 F1 fault case (M1 protocol v0.1; stage m6)")
     live.add_argument("--m3-ic", type=int, default=None, help="S3-05 M3 initial condition 0-4 (stages s3m3a/s3m3b)")
+    live.add_argument("--icp-init-offset", type=float, nargs=3, default=None, help="S3 F3-2/F3-3 configured-pose offset")
     live.add_argument("--record-video", action="store_true", help="record only the AutoDRIVE window")
     live.add_argument("--ui-reference", type=Path, default=None,
                       help="S2 (D21 A): reviewed UI reference; the automated pre-Connect check replaces review.py")
@@ -252,6 +253,7 @@ def main():
                    "--motion-stage", args.stage, "--reply-delay", "0.05", "--runs", "1",
                    "--duration", str(args.duration), *(["--f1-case", args.f1_case] if args.f1_case else []),
                    *(["--m3-ic", str(args.m3_ic)] if args.m3_ic is not None else []),
+                   *(["--icp-init-offset", *map(str, args.icp_init_offset)] if args.icp_init_offset else []),
                    *(["--record-video"] if args.record_video else []),
                    *(["--ui-reference", str(args.ui_reference)] if args.ui_reference else [])]
         invocation["runner_argv"] = command

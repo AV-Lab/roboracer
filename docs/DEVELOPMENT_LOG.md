@@ -1106,3 +1106,11 @@
 - **B on ICP.** Laps 67.64 / 67.78 / 67.68 s, clearance 0.316 m, no abort. Every tick valid; ICP against IPS median 1 cm (includes timing offset); lateral p95 0.047 m. Identical to V1 on IPS.
 - **F1-1 LiDAR freeze ×3.** 1.00–1.02 s, 0.39 m; stopped by the observation gap or the ICP no-fix rule.
 - **Next.** S3-04 truth isolation. Report: [S3 §12](stages/S3.md).
+
+
+## 2026-10-26 — S3-04 truth isolation passed
+
+- **Built** (`5f75301`). On ICP stages the stack sees LiDAR and wheel odometry only (IPS filtered, IMU withheld); observation and initialization provenance are recorded.
+- **Proof.** Replaying two recorded laps through bridge → map ICP → B with all IPS and IMU-orientation truth perturbed gives **bit-identical** B outputs (831 and 832 steps). The negative control (B on IPS) changed about 790 commands.
+- **Found.** A first IPS-only perturbation broke the assembler's value pairing; both are now perturbed consistently.
+- **Next.** S3-05 A/B baseline proposal. Report: [S3 §13](stages/S3.md).

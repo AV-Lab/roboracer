@@ -1099,3 +1099,10 @@
   - Fixed: a falsy-zero stamp bug, and a stale-"valid" gap found before any run.
 - **Stationary live check.** Start-up accepted at the spawn (along-track unobservable); 330 of 331 ticks valid; median error against IPS 1.5 mm; 1.65 ms per scan.
 - **Proposed run set.** B laps ×3 and F1-1 ×3 on `s3v1i`. These would be the first S3-result laps. Report: [S3 §10–11](stages/S3.md).
+
+## 2026-10-24 — First laps on ICP pose (s3v1i): 6/6 passed
+
+- **Approval.** "Approve the ICP labs." Unattended; player unchanged.
+- **B on ICP.** Laps 67.64 / 67.78 / 67.68 s, clearance 0.316 m, no abort. Every tick valid; ICP against IPS median 1 cm (includes timing offset); lateral p95 0.047 m. Identical to V1 on IPS.
+- **F1-1 LiDAR freeze ×3.** 1.00–1.02 s, 0.39 m; stopped by the observation gap or the ICP no-fix rule.
+- **Next.** S3-04 truth isolation. Report: [S3 §12](stages/S3.md).

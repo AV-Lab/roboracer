@@ -1122,3 +1122,16 @@
   - A = approved gap-follow with the same ICP running for scores and stops; B = A2RL stack on ICP; V1 envelope.
   - Baseline: 10 fresh-process episodes, alternating. The stock vs extended ICP fixture comparison is already in S3 §9.
 - **Requested.** D44–D47. No motion.
+
+
+## 2026-10-26 — S3-05 M3 A/B baseline: 10/10 valid
+
+- **Run.** "approve the M3 baseline" (it started once the desktop was unlocked). Unattended; player unchanged.
+- **Results.**
+  - B on ICP: laps 62.84–63.00 s, clearance 0.314–0.317 m.
+  - A on the same stack: 117.2–120.7 s, 0.104–0.105 m.
+  - ICP valid on every tick, never lost; every IC within tolerance (0.020–0.091 m).
+- **Findings.**
+  - Earlier lap times (S1–S3) included about 4.6 s of standing still before motion.
+  - IC1 B stopped at 0.091 m (tolerance 0.10): the approach slowdown should be gentler before acceptance.
+- **Next.** S3-06 threshold proposal. Report: [S3 §15](stages/S3.md).

@@ -1961,7 +1961,7 @@ class StackStage:
         if self.profile in S3_ICP_STAGES:
             st = self.executer.localization.status
             record["localization"] = {k: st.get(k) for k in (
-                "state", "pose", "inlier_fraction", "inlier_rms_m", "correction_m", "degenerate", "odometry_m",
+                "state", "pose", "stamp", "inlier_fraction", "inlier_rms_m", "correction_m", "degenerate", "odometry_m",
                 "compute_s", "failed")}
         return record
 

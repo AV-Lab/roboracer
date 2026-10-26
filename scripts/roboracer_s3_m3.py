@@ -43,6 +43,24 @@ def analyze(run: Path, geometry: dict) -> dict:
     states = Counter(t["localization"]["state"] for t in run_ticks)
     err = [math.hypot(t["localization"]["pose"][0] - t["pose"][0], t["localization"]["pose"][1] - t["pose"][1])
            for t in run_ticks if t["localization"].get("pose") and t.get("pose")]
+    # Time-matched: on each tick where the ICP pose changed (a new scan was matched), compare it with the IPS pose of
+    # the snapshot that tick used (its telemetry_seq); the per-tick figure above mixes in up to one frame of travel.
+    snaps = {}
+    for line in (run / "plugin-snapshots.jsonl").read_text().splitlines():
+        if line.strip():
+            row = json.loads(line)
+            snaps[row["telemetry_seq"]] = row["pose"]
+    matched, matched_yaw, previous = [], [], None
+    for t in run_ticks:
+        pose = t["localization"].get("pose")
+        if pose and pose != previous and t.get("telemetry_seq") in snaps:
+            truth = snaps[t["telemetry_seq"]]
+            matched.append(math.hypot(pose[0] - truth[0], pose[1] - truth[1]))
+            matched_yaw.append(abs(math.remainder(pose[2] - truth[3], math.tau)))
+        previous = pose
+    fractions = [t["localization"]["inlier_fraction"] for t in run_ticks if t["localization"].get("inlier_fraction") is not None]
+    corrections = [t["localization"]["correction_m"] for t in run_ticks if t["localization"].get("correction_m") is not None]
+    compute = [t["localization"]["compute_s"] * 1000 for t in run_ticks if t["localization"].get("compute_s")]
     lateral = [abs(t["controller"]["lateral_error_m"]) for t in run_ticks
                if isinstance(t.get("controller"), dict) and "lateral_error_m" in t["controller"]]
     lap_ok = bool(lap and lap["laps"])
@@ -58,6 +76,12 @@ def analyze(run: Path, geometry: dict) -> dict:
         "contact_free_and_on_track": clean, "min_clearance_m": lap["min_clearance_m"] if lap else None,
         "localization_states": dict(states), "localization_lost": states.get("lost", 0) > 0,
         "icp_vs_ips_m": {"p50": pct(err, 0.5), "p95": pct(err, 0.95), "max": max(err) if err else None},
+        "icp_error_matched_m": {"n": len(matched), "p50": pct(matched, 0.5), "p95": pct(matched, 0.95),
+                                "max": max(matched) if matched else None},
+        "icp_yaw_error_matched_rad": {"p95": pct(matched_yaw, 0.95), "max": max(matched_yaw) if matched_yaw else None},
+        "icp_inlier_fraction_min": min(fractions) if fractions else None,
+        "icp_correction_m_max": max(corrections) if corrections else None,
+        "icp_compute_ms": {"p95": pct(compute, 0.95), "max": max(compute) if compute else None},
         "b_lateral_error_m_p95": pct(lateral, 0.95) if m3.get("algorithm") == "B" else None,
         "max_encoder_speed": max((t.get("encoder_speed") or 0.0 for t in run_ticks), default=None),
     }

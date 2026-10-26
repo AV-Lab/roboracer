@@ -1135,3 +1135,12 @@
   - Earlier lap times (S1–S3) included about 4.6 s of standing still before motion.
   - IC1 B stopped at 0.091 m (tolerance 0.10): the approach slowdown should be gentler before acceptance.
 - **Next.** S3-06 threshold proposal. Report: [S3 §15](stages/S3.md).
+
+
+## 2026-10-26 — S3-06 threshold proposal
+
+- **Time-matched ICP error.** B p95 ≤ 0.025 m, max ≤ 0.038 m. The per-tick 0.08 m spikes were sampling offset, not error.
+- **Proposed** ([s3-acceptance-proposal.md](planning/s3-acceptance-proposal.md)).
+  - T1–T8: ICP validity ≥ 99 % and no loss; error p95 ≤ 0.05 / max ≤ 0.10 m; yaw ≤ 0.03 / 0.06 rad; ICP ≤ 10 / 50 ms; valid lap; B clearance ≥ 0.20 m; B lap ≤ 66 s; IC ±0.10 m.
+  - D49: gentler approach. D50: F3 ×3. D51: 100 episodes in five sessions. D52: strict on B.
+  - D48–D52 requested; no motion.

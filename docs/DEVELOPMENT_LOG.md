@@ -1144,3 +1144,10 @@
   - T1–T8: ICP validity ≥ 99 % and no loss; error p95 ≤ 0.05 / max ≤ 0.10 m; yaw ≤ 0.03 / 0.06 rad; ICP ≤ 10 / 50 ms; valid lap; B clearance ≥ 0.20 m; B lap ≤ 66 s; IC ±0.10 m.
   - D49: gentler approach. D50: F3 ×3. D51: 100 episodes in five sessions. D52: strict on B.
   - D48–D52 requested; no motion.
+
+
+## 2026-10-26 — S3-07 preparation: D48–D52 confirmed; F3-4 and F3-5 pass
+
+- **Built** (`185f95a`): D49 approach, the F3 configured-pose fault hook, T1–T8 checks (the baseline passes 10/10), F3 analysis.
+- **F3-4 ×3:** map tampering refused. **F3-5 ×3:** B's outputs bit-identical under perturbed truth.
+- **Ready.** The F3 motion session (about 15 min) and five per-IC sessions (about 55 min each) need run approvals. Report: [S3 §17](stages/S3.md).

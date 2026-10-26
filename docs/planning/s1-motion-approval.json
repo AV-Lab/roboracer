@@ -323,6 +323,14 @@
    "proposal": "docs/planning/s3-m3-proposal.md",
    "proposal_version": "0.1",
    "note": "V1 envelope on ICP for both; B approach to the IC, +-0.10 m / +-5 deg check; one lap from the IC; scored by scripts/roboracer_s3_m3.py; failures retained"
+  },
+  {
+   "stage": "S3-07 M3 acceptance: F3 motion cases (F3-1, F3-2, F3-3, each x3, stage s3v1i) and the five per-IC sessions (IC0-IC4, each 10 x A/B, stages s3m3a/s3m3b), back to back",
+   "date": "2026-10-26",
+   "user_reply": "approve F3 and all sessions",
+   "proposal": "docs/planning/s3-acceptance-proposal.md",
+   "proposal_version": "0.1",
+   "note": "thresholds T1-T8 (D48), approach D49, F3 D50, matrix D51, strict on B (D52); unattended; stops on a grabbed desktop or a left player"
   }
  ],
  "not_authorized": [

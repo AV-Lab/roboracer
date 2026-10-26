@@ -668,6 +668,16 @@ def plugin_observe(args):
                                 if args.stack_profile in S3_ICP_STAGES else
                                 "bridge ego state = simulator IPS (D32 A bring-up; not an S3 result)")
         if args.stack_profile in S3_ICP_STAGES:
+            # S3-04 observation provenance: the stack sees LiDAR and wheel odometry only.
+            bridge.withhold_truth = True
+            state["observation_provenance"] = {
+                "stack_inputs": ["lidar (scan + mount)", "wheel_odometry (encoder speed of the same snapshot)"],
+                "withheld_from_stack": ["IPS pose (world LOCALIZATION capability filtered out)",
+                                        "IMU (orientation labelled simulator truth)"],
+                "truth_users": ["labelled safety monitors (spawn precheck, containment, clearance)", "independent scorer"]}
+            state["initialization_provenance"] = {"source": "configuration", "pose": ICP_SPAWN_POSE,
+                                                  "defined_in": "scripts/autodrive_neutral.py ICP_SPAWN_POSE",
+                                                  "check": "MapIcpLocalization.verify_initialization at settle"}
             state["localization"] = {"strategy": type(executer.localization).__name__,
                                      "map_sha256": executer.localization.map_sha256,
                                      "limits": executer.localization.limits, "spawn_pose": ICP_SPAWN_POSE}

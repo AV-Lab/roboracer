@@ -72,6 +72,9 @@ class AutoDriveBridge(WorldBridge):
         # Optional callable(topic, message, now_ns), invoked under the bridge lock with every raw
         # message before assembly, in processing order (S2-03 input recording). Same rules.
         self.message_listener = None
+        # S3-04: on ICP stages the stack's sensor frames carry no simulator truth (the IMU orientation is labelled
+        # truth on every snapshot, so the IMU is withheld); IPS stays available to labelled monitors via latest().
+        self.withhold_truth = False
 
     # -- observation path --------------------------------------------------------------------
     def connect(self, timeout_s: float = 0.0, supervisor: str | None = None) -> bool:
@@ -103,8 +106,9 @@ class AutoDriveBridge(WorldBridge):
             self._supervisor = None
         self.connected = False
 
-    def _offer(self, topic: str, message) -> None:
-        now = time.monotonic_ns()
+    def _offer(self, topic: str, message, now_ns: int | None = None) -> None:
+        """One Devkit message into the assembler; ``now_ns`` replays a recorded arrival time (offline tools)."""
+        now = time.monotonic_ns() if now_ns is None else int(now_ns)
         with self._lock:
             if self.message_listener is not None:
                 self.message_listener(topic, message, now)
@@ -168,8 +172,8 @@ class AutoDriveBridge(WorldBridge):
             odometry = (WheelOdometry(sensor_name="wheel_odometry", linear_velocity=float(speed), yaw_rate=float("nan"),
                                       stamp=snapshot.lidar.stamp) if speed is not None else None)
             frame = SensorFrame(lidars={"lidar": replace(snapshot.lidar)}, primary_lidar_name="lidar",
-                                imu=replace(snapshot.imu), wheel_odometry=odometry, stamp=time.monotonic(),
-                                frame_id="base_link")
+                                imu=None if self.withhold_truth else replace(snapshot.imu), wheel_odometry=odometry,
+                                stamp=time.monotonic(), frame_id="base_link")
         return self._apply_world_capability_filter(frame)
 
     def get_lidar_data(self, agent_id: int = 0):

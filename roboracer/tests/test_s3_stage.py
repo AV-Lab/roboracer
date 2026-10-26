@@ -44,6 +44,24 @@ class S3bStageTests(unittest.TestCase):
         self.assertTrue(r["ego_unchanged"])  # the simulator pose is never copied into the stack
         self.assertEqual((0.5, 0.5), (r["plan_stage_cap"], r["speed_cap_mps"]))
 
+    def test_bridge_withholds_truth_from_stack_frames_on_icp_stages(self):
+        """S3-04: with withhold_truth the sensor frame carries LiDAR and wheel odometry, no IMU (labelled truth)."""
+        from types import SimpleNamespace
+        import numpy as np
+        from avlite.c50_common.c52_world_sensor_datatypes import Lidar
+        from roboracer.integration.autodrive_bridge import AutoDriveBridge
+        bridge = AutoDriveBridge()
+        lidar = Lidar(sensor_name="lidar", points=np.zeros((3, 4), dtype=np.float32), stamp=12.5)
+        snapshot = SimpleNamespace(lidar=lidar, imu=object(), telemetry_seq=7)
+        bridge._snapshot = snapshot
+        bridge._encoder_speed[7] = 0.42
+        bridge.withhold_truth = True
+        frame = bridge.get_sensor_frame()
+        self.assertIsNone(frame.imu)
+        self.assertEqual(0.42, frame.wheel_odometry.linear_velocity)
+        self.assertEqual(12.5, frame.wheel_odometry.stamp)
+        self.assertIsNotNone(frame.get_lidar())
+
     def test_tampered_plan_is_refused(self):
         with tempfile.TemporaryDirectory() as scratch:
             plan, record = Path(scratch) / "plan.json", Path(scratch) / "plan.provenance.json"

@@ -1166,4 +1166,4 @@
 
 - **Run.** "record a lap video": one fresh-process B lap on scan-matched pose at the V1 envelope, window-only recording.
 - **Result.** Clean lap (no contact or off-track), clearance 0.315 m; player unchanged.
-- **Video.** `artifacts/s3/20261027T062817Z-lap-video/roboracer-B-on-ICP-lap.mp4`: 76 s from Connect to the stop, 960 px, 9.3 MB. The full 1280×720 recording is kept beside it.
+- **Video.** `roboracer-B-on-ICP-lap.mp4` (76 s from Connect to the stop, 960 px, 9.3 MB), moved at the user's request to `~/Dropbox/Workspace/` (sha256 recorded in the evidence folder). The full 1280×720 recording stays in `artifacts/s3/20261027T062817Z-lap-video/lap/run-01/`.

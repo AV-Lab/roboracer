@@ -337,6 +337,12 @@
    "date": "2026-10-27",
    "user_reply": "record a lap video",
    "note": "documentation run (not an acceptance episode); approved stage and envelope unchanged; window-only recording"
+  },
+  {
+   "stage": "S3 V2 lap video: one fresh-process B lap at V2 (stage s3v2: 1.0 m/s straights, fault-bounded corners; IPS bring-up pose) with --record-video",
+   "date": "2026-10-27",
+   "user_reply": "record a V2 configuration lap",
+   "note": "documentation run (not an acceptance episode); approved stage and envelope unchanged"
   }
  ],
  "not_authorized": [

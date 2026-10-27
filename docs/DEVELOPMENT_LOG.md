@@ -1172,4 +1172,4 @@
 
 - **Run.** "record a V2 configuration lap": one fresh-process B lap at V2 (1.0 m/s straights, fault-bounded corners; IPS bring-up pose), window-only recording.
 - **Result.** Clean lap (no contact or off-track), clearance 0.311 m, peak 1.05 m/s, about 42 s of driving; player unchanged.
-- **Video.** `artifacts/s3/20261027T064219Z-v2-lap-video/roboracer-B-V2-lap.mp4`: 51 s from Connect to the stop, 960 px, 6.2 MB. The full recording is in `lap/run-01/`.
+- **Video.** `roboracer-B-V2-lap.mp4` (51 s from Connect to the stop, 960 px, 6.2 MB), moved at the user's request to `~/Dropbox/Workspace/` (sha256 recorded in the evidence folder). The full recording stays in `artifacts/s3/20261027T064219Z-v2-lap-video/lap/run-01/`.

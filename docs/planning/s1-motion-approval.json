@@ -331,6 +331,12 @@
    "proposal": "docs/planning/s3-acceptance-proposal.md",
    "proposal_version": "0.1",
    "note": "thresholds T1-T8 (D48), approach D49, F3 D50, matrix D51, strict on B (D52); unattended; stops on a grabbed desktop or a left player"
+  },
+  {
+   "stage": "S3 lap video: one fresh-process B lap on ICP (stage s3v1i, V1 envelope) with --record-video",
+   "date": "2026-10-27",
+   "user_reply": "record a lap video",
+   "note": "documentation run (not an acceptance episode); approved stage and envelope unchanged; window-only recording"
   }
  ],
  "not_authorized": [

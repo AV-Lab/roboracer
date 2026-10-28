@@ -1179,3 +1179,13 @@
 - **Run.** "D53A": one fresh-process B episode at IC0 (`ic0-r07-b-rerun1`), same command and code as the sessions; player unchanged.
 - **Result.** Passes T1–T8: lap 62.80 s, clearance 0.317 m, ICP p95 0.023 m / 0.013 rad, compute p95 4.4 ms, no loss.
 - **Matrix.** B 50/50 with the replacement, A 50/50; the blank-window start failure stays retained as infrastructure. Next: S3 stage report and review. Report: [S3 §18](stages/S3.md).
+
+## 2026-10-28 — S3 completion report; stage review requested
+
+- **Report:** [S3-completion.md](stages/S3-completion.md). All seven S3 items delivered; M3 acceptance B 50/50 (one replacement), A 50/50, F3 15/15; failures retained.
+- **For the review:**
+  - The lattice local planner named in D30 is not in the driving stack: legacy tracking, deferred to S4.
+  - V2 ran only on IPS bring-up.
+  - Stale-velocity handling is inherited from S1 M4 and S2 F2-5.
+- **Plan:** S3 boxes marked "delivered; awaiting review". If accepted, the plan goes 16/34 → 23/34.
+- **Checks:** plugin 76/76, scripts 191/191.

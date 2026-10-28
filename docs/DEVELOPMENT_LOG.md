@@ -1173,3 +1173,9 @@
 - **Run.** "record a V2 configuration lap": one fresh-process B lap at V2 (1.0 m/s straights, fault-bounded corners; IPS bring-up pose), window-only recording.
 - **Result.** Clean lap (no contact or off-track), clearance 0.311 m, peak 1.05 m/s, about 42 s of driving; player unchanged.
 - **Video.** `roboracer-B-V2-lap.mp4` (51 s from Connect to the stop, 960 px, 6.2 MB), moved at the user's request to `~/Dropbox/Workspace/` (sha256 recorded in the evidence folder). The full recording stays in `artifacts/s3/20261027T064219Z-v2-lap-video/lap/run-01/`.
+
+## 2026-10-28 — S3-07 D53-A: replacement B episode passes; B 50/50
+
+- **Run.** "D53A": one fresh-process B episode at IC0 (`ic0-r07-b-rerun1`), same command and code as the sessions; player unchanged.
+- **Result.** Passes T1–T8: lap 62.80 s, clearance 0.317 m, ICP p95 0.023 m / 0.013 rad, compute p95 4.4 ms, no loss.
+- **Matrix.** B 50/50 with the replacement, A 50/50; the blank-window start failure stays retained as infrastructure. Next: S3 stage report and review. Report: [S3 §18](stages/S3.md).

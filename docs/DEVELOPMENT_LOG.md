@@ -1195,3 +1195,16 @@
 - **Accepted:** "accept S3-01 to S3-07". **S3 is complete**; the original plan is at **23/34**, the amendment at 10/10.
 - **S3-03 wording:** the lattice local planner is deferred to S4, as recommended in [S3-completion §5.1](stages/S3-completion.md).
 - **Next:** S4 (static obstacles) needs an entry confirmation. Obstacle scenes need a decision first (simulator frozen, D18).
+
+## 2026-10-28 — S4 entered; proposal v0.1 (D54–D60)
+
+- **Entry:** "批准" (S4 approved). No motion.
+- **A2RL `dev` fetched:** `0b5cfa8` → `fe2fc01` (presets, YasMarina data, probe script); no ported file changed.
+- **Constraint.** The frozen player has no obstacle API (PRE-B09) and D18 excludes a rebuild.
+- **Proposed: virtual static obstacles at the sensor boundary (D54 A).**
+  - Bridge fixture ray-casts the LiDAR; scorer checks the footprint against the same polygons; labelled.
+  - Scan-derived detection: wall-map subtraction + AVLite `FastBEVLidarDetection`.
+  - AVLite `GreedyLatticePlanner` with the A2RL `selected_local` tracking branch ported.
+  - Blocked/planning failure → latched stop.
+  - V1 on ICP; F4-1 to F4-3 ×3.
+- **Report:** [s4-proposal.md](planning/s4-proposal.md).

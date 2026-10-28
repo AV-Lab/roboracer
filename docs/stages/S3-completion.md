@@ -24,7 +24,7 @@ Decisions: [approval record](../planning/s1-motion-approval.json). Backend: the 
   - **On IPS bring-up:** V2, 1.0 m/s on straights, lap 44.6 s on the old scorer basis (about 40 s from rest), not yet run on ICP.
 - **No failure is waived.** Two failed attempts are retained with their causes (§4), as are two flagged analyses.
 - **One deviation from D30's wording needs your view:** AVLite's `GreedyLatticePlanner` is not in the driving stack (§5.1).
-- **Review requested** (§7): S3-01 to S3-07. If accepted, the original plan goes from 16/34 to 23/34.
+- **Stage review: accepted 2026-10-28** ("accept S3-01 to S3-07"). All boxes in §7 are ticked, with S3-03 worded "lattice local planner deferred to S4" (§5.1): **S3 is complete**; the original plan is at 23/34.
 
 ## 1. S3 items
 

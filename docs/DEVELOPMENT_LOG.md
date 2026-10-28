@@ -1189,3 +1189,9 @@
   - Stale-velocity handling is inherited from S1 M4 and S2 F2-5.
 - **Plan:** S3 boxes marked "delivered; awaiting review". If accepted, the plan goes 16/34 → 23/34.
 - **Checks:** plugin 76/76, scripts 191/191.
+
+## 2026-10-28 — S3 stage review: boxes accepted
+
+- **Accepted:** "accept S3-01 to S3-07". **S3 is complete**; the original plan is at **23/34**, the amendment at 10/10.
+- **S3-03 wording:** the lattice local planner is deferred to S4, as recommended in [S3-completion §5.1](stages/S3-completion.md).
+- **Next:** S4 (static obstacles) needs an entry confirmation. Obstacle scenes need a decision first (simulator frozen, D18).

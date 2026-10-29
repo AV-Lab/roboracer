@@ -10,9 +10,10 @@ from .control.racing_controller import RacingLineController
 from .control.speed_step import SpeedStepController
 from .integration.autodrive_bridge import AutoDriveBridge
 from .localization.map_icp import MapIcpLocalization
+from .perception.scan_obstacles import ScanObstacleDetection
 from .planning.race_global_planner import RaceLineGlobalPlanner
 from .runtime.commands import TargetSpeedSteeringCommand
 from .settings import PluginSettings
 
-__all__ = ["AutoDriveBridge", "GapFollowController", "HoldController", "MapIcpLocalization", "RaceLineGlobalPlanner",
+__all__ = ["AutoDriveBridge", "GapFollowController", "HoldController", "MapIcpLocalization", "RaceLineGlobalPlanner", "ScanObstacleDetection",
            "RacingLineController", "SpeedStepController", "TargetSpeedSteeringCommand", "PluginSettings"]

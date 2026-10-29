@@ -33,7 +33,8 @@ class PluginLoadingTests(unittest.TestCase):
     def test_import_registers_exports_without_side_effects(self):
         r = probe("import")
         self.assertEqual(["AutoDriveBridge", "GapFollowController", "HoldController", "MapIcpLocalization",
-                          "PluginSettings", "RaceLineGlobalPlanner", "RacingLineController", "SpeedStepController",
+                          "PluginSettings", "RaceLineGlobalPlanner", "RacingLineController", "ScanObstacleDetection",
+                          "SpeedStepController",
                           "TargetSpeedSteeringCommand"], r["exports"])
         self.assertTrue(r["registered_bridge"] and r["registered_controller"])
         self.assertTrue(r["settings_filepath"].endswith("plugin_roboracer.yaml"), r["settings_filepath"])

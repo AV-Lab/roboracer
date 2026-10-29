@@ -1218,3 +1218,14 @@
   - Scorer `--obstacles`: obstacle contact and clearance, reported separately.
 - **Tests:** plugin 82/82, scripts 193/193.
 - **Open:** D55–D60. Report: [S4 §1](stages/S4.md).
+
+## 2026-10-29 — S4: D55–D60 confirmed; fixtures, selected-path port, scan obstacle detection (offline)
+
+- **Decisions:** "确认" (D55–D60).
+- **Built.**
+  - T1/T2/T3 fixtures; gap checks pass (T1/T2 one passable side of about 1.2 m, T3 none).
+  - A2RL `trajectory_reference_mode` ported, identical to A2RL.
+  - `ScanObstacleDetection`: wall subtraction + AVLite FastBEV, 2-scan confirmation.
+- **Offline.** 0 phantoms on 1,662 scans; T1/T2 detected from 7.4 m; T3 from 4.9 m.
+- **Finding.** A full blockage drops ICP inliers below the S3 limit inside about 0.93 m, so the blocked stop must complete well outside 1 m.
+- **Tests:** plugin 83/83, scripts 193/193. Report: [S4 §2](stages/S4.md).

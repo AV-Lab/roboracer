@@ -818,7 +818,12 @@ def plugin_observe(args):
                 st, detector = loc.status, executer.perception._detector
                 truth = bridge.latest().pose
                 ego = executer.pm.ego_vehicle
-                b_cmd = s4["b"].control(ego, planner.get_local_plan(), control_dt=period)
+                # B starts once the localizer has written a pose (its first valid fix), reset then, as the stage
+                # resets B at episode start; before that the stack's ego is not yet localized.
+                if not s4.get("b_started") and st.get("state") == "valid":
+                    s4["b"].reset()
+                    s4["b_started"] = True
+                b_cmd = s4["b"].control(ego, planner.get_local_plan(), control_dt=period) if s4.get("b_started") else None
                 row["s4"] = {
                     "icp": {"state": st.get("state"), "pose": st.get("pose"), "ips": [truth.x, truth.y, truth.yaw],
                             **{k: st.get(k) for k in ("inlier_fraction", "inlier_rms_m", "compute_s")}},
@@ -826,8 +831,9 @@ def plugin_observe(args):
                     "obstacles": [[a.x, a.y, a.theta, a.length, a.width] for a in detector.obstacles],
                     "planner": dict(planner.diagnostics), "blocked": planner.blocked,
                     "blocked_reason": planner.blocked_reason,
-                    "b_shadow": {"target_speed": b_cmd.target_speed, "steer": b_cmd.steer,
-                                 **{k: (s4["b"].last or {}).get(k) for k in ("s_m", "lateral_error_m", "safe_stop", "reason")}},
+                    "b_shadow": None if b_cmd is None else {
+                        "target_speed": b_cmd.target_speed, "steer": b_cmd.steer,
+                        **{k: (s4["b"].last or {}).get(k) for k in ("s_m", "lateral_error_m", "safe_stop", "reason")}},
                     "hold_request": bridge.last_request.target_speed if bridge.last_request else None}
             if shadow is not None and tick is not None:
                 frame = bridge.get_sensor_frame()

@@ -1,7 +1,7 @@
 {
  "schema": "roboracer.virtual-obstacles-provenance/1",
  "fixture": "t3-blocked.json",
- "fixture_sha256": "516aa28b3fb3f8686f43b5862653c5f07e5bb87c31735796f14a0fdbab66ded9",
+ "fixture_sha256": "4e9d630056512e27af828e192bedab43410e571afca8577ceff6c69eda735bef",
  "inputs": {
   "plan": {
    "path": "roboracer/data/c0-s3v1-plan.json",
@@ -23,7 +23,7 @@
   "pass_s": 2.5,
   "offset": 0.45,
   "box": 0.25,
-  "block_s": 2.5,
+  "block_s": 1.8,
   "block_depth": 0.2,
   "block_overlap": 0.2,
   "margin": 0.1
@@ -40,7 +40,7 @@
    "right_m": false
   },
   "expected_corridor": null,
-  "obstacle_area_m2": 0.32956114420000004,
-  "obstacle_inside_region_m2": 0.2494513819210617
+  "obstacle_area_m2": 0.3330333536000001,
+  "obstacle_inside_region_m2": 0.2529007336971871
  }
 }

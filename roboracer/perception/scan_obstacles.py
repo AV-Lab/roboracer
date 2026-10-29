@@ -16,7 +16,9 @@ no obstacle geometry or simulator truth is read here.
 
 One deviation from ``FastBEVLidarDetection``: when a cluster is seen edge-on (a sliver), AVLite substitutes a
 default car-sized box. On C0 the obstacles are boxes and a barrier, so the observed face length is kept and only
-the unseen depth is defaulted (``default_depth_m``), extending away from the car.
+the unseen depth is defaulted (``default_depth_m``), extending away from the car. A fitted extent below
+``min_extent_m`` (0.15 m) counts as unseen: in the S4 stationary check a 0.25 m box seen nearly face-on fitted
+0.08 m deep, which put its centre 8 cm towards the car.
 """
 
 from __future__ import annotations
@@ -36,7 +38,7 @@ class ScanObstacleDetection(FastBEVLidarDetection):
 
     def __init__(self, wall_band_m: float = 0.05, min_points: int = 4, confirm_radius_m: float = 0.15,
                  max_range_m: float = 10.0, mu: float = 0.10, delta_min: float = 0.05, delta_max: float = 3.0,
-                 min_extent_m: float = 0.05, default_depth_m: float = 0.25):
+                 min_extent_m: float = 0.15, default_depth_m: float = 0.25):
         super().__init__(mu=mu, delta_min=delta_min, delta_max=delta_max, min_length=min_extent_m,
                          min_width=min_extent_m, default_length=default_depth_m, default_width=default_depth_m)
         from scipy.spatial import cKDTree

@@ -23,7 +23,7 @@
   "pass_s": 2.5,
   "offset": 0.45,
   "box": 0.25,
-  "block_s": 2.5,
+  "block_s": 1.8,
   "block_depth": 0.2,
   "block_overlap": 0.2,
   "margin": 0.1

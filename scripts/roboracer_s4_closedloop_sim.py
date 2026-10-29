@@ -224,6 +224,8 @@ def simulate(fixture_path, geometry, plugin_dir, *, pose_period, pose_age, range
             rest_since = None
     car = translate(rotate(body, th, origin=(0, 0), use_radians=True), x, y)
     rest_obstacle = car.distance(obstacles) if obstacles is not None else None
+    ego = executer.pm.ego_vehicle
+    icp_error_end = math.hypot(ego.x - x, ego.y - y)  # at rest the pose age does not matter
     if blocked_at is not None:
         blocked_at["obstacle_distance_m"] = rest_obstacle
     return {"fixture": Path(fixture_path).name if fixture_path else None, "t_end_s": round(t, 2),
@@ -231,6 +233,7 @@ def simulate(fixture_path, geometry, plugin_dir, *, pose_period, pose_age, range
             "offtrack": offtrack, "min_wall_clearance_m": min_wall,
             "min_obstacle_clearance_m": min_obstacle if obstacles is not None else None,
             "rest_obstacle_clearance_m": rest_obstacle if v < 0.01 else None, "final_speed_mps": v,
+            "icp_error_at_rest_m": icp_error_end if v < 0.01 else None,
             "max_abs_d_from_line_m": max_lateral, "blocked": blocked_at, "icp_states": icp_states, "events": events,
             "planner": dict(planner.diagnostics), "detector": dict(detector.status),
             "tick_ms": {"p50": 1e3 * sorted(timing)[len(timing) // 2], "max": 1e3 * max(timing)} if timing else None}

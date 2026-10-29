@@ -1239,3 +1239,15 @@
   - no contact; ICP valid throughout.
 - **Tick.** The lattice first cost up to 101 ms per 100 ms tick. With 2 levels × 5 samples: p50 18–23 ms, max 31 ms.
 - **Tests:** plugin 87/87, scripts 193/193. Report: [S4 §3](stages/S4.md).
+
+## 2026-10-29 — S4: truth isolation with fixtures; stationary live checks; ICP finding (D61, D62 proposed)
+
+- **Request:** "开始下一步". No motion.
+- **Built.** `--s4-stationary-fixture`: the S4 stack under HoldController on the guarded player.
+- **Truth isolation.** IPS and IMU perturbed after the fixture; B's outputs bit-identical on 2 laps; negative control changed about 790 commands.
+- **Stationary live.** Box and barrier detected, no false detections. The barrier at 1.8 m latched "blocked"; all requests zero; player unchanged.
+- **Fixed.** Shadow B start; detector edge-on threshold 0.15 m (unit tests added).
+- **Finding.** Obstacle returns within 0.3 m of the walls bias ICP along-track at degenerate spots while it reports valid: up to 9.6 cm live and 4.6 cm in the sim at the T3 stop. None at the real T1/T2 geometry.
+- **Also.** T1/T2 at 0.45 m do not force a swerve.
+- **Proposed.** D61 (mask confirmed obstacles from ICP), D62 (box offset 0.30 m).
+- **Tests:** plugin 91/91, scripts 193/193. Report: [S4 §4–§5](stages/S4.md).

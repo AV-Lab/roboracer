@@ -628,16 +628,26 @@ def plugin_observe(args):
         s3b_plan = (str(Path(args.plugin) / f"data/c0-{plan_stage}-plan.json")
                     if args.stack_profile in S3_STAGES else "")
         icp = args.stack_profile in S3_ICP_STAGES
-        if icp:
+        s4_fixture = getattr(args, "s4_stationary_fixture", None) if not args.stack_profile else None
+        if s4_fixture:
+            # S4 stationary check (no motion): the S4 stack -- scan obstacles (D56), map ICP, the committed V1 plan and
+            # the C0 lattice (D57/D58) -- with HoldController as the only command source.
+            from avlite.c10_perception.c19_settings import PerceptionSettings
+            PerceptionSettings.c12_detection_strategy = "ScanObstacleDetection"
+            PerceptionSettings.c12_tracking_strategy = PerceptionSettings.c12_prediction_strategy = ""
+            s3b_plan = str(Path(args.plugin) / "data/c0-s3v1-plan.json")
+        if icp or s4_fixture:
             # S3-03 truth isolation: the bridge's ground-truth LOCALIZATION is filtered out, so AVLite runs the
             # localization strategy and never copies the simulator pose into the stack.
             from avlite.c40_execution.c49_settings import ExecutionSettings
             ExecutionSettings.c41_world_stack_capabilities = []
         executer = executor_factory(
-            executer_type="SyncExecuter", bridge="AutoDriveBridge", perception_strategy_name="",
-            localization_strategy_name="MapIcpLocalization" if icp else "", mapping_strategy_name="",
+            executer_type="SyncExecuter", bridge="AutoDriveBridge",
+            perception_strategy_name="PerceptionPipeline" if s4_fixture else "",
+            localization_strategy_name="MapIcpLocalization" if icp or s4_fixture else "", mapping_strategy_name="",
             global_planner_strategy_name="RaceLineGlobalPlanner" if s3b_plan else "",
-            local_planner_strategy_name="", controller_strategy_name=controller_name, execution_task_names=[],
+            local_planner_strategy_name="C0LatticePlanner" if s4_fixture else "", controller_strategy_name=controller_name,
+            execution_task_names=[],
             default_global_trajectory_file=s3b_plan, map_file="", load_plugins=True)
         plugin = sys.modules["avlite.plugins.roboracer"]
         bridge = executer.world
@@ -705,6 +715,27 @@ def plugin_observe(args):
         stage.m3_setup(args.m3_ic, a_controller if args.stack_profile == "s3m3a" else None)
         state["m3"] = {"ic": args.m3_ic, "algorithm": "A" if args.stack_profile == "s3m3a" else "B",
                        "ic_s_m": M3_IC_S_M[args.m3_ic], "a_params": dict(a_controller.params.__dict__)}
+    s4 = None
+    if executer is not None and getattr(args, "s4_stationary_fixture", None) and not args.stack_profile:
+        plugin_s4 = sys.modules["avlite.plugins.roboracer"]
+        vo = importlib.import_module("avlite.plugins.roboracer.integration.virtual_obstacles")
+        s3b = importlib.import_module("avlite.plugins.roboracer.planning.s3b")
+        bridge.withhold_truth = True  # S3-04 provenance: LiDAR and wheel odometry only
+        bridge.obstacle_fixture = vo.load_fixture(args.s4_stationary_fixture)
+        b_config = s3b.controller_config("s3v1")
+        b_config.trajectory_reference_mode = "selected"  # A2RL selected_local (D57)
+        s4 = {"b": plugin_s4.RacingLineController(config=b_config), "init": None}
+        state["s4_stationary"] = {
+            "fixture": {"path": str(args.s4_stationary_fixture), "name": bridge.obstacle_fixture.name,
+                        "sha256": bridge.obstacle_fixture.sha256, "label": "virtual obstacle (D54 A)"},
+            "stack": {"perception": "PerceptionPipeline/ScanObstacleDetection", "localization": "MapIcpLocalization",
+                      "global_planner": "RaceLineGlobalPlanner (c0-s3v1-plan)", "local_planner": "C0LatticePlanner",
+                      "controller": type(executer.controller).__name__ + " (sole command source)",
+                      "b_shadow": "RacingLineController, trajectory_reference_mode=selected (logged only)"},
+            "lattice_settings": executer.local_planner.settings_applied,
+            "observation_provenance": {"stack_inputs": ["lidar (scan + mount, virtual obstacles applied)",
+                                                        "wheel_odometry"],
+                                       "withheld_from_stack": ["IPS pose", "IMU", "obstacle fixture geometry"]}}
     shadow = None
     if getattr(args, "s3b_shadow", False) and executer is not None and not args.stack_profile:
         # S3: B (ported A2RL controller, committed C0 plan) computed on the stack's live ego state each tick and
@@ -776,6 +807,28 @@ def plugin_observe(args):
                    "telemetry_seq": tick.telemetry_seq if tick else None, "request_seq": bridge._request_seq}
             if stage:
                 row.update(stage.tick_record())
+            if s4 is not None and tick is not None:
+                loc, planner = executer.localization, executer.local_planner
+                if s4["init"] is None:
+                    frame = bridge.get_sensor_frame()
+                    if frame.get_lidar() is not None and frame.get_lidar().points is not None:
+                        loc.initialize(*ICP_SPAWN_POSE)
+                        s4["init"] = loc.verify_initialization(frame)
+                        state["s4_stationary"]["icp_initialization"] = s4["init"]
+                st, detector = loc.status, executer.perception._detector
+                truth = bridge.latest().pose
+                ego = executer.pm.ego_vehicle
+                b_cmd = s4["b"].control(ego, planner.get_local_plan(), control_dt=period)
+                row["s4"] = {
+                    "icp": {"state": st.get("state"), "pose": st.get("pose"), "ips": [truth.x, truth.y, truth.yaw],
+                            **{k: st.get(k) for k in ("inlier_fraction", "inlier_rms_m", "compute_s")}},
+                    "detector": dict(detector.status), "obstacles_stamp": detector.obstacles_stamp,
+                    "obstacles": [[a.x, a.y, a.theta, a.length, a.width] for a in detector.obstacles],
+                    "planner": dict(planner.diagnostics), "blocked": planner.blocked,
+                    "blocked_reason": planner.blocked_reason,
+                    "b_shadow": {"target_speed": b_cmd.target_speed, "steer": b_cmd.steer,
+                                 **{k: (s4["b"].last or {}).get(k) for k in ("s_m", "lateral_error_m", "safe_stop", "reason")}},
+                    "hold_request": bridge.last_request.target_speed if bridge.last_request else None}
             if shadow is not None and tick is not None:
                 frame = bridge.get_sensor_frame()
                 if icp_init is None and frame.get_lidar() is not None and frame.get_lidar().points is not None:
@@ -2438,7 +2491,9 @@ def trial(args, context, out):
                                            "--results", str(out), "--plugin", str(PLUGIN_DIRECTORY),
                                            "--supervisor", supervisor_name,
                                            *(["--record-inputs"] if args.record_inputs else []),
-                                           *(["--s3b-shadow"] if args.s3b_shadow else [])], plugin_environment)
+                                           *(["--s3b-shadow"] if args.s3b_shadow else []),
+                                           *(["--s4-stationary-fixture", str(args.s4_stationary_fixture.resolve())]
+                                             if args.s4_stationary_fixture else [])], plugin_environment)
                     status_name = "plugin-observer-status.json"
                 while not read(out / status_name).get("ready"):
                     if any(p.poll() is not None for p, _, _ in children) or time.monotonic() > deadline:
@@ -3199,6 +3254,9 @@ def main():
     parser.add_argument("--stack-profile", choices=sorted(AVLITE_MOTION_STAGES), default=None, help=argparse.SUPPRESS)
     parser.add_argument("--s3b-shadow", action="store_true",
                         help="S3: log B's commands on the live ego state in a stationary --plugin-stack run (no motion)")
+    parser.add_argument("--s4-stationary-fixture", type=Path, default=None,
+                        help="S4: stationary --plugin-stack run with the S4 stack (scan obstacles, map ICP, C0 lattice) "
+                             "under HoldController and this virtual-obstacle fixture; B's commands logged only (no motion)")
     parser.add_argument("--icp-init-offset", type=float, nargs=3, default=None, metavar=("DX", "DY", "DYAW"),
                         help="S3 F3-2/F3-3: offset added to the configured ICP spawn pose (ICP stages only; a fault case)")
     parser.add_argument("--m3-ic", type=int, choices=range(5), default=None,
@@ -3262,6 +3320,9 @@ def main():
         parser.error("--icp-init-offset is for ICP stages only (S3 F3-2/F3-3)")
     if args.s3b_shadow and args.mode == "run" and (args.motion_stage or not args.plugin_stack):
         parser.error("--s3b-shadow is for a stationary --plugin-stack run (no motion stage)")
+    if args.s4_stationary_fixture and (args.s3b_shadow or args.stack_profile or
+                                       (args.mode == "run" and (args.motion_stage or not args.plugin_stack))):
+        parser.error("--s4-stationary-fixture is for a stationary --plugin-stack run (no motion stage, no --s3b-shadow)")
     if args.sim_hang_test is not None and (args.motion_stage or args.mode != "run" or args.sim_hang_test <= 0):
         parser.error("--sim-hang-test is a stationary (no motion stage) run-mode test with a positive delay")
     if args.f1_case:

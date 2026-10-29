@@ -79,10 +79,14 @@ class RacingControllerConfig:
     safe_stop_lateral_error_m: float = 2.5 * LENGTH_RATIO
     safe_stop_yaw_error_rad: float = 0.2
     speed_cap_mps: float = 0.3               # the approved motion envelope (D33 raises it in stages)
+    # A2RL ``trajectory_reference_mode``: "global" tracks the parent (global) line, as in tracking mode "legacy";
+    # "selected" tracks the local planner's selected path (tracking mode "selected_local", S4 D57).
+    trajectory_reference_mode: str = "global"
 
 
 class RacingLineController(ControlStrategy):
-    """Tracks the global plan (A2RL tracking mode "legacy"); needs an ego pose and speed."""
+    """Tracks the global plan (A2RL tracking mode "legacy") or the local planner's selected path
+    ("selected_local"); needs an ego pose and speed."""
 
     def __init__(self, *args, config: RacingControllerConfig | None = None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -293,7 +297,15 @@ class RacingLineController(ControlStrategy):
         elif tj is None or not tj.is_initialized:
             speed, steer, detail = 0.0, 0.0, {"reason": "no plan"}
         else:
-            reference = tj.parent_trajectory or tj  # A2RL tracking mode "legacy": track the global line
+            # A2RL ``A2RLBaseStackController.control``: the reference by ``trajectory_reference_mode``.
+            reference_mode = str(self.config.trajectory_reference_mode or "global").strip().lower()
+            if reference_mode == "selected":
+                reference = tj
+            elif reference_mode == "global":
+                reference = tj.parent_trajectory or tj
+            else:
+                raise ValueError("trajectory_reference_mode must be 'global' or 'selected', "
+                                 f"got {self.config.trajectory_reference_mode!r}")
             speed, steer, detail = self.steer_and_speed(reference, ego, float(control_dt or 0.1))
         self.last = detail
         self.cmd = ControlCommand(steer=steer, acceleration=0.0)  # gauge mirror

@@ -147,6 +147,38 @@ class PortEquivalenceTests(unittest.TestCase):
             want = theirs.control(ego, tj_theirs, control_dt=0.1)
             self.assertEqual(got.steer, want.steer, f"step {k}")
 
+    def test_selected_and_global_reference_modes_identical(self):
+        """S4 D57: A2RL ``trajectory_reference_mode`` — "selected" tracks the local path, "global" its parent; the
+        port matches A2RL in both, and the two modes really differ."""
+        ref = a2rl("control.base_stack_controller")
+        tracker_ref = a2rl("planning.trajectory_tracker").A2RLTrajectoryTracker
+        path = stadium()
+        local = [(x, y + 0.15) for x, y in path[:30]]  # a lane 0.15 m left along the first straight
+        steering = {}
+        for mode in ("selected", "global"):
+            ours = RacingLineController(config=RacingControllerConfig(trajectory_reference_mode=mode, speed_cap_mps=10.0,
+                                                                      tracking_safe_stop_min_speed_mps=100.0))
+            theirs = ref.A2RLBaseStackController(config=ref._BaseStackConfig(
+                wheelbase_m=ours.config.wheelbase_m, rear_axle_to_cg_m=ours.config.rear_axle_to_cg_m,
+                max_wheel_angle_rad=ours.config.max_wheel_angle_rad, kp_steer_fb=ours.config.kp_steer_fb,
+                lookahead_distance_yaw_m=ours.config.lookahead_distance_yaw_m, trajectory_reference_mode=mode,
+                tracking_safe_stop_min_speed_threshold_mps=100.0))
+            got, want = [], []
+            for controller, out, tracker in ((ours, got, LapTrajectoryTracker), (theirs, want, tracker_ref)):
+                parent = tracker(path=path, velocity=[1.0] * len(path))
+                tj = tracker(path=local, velocity=[1.0] * len(local))
+                tj.parent_trajectory = parent
+                for k in range(20):
+                    ego = EgoState(x=0.1 * k, y=-1.5 + 0.05 * math.sin(0.4 * k), theta=0.02 * math.cos(k), velocity=1.0)
+                    out.append(controller.control(ego, tj, control_dt=0.1).steer)
+            self.assertEqual(want, got, mode)
+            steering[mode] = got
+        self.assertGreater(max(abs(a - b) for a, b in zip(steering["selected"], steering["global"])), 0.05)
+        with self.assertRaisesRegex(ValueError, "trajectory_reference_mode"):
+            bad = RacingLineController(config=RacingControllerConfig(trajectory_reference_mode="lattice"))
+            bad.control(EgoState(x=0.0, y=-1.5, theta=0.0, velocity=1.0),
+                        LapTrajectoryTracker(path=path, velocity=[1.0] * len(path)), control_dt=0.1)
+
     def test_safe_stop_steering_identical_and_latched(self):
         ref = a2rl("control.base_stack_controller")
         path = stadium()

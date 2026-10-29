@@ -32,7 +32,7 @@ def probe(case):
 class PluginLoadingTests(unittest.TestCase):
     def test_import_registers_exports_without_side_effects(self):
         r = probe("import")
-        self.assertEqual(["AutoDriveBridge", "GapFollowController", "HoldController", "MapIcpLocalization",
+        self.assertEqual(["AutoDriveBridge", "C0LatticePlanner", "GapFollowController", "HoldController", "MapIcpLocalization",
                           "PluginSettings", "RaceLineGlobalPlanner", "RacingLineController", "ScanObstacleDetection",
                           "SpeedStepController",
                           "TargetSpeedSteeringCommand"], r["exports"])

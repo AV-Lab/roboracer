@@ -1229,3 +1229,13 @@
 - **Offline.** 0 phantoms on 1,662 scans; T1/T2 detected from 7.4 m; T3 from 4.9 m.
 - **Finding.** A full blockage drops ICP inliers below the S3 limit inside about 0.93 m, so the blocked stop must complete well outside 1 m.
 - **Tests:** plugin 83/83, scripts 193/193. Report: [S4 §2](stages/S4.md).
+
+## 2026-10-29 — S4: lattice at C0 scale + D58 blocked stop; closed-loop kinematic check passes (no motion)
+
+- **Built.** `C0LatticePlanner` = AVLite `GreedyLatticePlanner` with listed C0 settings (2 m edges, half width + 0.10 m clearance, deterministic sampling, C0 ego box) and the latched blocked stop.
+- **Closed loop.** Full S4 stack in AVLite's executer on a kinematic C0 car with synthesized scans:
+  - T1 passed left (0.51 m from the box), T2 passed right (0.56 m);
+  - T3 blocked at rest 1.42 m before the barrier;
+  - no contact; ICP valid throughout.
+- **Tick.** The lattice first cost up to 101 ms per 100 ms tick. With 2 levels × 5 samples: p50 18–23 ms, max 31 ms.
+- **Tests:** plugin 87/87, scripts 193/193. Report: [S4 §3](stages/S4.md).

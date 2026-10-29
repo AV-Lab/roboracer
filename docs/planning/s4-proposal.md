@@ -1,6 +1,6 @@
 # S4 proposal — static-obstacle response
 
-Version **0.1, 2026-10-28**; **D54 A decided 2026-10-29** ("D54 A，用虚拟障碍物"); D55–D60 open. Entry: S3 accepted ("accept S3-01 to S3-07"), then S4 entry approved ("批准", approve). **No motion is proposed in this document.** Every motion run will need its own approval, as before.
+Version **0.1, 2026-10-28**; **D54 A decided 2026-10-29** ("D54 A，用虚拟障碍物"); **D55–D60 confirmed 2026-10-29** ("确认"). Entry: S3 accepted ("accept S3-01 to S3-07"), then S4 entry approved ("批准", approve). **No motion is proposed in this document.** Every motion run will need its own approval, as before.
 
 **S4 goal (plan):**
 - B avoids static obstacles where a qualified traversable corridor exists, resumes reference-path progress, and stops predictably when the track is fully blocked.

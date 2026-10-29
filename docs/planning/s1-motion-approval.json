@@ -51,7 +51,13 @@
   "D51": "M3 acceptance matrix: 5 ICs x 10 x A/B = 100 fresh-process episodes + F3, in five per-IC sessions",
   "D52": "failure rule: any B episode failing T1-T8 fails the item (retained; rerun only with approval); A reported only",
   "D53": "A: one replacement B episode at IC0 for the blank-window start failure ic0-r07-b (failure retained)",
-  "D54": "A: virtual static obstacles at the sensor boundary; a bridge fixture outside the driving stack ray-casts LiDAR beams against fixture polygons; the scorer checks footprint overlap with the same polygons; contact is a scored overlap, not a physical collision; simulator stays frozen (D18)"
+  "D54": "A: virtual static obstacles at the sensor boundary; a bridge fixture outside the driving stack ray-casts LiDAR beams against fixture polygons; the scorer checks footprint overlap with the same polygons; contact is a scored overlap, not a physical collision; simulator stays frozen (D18)",
+  "D55": "scenarios: T1 left pass (0.25 m box at s = 7.5 m, 0.45 m right of the line), T2 mirror, T3 full-width barrier at s = 5.0 m; positions finalized by the offline check",
+  "D56": "obstacle perception: scan points within 0.05 m of the S3 wall map removed; AVLite FastBEVLidarDetection at C0 scale; cluster >= 4 points, confirmed on 2 consecutive scans; obstacle list older than 0.5 s stops the stack",
+  "D57": "planning: AVLite GreedyLatticePlanner with C0 parameters, inflation half car width + 0.10 m; A2RL selected_local tracking (selected-path branch ported); whole-footprint clearance check on the selected path",
+  "D58": "blocked track / planning failure (no collision-free in-bounds edge, planner error or missed deadline): target speed 0, latched until rearm; 'blocked' outcome scored independently of lap completion",
+  "D59": "speed: V1 envelope on ICP (0.5 m/s) with its accepted stop criteria",
+  "D60": "F4 x3 each: F4-1 blocked path (T3 geometry), F4-2 stale obstacle observation, F4-3 planning failure; stop within V1 criteria, nothing applied afterwards"
  },
  "stages": [
   "M0",
@@ -439,6 +445,18 @@
     "D54"
    ],
    "user_reply": "D54 A，用虚拟障碍物"
+  },
+  {
+   "date": "2026-10-29",
+   "decisions": [
+    "D55",
+    "D56",
+    "D57",
+    "D58",
+    "D59",
+    "D60"
+   ],
+   "user_reply": "确认"
   }
  ]
 }

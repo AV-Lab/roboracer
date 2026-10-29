@@ -1251,3 +1251,14 @@
 - **Also.** T1/T2 at 0.45 m do not force a swerve.
 - **Proposed.** D61 (mask confirmed obstacles from ICP), D62 (box offset 0.30 m).
 - **Tests:** plugin 91/91, scripts 193/193. Report: [S4 §4–§5](stages/S4.md).
+
+## 2026-10-29 — S4 D61 A / D62 B built and verified (no motion)
+
+- **Decisions:** "D61 A, D62 B".
+- **D61 A.** Map ICP leaves out confirmed static obstacles (box + 0.10 m).
+  - The S3 ICP suite re-run is identical to the accepted S3 evidence.
+  - Live ICP error next to obstacles: box 37 → 1.1 mm, barrier 72 → 3.7 mm (p50).
+  - At the T3 stop in the sim: 4.6 → 1.3 cm.
+- **D62 B.** T1/T2 boxes at 0.30 m block the line. Sim: T1 passed left (0.37 m from the box), T2 passed right (0.41 m), T3 blocked at 1.41 m.
+- **Tests:** plugin 94/94, scripts 193/193.
+- **Next:** build the S4 motion stage. Report: [S4 §6–§7](stages/S4.md).

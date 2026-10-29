@@ -1,6 +1,6 @@
 # S4 proposal — static-obstacle response
 
-Version **0.1, 2026-10-28**. Entry: S3 accepted ("accept S3-01 to S3-07"), then S4 entry approved ("批准", approve). **No motion is proposed in this document.** Every motion run will need its own approval, as before.
+Version **0.1, 2026-10-28**; **D54 A decided 2026-10-29** ("D54 A，用虚拟障碍物"); D55–D60 open. Entry: S3 accepted ("accept S3-01 to S3-07"), then S4 entry approved ("批准", approve). **No motion is proposed in this document.** Every motion run will need its own approval, as before.
 
 **S4 goal (plan):**
 - B avoids static obstacles where a qualified traversable corridor exists, resumes reference-path progress, and stops predictably when the track is fully blocked.
@@ -51,7 +51,7 @@ The exact positions are fixed after the offline check (§6, step 1). Each case's
 
 ## 4. Decisions requested
 
-- **D54 — obstacle source:**
+- **D54 — obstacle source — decided A (2026-10-29):**
   - **A (recommended): virtual static obstacles at the sensor boundary.**
     - A fixture in the bridge, outside the driving stack, shortens each LiDAR beam to the first hit on the fixture's obstacle polygons. The ray-cast uses the simulator pose of the same snapshot, as a simulated sensor would.
     - The driving stack sees only the modified scan. It never sees the obstacle geometry, and S3's truth-isolation proof is extended to cover this.

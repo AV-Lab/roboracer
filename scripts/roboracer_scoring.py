@@ -189,9 +189,29 @@ def events(flags, frames):
     return out
 
 
-def score(geometry: dict, frames: list[dict]) -> dict:
+def load_obstacles(fixture: Path) -> tuple[list, dict]:
+    """S4 virtual obstacles (D54 A): the fixture's polygons, read here independently of the plugin, after the
+    same sha256 check against its provenance record."""
+    from shapely.geometry import Polygon
+    record = json.loads(fixture.with_name(fixture.stem + ".provenance.json").read_text())
+    if record.get("fixture_sha256") != sha256(fixture):
+        raise SystemExit(f"{fixture.name} does not match its provenance record")
+    data = json.loads(fixture.read_text())
+    polygons = [Polygon(o["polygon"]) for o in data["obstacles"]]
+    if not polygons or not all(p.is_valid and p.area > 0 for p in polygons):
+        raise SystemExit(f"{fixture.name}: invalid obstacle polygons")
+    return polygons, {"path": str(fixture), "sha256": sha256(fixture), "name": data.get("name"),
+                      "obstacles": len(polygons)}
+
+
+def score(geometry: dict, frames: list[dict], obstacles: list | None = None) -> dict:
+    """``obstacles`` (S4): virtual obstacle polygons. Contact with them is a scored footprint overlap (the car
+    passes through a virtual box) and is reported separately from wall contact, as is their clearance."""
     from shapely import wkt
     from shapely.geometry import LinearRing, Point
+    from shapely.ops import unary_union
+    blocks = unary_union(obstacles) if obstacles else None
+    obstacle_contact, obstacle_clearance = [], []
 
     region, walls = wkt.loads(geometry["region_wkt"]), wkt.loads(geometry["walls_wkt"])
     line = LinearRing(geometry["centerline"])
@@ -225,11 +245,19 @@ def score(geometry: dict, frames: list[dict]) -> dict:
         offtrack.append(not region.contains(swept))
         clearance.append(walls.distance(poly))
         samples.append({"sim_time": f["sim_time"], "s_m": s, "progress_m": progress, "clearance_m": clearance[-1]})
+        if blocks is not None:
+            obstacle_contact.append(swept.intersects(blocks))
+            obstacle_clearance.append(blocks.distance(poly))
+            samples[-1]["obstacle_clearance_m"] = obstacle_clearance[-1]
     start = frames[0]["sim_time"] if frames else None
     for i, lap in enumerate(laps):
         previous = laps[i - 1]["sim_time"] if i else start
         lap["lap_time_s"] = lap["sim_time"] - previous
-    return {"frames": len(frames), "progress_m": progress, "lap_length_m": total, "laps": laps,
+    extra = {} if blocks is None else {
+        "obstacle_contact_events": events(obstacle_contact, frames),
+        "min_obstacle_clearance_m": min(obstacle_clearance) if obstacle_clearance else None,
+        "obstacle_contact": "virtual obstacles: swept-footprint overlap, not a physical collision"}
+    return {**extra, "frames": len(frames), "progress_m": progress, "lap_length_m": total, "laps": laps,
             "contact_events": events(contact, frames), "offtrack_events": events(offtrack, frames),
             "min_clearance_m": min(clearance) if clearance else None,
             # Inside a tight bend the projection outruns the car (cutting the inside); audit large steps.
@@ -298,6 +326,7 @@ def main():
     s.add_argument("--geometry", type=Path, required=True)
     s.add_argument("--run", type=Path, required=True)
     s.add_argument("--output", type=Path, required=True)
+    s.add_argument("--obstacles", type=Path, help="S4 virtual-obstacle fixture (with its provenance record)")
     p = sub.add_parser("plot")
     p.add_argument("--geometry", type=Path, required=True)
     p.add_argument("--run", type=Path, help="optional run directory whose truth trajectory is drawn")
@@ -318,8 +347,11 @@ def main():
         print(json.dumps({k: result[k] for k in ("length_m", "track_width_m", "footprint", "spawn")}))
         return 0
     geometry = json.loads(args.geometry.read_text())
-    result = score(geometry, truth_frames(args.run))
+    obstacles, fixture = load_obstacles(args.obstacles) if args.obstacles else (None, None)
+    result = score(geometry, truth_frames(args.run), obstacles)
     result["geometry"] = {"path": str(args.geometry), "sha256": sha256(args.geometry)}
+    if fixture:
+        result["obstacle_fixture"] = fixture
     args.output.write_text(json.dumps(result, indent=1) + "\n")
     print(json.dumps({k: result[k] for k in ("frames", "progress_m", "laps", "contact_events", "offtrack_events",
                                              "min_clearance_m", "start_offset_m")}))

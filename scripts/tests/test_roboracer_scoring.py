@@ -85,6 +85,42 @@ class ScoringTests(unittest.TestCase):
         r = rs.score(self.g, frames)
         self.assertEqual(1, len(r["contact_events"]))
 
+    def test_virtual_obstacle_contact_and_clearance_are_scored_separately(self):
+        """S4 (D54 A): a box on the centerline is one obstacle-contact event; wall results are unchanged."""
+        from shapely.geometry import box
+        frames = frames_along([0.05 * k for k in range(20)])
+        plain = rs.score(self.g, frames)
+        a = 0.5  # the box sits on the centerline at angle 0.5 rad, which frame 10 passes through
+        on_path = box(R_MID * math.cos(a) - 0.1, R_MID * math.sin(a) - 0.1, R_MID * math.cos(a) + 0.1, R_MID * math.sin(a) + 0.1)
+        r = rs.score(self.g, frames, [on_path])
+        self.assertEqual(1, len(r["obstacle_contact_events"]))
+        self.assertEqual(0.0, r["min_obstacle_clearance_m"])
+        for key in ("contact_events", "offtrack_events", "min_clearance_m", "laps", "progress_m"):
+            self.assertEqual(plain[key], r[key])
+        self.assertNotIn("obstacle_contact_events", plain)
+        # A box beside the path: no contact, clearance = gap between the box and the footprint's outer side.
+        beside = box(2.9 * math.cos(a) - 0.05, 2.9 * math.sin(a) - 0.05, 2.9 * math.cos(a) + 0.05, 2.9 * math.sin(a) + 0.05)
+        r = rs.score(self.g, frames, [beside])
+        self.assertEqual([], r["obstacle_contact_events"])
+        self.assertGreater(r["min_obstacle_clearance_m"], 0.2)
+        self.assertLess(r["min_obstacle_clearance_m"], 2.9 - 0.05 - R_MID - 0.145 + 0.01)
+
+    def test_obstacle_fixture_must_match_its_provenance(self):
+        import hashlib
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = Path(tmp) / "t1.json"
+            fixture.write_text(json.dumps({"schema": "roboracer.virtual-obstacles/1", "name": "t1",
+                                           "obstacles": [{"id": "b", "polygon": [[0, 0], [0.2, 0], [0.2, 0.2], [0, 0.2]]}]}))
+            provenance = Path(tmp) / "t1.provenance.json"
+            provenance.write_text(json.dumps({"fixture_sha256": hashlib.sha256(fixture.read_bytes()).hexdigest()}))
+            polygons, record = rs.load_obstacles(fixture)
+            self.assertEqual((1, "t1"), (len(polygons), record["name"]))
+            fixture.write_text(fixture.read_text().replace("0.2", "0.3"))
+            with self.assertRaises(SystemExit):
+                rs.load_obstacles(fixture)
+
 
 @unittest.skipIf(rs is None, "shapely unavailable; run with the AVLite interpreter")
 class EpisodeTruthTests(unittest.TestCase):

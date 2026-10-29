@@ -49,7 +49,9 @@
   "D49": "IC approach: deceleration 0.25 m/s^2, creep zone 0.5 m at 0.1 m/s; tolerance unchanged",
   "D50": "F3 cases F3-1 to F3-5 (section 4), each three times",
   "D51": "M3 acceptance matrix: 5 ICs x 10 x A/B = 100 fresh-process episodes + F3, in five per-IC sessions",
-  "D52": "failure rule: any B episode failing T1-T8 fails the item (retained; rerun only with approval); A reported only"
+  "D52": "failure rule: any B episode failing T1-T8 fails the item (retained; rerun only with approval); A reported only",
+  "D53": "A: one replacement B episode at IC0 for the blank-window start failure ic0-r07-b (failure retained)",
+  "D54": "A: virtual static obstacles at the sensor boundary; a bridge fixture outside the driving stack ray-casts LiDAR beams against fixture polygons; the scorer checks footprint overlap with the same polygons; contact is a scored overlap, not a physical collision; simulator stays frozen (D18)"
  },
  "stages": [
   "M0",
@@ -361,7 +363,8 @@
   "unattended reset outside S2 batches (D22)",
   "fault cases other than F1-1..F1-9 and F2-1..F2-10 (D23); on S3V1 and S3V2 only F1-3 and F1-7 (D38, D43); on S3V1I only F1-1",
   "any S2 live run set without its own run approval (D22)",
-  "any S3 live run set without its own run approval"
+  "any S3 live run set without its own run approval",
+  "any S4 live run set without its own run approval"
  ],
  "decision_replies": [
   {
@@ -422,6 +425,20 @@
     "D52"
    ],
    "user_reply": "confirm"
+  },
+  {
+   "date": "2026-10-28",
+   "decisions": [
+    "D53"
+   ],
+   "user_reply": "D53A"
+  },
+  {
+   "date": "2026-10-29",
+   "decisions": [
+    "D54"
+   ],
+   "user_reply": "D54 A，用虚拟障碍物"
   }
  ]
 }

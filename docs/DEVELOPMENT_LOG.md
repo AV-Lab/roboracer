@@ -1208,3 +1208,13 @@
   - Blocked/planning failure → latched stop.
   - V1 on ICP; F4-1 to F4-3 ×3.
 - **Report:** [s4-proposal.md](planning/s4-proposal.md).
+
+## 2026-10-29 — S4 D54 A: virtual static obstacles built (no motion)
+
+- **Decision:** "D54 A，用虚拟障碍物"; simulator stays frozen (D18).
+- **Built.**
+  - `virtual_obstacles.py`: hash-checked fixture; LiDAR ray-cast occlusion at each snapshot's simulator pose.
+  - Bridge hook in `_offer`; the raw recording stays unmodified.
+  - Scorer `--obstacles`: obstacle contact and clearance, reported separately.
+- **Tests:** plugin 82/82, scripts 193/193.
+- **Open:** D55–D60. Report: [S4 §1](stages/S4.md).

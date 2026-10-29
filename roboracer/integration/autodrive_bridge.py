@@ -35,6 +35,7 @@ from ..runtime.commands import TargetSpeedSteeringCommand
 from ..settings import PluginSettings
 from .autodrive_observation import (IMU_MOUNT_M, LIDAR_MOUNT_M, HEADER_SOURCES, Snapshot, SnapshotAssembler,
                                     translation)
+from .virtual_obstacles import apply_fixture
 
 log = logging.getLogger(__name__)
 
@@ -75,6 +76,10 @@ class AutoDriveBridge(WorldBridge):
         # S3-04: on ICP stages the stack's sensor frames carry no simulator truth (the IMU orientation is labelled
         # truth on every snapshot, so the IMU is withheld); IPS stays available to labelled monitors via latest().
         self.withhold_truth = False
+        # S4 (D54 A): optional virtual static obstacles, applied to every committed snapshot before anything
+        # reads it (the raw-message recording stays unmodified; replay through _offer applies it again).
+        self.obstacle_fixture = None
+        self.obstacle_stats = {"snapshots": 0, "occluded_snapshots": 0, "beams_changed_max": 0}
 
     # -- observation path --------------------------------------------------------------------
     def connect(self, timeout_s: float = 0.0, supervisor: str | None = None) -> bool:
@@ -116,6 +121,8 @@ class AutoDriveBridge(WorldBridge):
                 snapshots = self.assembler.offer_provenance(message.data, now)
             else:
                 snapshots = self.assembler.offer(topic, message, now)
+            if snapshots and self.obstacle_fixture is not None:
+                snapshots = [self._with_obstacles(snapshot) for snapshot in snapshots]
             if snapshots:
                 for snapshot in snapshots:
                     self._record_encoder_speed(snapshot)
@@ -124,6 +131,14 @@ class AutoDriveBridge(WorldBridge):
                 if self.snapshot_listener is not None:
                     for snapshot in snapshots:
                         self.snapshot_listener(snapshot)
+
+    def _with_obstacles(self, snapshot: Snapshot) -> Snapshot:
+        snapshot, changed = apply_fixture(self.obstacle_fixture, snapshot)
+        stats = self.obstacle_stats
+        stats["snapshots"] += 1
+        stats["occluded_snapshots"] += bool(changed)
+        stats["beams_changed_max"] = max(stats["beams_changed_max"], changed)
+        return snapshot
 
     def _record_encoder_speed(self, snapshot: Snapshot) -> None:
         """Encoder speed (D6): mean wheel-angle change x 0.059 m over encoder acquisition sim
@@ -153,7 +168,9 @@ class AutoDriveBridge(WorldBridge):
             a = self.assembler
             return {"committed": a.committed, "rejections": dict(a.rejections), "dropped": a.dropped,
                     "last_rejection": a.last_rejection, "pending": len(a.pending),
-                    "requests": dict(self.request_io), "command_rejections": dict(self.rejections)}
+                    "requests": dict(self.request_io), "command_rejections": dict(self.rejections),
+                    "virtual_obstacles": None if self.obstacle_fixture is None else
+                    {"fixture": self.obstacle_fixture.name, "sha256": self.obstacle_fixture.sha256, **self.obstacle_stats}}
 
     def get_sensor_frame(self, agent_id: int = 0) -> SensorFrame:
         """One atomic snapshot: fresh sensor objects every call, shared read-only buffers."""

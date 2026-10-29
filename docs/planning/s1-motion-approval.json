@@ -57,7 +57,9 @@
   "D57": "planning: AVLite GreedyLatticePlanner with C0 parameters, inflation half car width + 0.10 m; A2RL selected_local tracking (selected-path branch ported); whole-footprint clearance check on the selected path",
   "D58": "blocked track / planning failure (no collision-free in-bounds edge, planner error or missed deadline): target speed 0, latched until rearm; 'blocked' outcome scored independently of lap completion",
   "D59": "speed: V1 envelope on ICP (0.5 m/s) with its accepted stop criteria",
-  "D60": "F4 x3 each: F4-1 blocked path (T3 geometry), F4-2 stale obstacle observation, F4-3 planning failure; stop within V1 criteria, nothing applied afterwards"
+  "D60": "F4 x3 each: F4-1 blocked path (T3 geometry), F4-2 stale obstacle observation, F4-3 planning failure; stop within V1 criteria, nothing applied afterwards",
+  "D61": "A: map ICP excludes scan points inside the previous scan's confirmed obstacles (box + 0.10 m); otherwise unchanged; re-qualified offline (no-obstacle results identical) and at the T3 stop before motion",
+  "D62": "B: T1/T2 box offset 0.30 m from the racing line, so the line is blocked and B must avoid"
  },
  "stages": [
   "M0",
@@ -457,6 +459,14 @@
     "D60"
    ],
    "user_reply": "确认"
+  },
+  {
+   "date": "2026-10-29",
+   "decisions": [
+    "D61",
+    "D62"
+   ],
+   "user_reply": "D61 A, D62 B"
   }
  ]
 }

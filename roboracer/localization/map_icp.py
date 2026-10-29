@@ -47,6 +47,8 @@ from avlite.c10_perception.c19_settings import PerceptionSettings
 
 MAP_FILE = Path(__file__).resolve().parents[1] / "data/c0-icp-map.json"
 MAP_PROVENANCE = Path(__file__).resolve().parents[1] / "data/c0-icp-map.provenance.json"
+OBSTACLE_MASK_MARGIN_M = 0.10  # S4 D61 A: confirmed obstacle box + this margin is excluded from the match
+OBSTACLE_MASK_MAX_SPEED_MPS = 0.05  # only static obstacles (scan detections have velocity 0)
 
 
 def load_map(map_file: Path = MAP_FILE, provenance_file: Path = MAP_PROVENANCE) -> tuple[np.ndarray, str]:
@@ -240,6 +242,22 @@ class MapIcpLocalization(LidarLocalization):
         k = (stamp - t1) / dt_hist
         return x1 + k * (x1 - x0), y1 + k * (y1 - y0), th1 + k * _wrap(th1 - th0)
 
+    def _mask_obstacles(self, scan: np.ndarray, px: float, py: float, pth: float) -> tuple[np.ndarray, int]:
+        """Drop base-frame scan points that fall inside a confirmed static obstacle (S4 D61 A)."""
+        agents = [a for a in getattr(self.perception_model, "agent_vehicles", None) or []
+                  if abs(getattr(a, "velocity", 0.0) or 0.0) <= OBSTACLE_MASK_MAX_SPEED_MPS]
+        if not agents or len(scan) == 0:
+            return scan, 0
+        c, s = math.cos(pth), math.sin(pth)
+        world = scan @ np.array([[c, s], [-s, c]]) + np.array([px, py])
+        keep = np.ones(len(scan), dtype=bool)
+        for a in agents:
+            ca, sa = math.cos(a.theta), math.sin(a.theta)
+            rel = world - np.array([a.x, a.y])
+            u, v = rel[:, 0] * ca + rel[:, 1] * sa, -rel[:, 0] * sa + rel[:, 1] * ca
+            keep &= ~((np.abs(u) <= a.length / 2 + OBSTACLE_MASK_MARGIN_M) & (np.abs(v) <= a.width / 2 + OBSTACLE_MASK_MARGIN_M))
+        return scan[keep], int(np.count_nonzero(~keep))
+
     def localize(self, perception_model=None, sensors=None) -> None:
         if perception_model is not None:
             self.perception_model = perception_model
@@ -266,6 +284,12 @@ class MapIcpLocalization(LidarLocalization):
         started = time.perf_counter()
         px, py, pth = self._predict(stamp)
         odometry_m, self._odometry_m = self._odometry_m, 0.0
+        # S4 D61 A: obstacle returns are not walls. Points inside the stack's confirmed static obstacles (the
+        # previous scan's detections, box + OBSTACLE_MASK_MARGIN_M, placed with the predicted pose) are left out of
+        # the match and of its validity statistics. With no obstacles in the model (every S3 stage) nothing changes.
+        scan, masked = self._mask_obstacles(scan, px, py, pth)
+        if len(scan) < 10:
+            return
         x, y, theta = self._icp(scan, self._map, px, py, pth)
         theta = _wrap(theta)
 
@@ -293,7 +317,8 @@ class MapIcpLocalization(LidarLocalization):
                        "correction_rad": correction_rad, "failed": [k for k, ok in checks.items() if not ok],
                        "constraint_ratio": constraint_ratio, "degenerate": constraint_ratio < self.limits["min_constraint_ratio"],
                        "weak_axis": [float(weak_axis[0]), float(weak_axis[1])], "odometry_m": odometry_m,
-                       "points": int(len(scan)), "compute_s": time.perf_counter() - started}
+                       "points": int(len(scan)), "masked_obstacle_points": masked,
+                       "compute_s": time.perf_counter() - started}
         if valid:
             self._x, self._y, self._theta = x, y, theta
             self._history = (self._history + [(stamp, x, y, theta)])[-2:]

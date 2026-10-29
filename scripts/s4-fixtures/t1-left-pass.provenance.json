@@ -1,7 +1,7 @@
 {
  "schema": "roboracer.virtual-obstacles-provenance/1",
  "fixture": "t1-left-pass.json",
- "fixture_sha256": "9acac7c7afacaacc3de19ef72d4571a8a555f4265977c0d98a6145a89030018d",
+ "fixture_sha256": "bf28ba8aa17ecbf1e0159943ef59d43cf3aa5717183c8d9489979df3051c3e6f",
  "inputs": {
   "plan": {
    "path": "roboracer/data/c0-s3v1-plan.json",
@@ -14,14 +14,14 @@
  },
  "builder": {
   "path": "scripts/roboracer_s4_fixtures.py",
-  "sha256": "5d6fa69155f94de0b561bfb2b9fb9ebe72aba3a6ed1548e7e0b0874aa8eb3587"
+  "sha256": "64e7bf06708bdcad325d4f36a71043685a73a01fa2231fad4e2a39e4e755b83e"
  },
  "parameters": {
   "plan": null,
   "geometry": null,
   "output": null,
   "pass_s": 7.5,
-  "offset": 0.45,
+  "offset": 0.3,
   "box": 0.25,
   "block_s": 5.0,
   "block_depth": 0.2,
@@ -30,8 +30,8 @@
  },
  "check": {
   "gaps_m": {
-   "left_m": 1.223602548095843,
-   "right_m": 0.31327328841132795
+   "left_m": 1.0735983274464587,
+   "right_m": 0.463272929067586
   },
   "needed_m": 0.488042587403323,
   "car_width_m": 0.288042587403323,
@@ -40,7 +40,7 @@
    "right_m": false
   },
   "expected_corridor": "left",
-  "obstacle_area_m2": 0.06249925159999993,
-  "obstacle_inside_region_m2": 0.06249925159999993
+  "obstacle_area_m2": 0.062499251599999986,
+  "obstacle_inside_region_m2": 0.062499251599999986
  }
 }

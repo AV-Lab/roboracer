@@ -14,14 +14,14 @@
  },
  "builder": {
   "path": "scripts/roboracer_s4_fixtures.py",
-  "sha256": "5d6fa69155f94de0b561bfb2b9fb9ebe72aba3a6ed1548e7e0b0874aa8eb3587"
+  "sha256": "64e7bf06708bdcad325d4f36a71043685a73a01fa2231fad4e2a39e4e755b83e"
  },
  "parameters": {
   "plan": null,
   "geometry": null,
   "output": null,
   "pass_s": 7.5,
-  "offset": 0.45,
+  "offset": 0.3,
   "box": 0.25,
   "block_s": 5.0,
   "block_depth": 0.2,

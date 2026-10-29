@@ -73,7 +73,7 @@ def main() -> int:
     parser.add_argument("--geometry", type=Path, default=GEOMETRY)
     parser.add_argument("--output", type=Path, default=REPO / "scripts/s4-fixtures")
     parser.add_argument("--pass-s", type=float, default=7.5)
-    parser.add_argument("--offset", type=float, default=0.45)
+    parser.add_argument("--offset", type=float, default=0.30, help="box centre from the racing line (D62 B; D55 had 0.45)")
     parser.add_argument("--box", type=float, default=0.25)
     parser.add_argument("--block-s", type=float, default=5.0)
     parser.add_argument("--block-depth", type=float, default=0.20)

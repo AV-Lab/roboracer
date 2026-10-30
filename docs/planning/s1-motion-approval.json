@@ -367,6 +367,12 @@
    "user_reply": "批准",
    "proposal": "docs/stages/S4.md section 7",
    "note": "pass criteria fixed before the runs (S4 §7); first live checks, not the S4-05 baseline or M4 acceptance"
+  },
+  {
+   "stage": "S4 first live checks, rerun after the run-start lattice reset: stage s4, T1, T2, T3 once each, fresh process, unattended, stopping at the first failure",
+   "date": "2026-10-30",
+   "user_reply": "批准",
+   "note": "same pass criteria (S4 §7); T1 attempt 1 (blocked latched before the run) stays retained (S4 §8)"
   }
  ],
  "not_authorized": [

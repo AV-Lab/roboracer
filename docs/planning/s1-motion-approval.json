@@ -373,6 +373,13 @@
    "date": "2026-10-30",
    "user_reply": "批准",
    "note": "same pass criteria (S4 §7); T1 attempt 1 (blocked latched before the run) stays retained (S4 §8)"
+  },
+  {
+   "stage": "S4 F4 cases (D60) on stage s4: F4-1 blocked path (T3) x3, F4-2 stale obstacle observation (T1) x3, F4-3 planning failure (T1) x3; fresh process each, unattended, stopping at the first failure",
+   "date": "2026-10-30",
+   "user_reply": "批准",
+   "proposal": "docs/stages/S4.md section 11",
+   "note": "criteria fixed before the runs (S4 §11): rest <= 1.7 s and travel <= 0.65 m from the injection, expected detection, no positive throttle after injection + 1.7 s, no contact; D63 (controlled rearm) not decided"
   }
  ],
  "not_authorized": [

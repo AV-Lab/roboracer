@@ -129,6 +129,51 @@ class S4StageTests(unittest.TestCase):
         self.assertIn("no new obstacle observation", self.h.state["abort"])
 
 
+class S4FaultCaseTests(unittest.TestCase):
+    """D60 F4-2 / F4-3: injected at F4_INJECT_S of run time; F4-2 then ends on the D56 freshness abort."""
+
+    def harness(self, case):
+        self.tmp = tempfile.TemporaryDirectory()
+        h = Harness(Path(self.tmp.name))
+        h.stage.f4 = case
+        h.detector.detect = lambda perception_model=None, sensors=None: perception_model
+        h.planner.lattice = NS(sample_nodes=lambda *a, **k: None)
+        an.save(h.results / "bridge-status.json", {"guard": {"state": "armed"}})
+        return h
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_f4_2_freezes_the_detector_and_the_stage_aborts_within_the_window(self):
+        h = self.harness("f4-2")
+        self.assertTrue(h.run_until("run"))
+        while h.stage.f4_injected is None:
+            h.tick()
+        injected = h.state["s4"]["f4"]
+        self.assertAlmostEqual(an.F4_INJECT_S, injected["run_elapsed_s"], delta=0.11)
+        self.assertTrue((h.results / "fault-inject.json").exists())
+        pm = NS(agent_vehicles=[])
+        h.detector.obstacles = ["box"]
+        self.assertEqual(["box"], h.detector.detect(pm, None).agent_vehicles)  # re-reports, never a new stamp
+        h.fresh_obstacles = False  # the frozen detector no longer advances obstacles_stamp
+        ticks = 0
+        while h.stage.phase == "run" and ticks < 20:
+            h.tick()
+            ticks += 1
+        self.assertEqual("stopping", h.stage.phase)
+        self.assertIn("no new obstacle observation", h.state["abort"])
+        self.assertLessEqual(ticks, int(an.S4_OBSTACLE_STALE_S / 0.1) + 2)
+
+    def test_f4_3_makes_every_replan_raise(self):
+        h = self.harness("f4-3")
+        self.assertTrue(h.run_until("run"))
+        while h.stage.f4_injected is None:
+            h.tick()
+        with self.assertRaisesRegex(RuntimeError, "injected planning failure"):
+            h.planner.lattice.sample_nodes()
+        self.assertEqual("f4-3", h.state["s4"]["f4"]["case"])
+
+
 class S4ArgumentTests(unittest.TestCase):
     def runner(self, *argv):
         with tempfile.TemporaryDirectory() as d:
@@ -143,6 +188,9 @@ class S4ArgumentTests(unittest.TestCase):
         stray = self.runner("--stack-profile", "s3v1i", "--obstacle-fixture", str(ROOT / "scripts/s4-fixtures/t1-left-pass.json"))
         self.assertNotEqual(0, stray.returncode)
         self.assertIn("--obstacle-fixture is required for, and only for, stage s4", stray.stderr)
+        f4_elsewhere = self.runner("--stack-profile", "s3v1i", "--f4-case", "f4-2")
+        self.assertNotEqual(0, f4_elsewhere.returncode)
+        self.assertIn("--f4-case is for stage s4 only", f4_elsewhere.stderr)
 
 
 if __name__ == "__main__":

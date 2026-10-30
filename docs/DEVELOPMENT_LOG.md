@@ -1290,3 +1290,10 @@
 - **All runs.** No contact or abort; ICP valid on every driving tick; player unchanged.
 - **The run-start reset** cleared a pre-run latch in every run.
 - **Next:** F4 cases and controlled rearm, then the M4 baseline. Report: [S4 §9–§10](stages/S4.md).
+
+## 2026-10-30 — S4 F4 cases built (no motion); F4 run set and D63 proposed
+
+- **Built.** `--f4-case` on `s4`: F4-2 detector frozen → D56 abort; F4-3 replans raise → D58 latch. F4-1 = T3.
+- **Judge.** Rest ≤ 1.7 s and travel ≤ 0.65 m from the injection; no positive throttle afterwards; no contact.
+- **Tests:** scripts 200/200, plugin 95/95.
+- **Proposed.** F4-1/2/3 × 3 (9 runs), and D63 (controlled rearm: same-episode guard rearm, recommended). Report: [S4 §11](stages/S4.md).

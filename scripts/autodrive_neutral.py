@@ -153,6 +153,10 @@ S3_ICP_STAGES = ("s3v1i", *S3_M3_STAGES, *S4_STAGES)
 S3_TARGET_CAP_MPS = {"s3b": 0.3, "s3v1": 0.5, "s3v2": 1.0, "s3v1i": 0.5, "s3m3a": 0.5, "s3m3b": 0.5, "s4": 0.5}
 S4_OBSTACLE_STALE_S = 0.5  # D56: no new obstacle result for this long while driving -> abort (as the observation gap)
 S4_BLOCKED_HOLD_S = 2.0    # D58: blocked and at rest for this long -> the episode ends as "blocked"
+# D60 F4 cases injected on stage s4 (F4-1, the blocked path, is the T3 fixture itself): f4-2 freezes the obstacle
+# detector (scans keep arriving), f4-3 makes every lattice replan raise. Injected F4_INJECT_S into the run.
+F4_CASES = ("f4-2", "f4-3")
+F4_INJECT_S = 4.0
 M3_IC_S_M = (0.0, 6.25, 12.5, 18.75, 25.0)  # D44: positions on B's committed line (IC0 = the spawn)
 M3_IC_TOLERANCE = (0.10, math.radians(5.0))  # D44: position (m), heading (rad)
 M3_IC_HOLD_S = 2.0
@@ -1635,6 +1639,7 @@ class StackStage:
         self.episodes, self.number, self.episode, self.reported = getattr(args, "episodes", 1) or 1, 1, None, False
         self.saw_unarmed = False
         self.f2, self.f2_injected = getattr(args, "f2_case", None), None
+        self.f4, self.f4_injected = getattr(args, "f4_case", None), None
         state.update(stage_phase=self.phase, abort=None, finish_reason=None, precheck=None, f1_case=self.f1,
                      f2_case=self.f2, stage_episodes=[])
         self._request(0.0)
@@ -1842,6 +1847,9 @@ class StackStage:
         if self.phase == "run" and self.f2 and self.number == 1 and self.f2_injected is None \
                 and elapsed >= F2_INJECT_S:
             self._inject_f2(now, snap, speed)
+        if self.phase == "run" and self.profile in S4_STAGES and self.f4 and self.f4_injected is None \
+                and elapsed >= F4_INJECT_S:
+            self._inject_f4(elapsed, speed)
         if self.phase == "run":
             reason = self._abort_reason(now, snap, speed, guard_state)
             if reason:
@@ -1921,6 +1929,28 @@ class StackStage:
             save(results / "runner-error-request.json", {"requested_ns": record["injected_ns"]})
         save(results / "fault-inject.json", record)
         self.state["f1_injected_ns"] = record["injected_ns"]
+
+    def _inject_f4(self, elapsed, speed):
+        """D60: F4-2 freezes the obstacle detector (it keeps re-reporting its last obstacles, never a new result);
+        F4-3 makes every lattice replan raise. Both are judged from the injection (roboracer_s4_f4.py)."""
+        if self.f4 == "f4-2":
+            detector = self.executer.perception._detector
+
+            def frozen(perception_model=None, sensors=None, **_):
+                perception_model.agent_vehicles = list(detector.obstacles)
+                return perception_model
+
+            detector.detect = frozen
+        else:
+            def broken(*_, **__):
+                raise RuntimeError("injected planning failure (F4-3)")
+
+            self.executer.local_planner.lattice.sample_nodes = broken
+        self.f4_injected = {"case": self.f4, "injected_ns": time.monotonic_ns(), "run_elapsed_s": elapsed,
+                            "path_m": self.path_m, "speed_mps": speed,
+                            "label": "fault case (D60), not a driving result"}
+        self.state["s4"]["f4"] = self.f4_injected
+        save(self.args.results / "fault-inject.json", self.f4_injected)
 
     def _inject_f2(self, now, snap, speed):
         """S2 F2 injection (proposal v0.1 section 5, D23). Test-only; selected on the command line.
@@ -2545,6 +2575,7 @@ def trial(args, context, out):
                                            *(["--record-inputs"] if args.record_inputs else []),
                                            *(["--obstacle-fixture", str(args.obstacle_fixture.resolve())]
                                              if args.obstacle_fixture else []),
+                                           *(["--f4-case", args.f4_case] if args.f4_case else []),
                                            "--episodes", str(args.episodes)],
                           plugin_environment)
                     status_name = "plugin-observer-status.json"
@@ -3323,6 +3354,8 @@ def main():
     parser.add_argument("--stack-profile", choices=sorted(AVLITE_MOTION_STAGES), default=None, help=argparse.SUPPRESS)
     parser.add_argument("--s3b-shadow", action="store_true",
                         help="S3: log B's commands on the live ego state in a stationary --plugin-stack run (no motion)")
+    parser.add_argument("--f4-case", choices=F4_CASES, default=None,
+                        help="S4 F4 fault case (D60) on stage s4: f4-2 stale obstacle observation, f4-3 planning failure")
     parser.add_argument("--obstacle-fixture", type=Path, default=None,
                         help="S4 stage s4: the virtual-obstacle fixture (D54 A, D55); required for, and only for, s4")
     parser.add_argument("--s4-stationary-fixture", type=Path, default=None,
@@ -3391,6 +3424,8 @@ def main():
         parser.error("--icp-init-offset is for ICP stages only (S3 F3-2/F3-3)")
     if args.s3b_shadow and args.mode == "run" and (args.motion_stage or not args.plugin_stack):
         parser.error("--s3b-shadow is for a stationary --plugin-stack run (no motion stage)")
+    if args.f4_case and (args.motion_stage or args.stack_profile) not in S4_STAGES:
+        parser.error("--f4-case is for stage s4 only")
     if args.mode in ("run", "plugin-observe") and \
             bool(args.obstacle_fixture) != ((args.motion_stage or args.stack_profile) in S4_STAGES):
         parser.error("--obstacle-fixture is required for, and only for, stage s4")

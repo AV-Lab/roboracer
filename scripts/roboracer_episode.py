@@ -238,6 +238,7 @@ def main():
     live.add_argument("--icp-init-offset", type=float, nargs=3, default=None, help="S3 F3-2/F3-3 configured-pose offset")
     live.add_argument("--record-video", action="store_true", help="record only the AutoDRIVE window")
     live.add_argument("--obstacle-fixture", type=Path, default=None, help="S4 stage s4: virtual-obstacle fixture")
+    live.add_argument("--f4-case", default=None, help="S4 F4 fault case (D60): f4-2 or f4-3 (stage s4)")
     live.add_argument("--ui-reference", type=Path, default=None,
                       help="S2 (D21 A): reviewed UI reference; the automated pre-Connect check replaces review.py")
     rec = sub.add_parser("recorded")
@@ -264,6 +265,7 @@ def main():
                    *(["--icp-init-offset", *map(str, args.icp_init_offset)] if args.icp_init_offset else []),
                    *(["--record-video"] if args.record_video else []),
                    *(["--obstacle-fixture", str(args.obstacle_fixture.resolve())] if args.obstacle_fixture else []),
+                   *(["--f4-case", args.f4_case] if args.f4_case else []),
                    *(["--ui-reference", str(args.ui_reference)] if args.ui_reference else [])]
         invocation["runner_argv"] = command
         print(json.dumps({"runner": "started", "manual_step": None if args.ui_reference else

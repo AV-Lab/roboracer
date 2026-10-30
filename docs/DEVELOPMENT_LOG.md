@@ -1297,3 +1297,12 @@
 - **Judge.** Rest ≤ 1.7 s and travel ≤ 0.65 m from the injection; no positive throttle afterwards; no contact.
 - **Tests:** scripts 200/200, plugin 95/95.
 - **Proposed.** F4-1/2/3 × 3 (9 runs), and D63 (controlled rearm: same-episode guard rearm, recommended). Report: [S4 §11](stages/S4.md).
+
+## 2026-10-30 — S4 F4 cases: 9/9 passed
+
+- **Run:** "批准"; code `e1e3559`.
+- **F4-1 (T3) × 3:** blocked; at rest 1.47–1.58 m before the barrier.
+- **F4-2 × 3:** D56 abort; rest 1.18–1.26 s, 0.42–0.48 m.
+- **F4-3 × 3:** D58 planner-error latch; rest 0.67–0.77 s, 0.17–0.20 m.
+- **All runs:** no contact; no throttle afterwards; player unchanged.
+- **Open:** D63. Report: [S4 §12](stages/S4.md).

@@ -143,10 +143,16 @@ AVLITE_MOTION_STAGES["s3v1i"] = dict(AVLITE_MOTION_STAGES["s3v1"])
 # S3-05 M3 A/B baseline (s3-m3-proposal v0.1, D44-D47): A or B on ICP in the V1 envelope, from one of five ICs.
 AVLITE_MOTION_STAGES["s3m3a"] = dict(AVLITE_MOTION_STAGES["s3v1"])
 AVLITE_MOTION_STAGES["s3m3b"] = dict(AVLITE_MOTION_STAGES["s3v1"])
+# S4 (s4-proposal v0.1, D54-D60): B on ICP in the V1 envelope with scan obstacles, the C0 lattice and a virtual-obstacle
+# fixture (--obstacle-fixture). It is a B/ICP stage, so it shares the S3 plan, ICP initialization and ICP aborts.
+AVLITE_MOTION_STAGES["s4"] = dict(AVLITE_MOTION_STAGES["s3v1"])
 S3_M3_STAGES = ("s3m3a", "s3m3b")
-S3_STAGES = ("s3b", "s3v1", "s3v2", "s3v1i", *S3_M3_STAGES)
-S3_ICP_STAGES = ("s3v1i", *S3_M3_STAGES)
-S3_TARGET_CAP_MPS = {"s3b": 0.3, "s3v1": 0.5, "s3v2": 1.0, "s3v1i": 0.5, "s3m3a": 0.5, "s3m3b": 0.5}
+S4_STAGES = ("s4",)
+S3_STAGES = ("s3b", "s3v1", "s3v2", "s3v1i", *S3_M3_STAGES, *S4_STAGES)
+S3_ICP_STAGES = ("s3v1i", *S3_M3_STAGES, *S4_STAGES)
+S3_TARGET_CAP_MPS = {"s3b": 0.3, "s3v1": 0.5, "s3v2": 1.0, "s3v1i": 0.5, "s3m3a": 0.5, "s3m3b": 0.5, "s4": 0.5}
+S4_OBSTACLE_STALE_S = 0.5  # D56: no new obstacle result for this long while driving -> abort (as the observation gap)
+S4_BLOCKED_HOLD_S = 2.0    # D58: blocked and at rest for this long -> the episode ends as "blocked"
 M3_IC_S_M = (0.0, 6.25, 12.5, 18.75, 25.0)  # D44: positions on B's committed line (IC0 = the spawn)
 M3_IC_TOLERANCE = (0.10, math.radians(5.0))  # D44: position (m), heading (rad)
 M3_IC_HOLD_S = 2.0
@@ -159,7 +165,7 @@ ICP_INVALID_ABORT_S = 0.5   # no valid ICP fix for this long while driving -> ab
 # Calibration stages bounded by the qualified C0 wall box instead of a radius (m3c drives the opening straight).
 CALIBRATION_CONTAINMENT = {s: {"containment_box": AVLITE_MOTION_STAGES["m6"]["containment_box"]} for s in ("m3c", "m3d")}
 # Stage overspeed abort (encoder speed) for AVLite stages; M4-M6 and s3b keep the S1 0.5 m/s.
-STAGE_SPEED_ABORT_MPS = {"s3v1": 0.7, "s3v2": 1.2, "s3v1i": 0.7, "s3m3a": 0.7, "s3m3b": 0.7}
+STAGE_SPEED_ABORT_MPS = {"s3v1": 0.7, "s3v2": 1.2, "s3v1i": 0.7, "s3m3a": 0.7, "s3m3b": 0.7, "s4": 0.7}
 
 
 # Recorded build/evidence paths stay as written. The working environments moved once, by rename on the
@@ -624,18 +630,20 @@ def plugin_observe(args):
                                **{s: "RacingLineController" for s in S3_STAGES}).get(args.stack_profile, "HoldController")
         # S3 s3b: A2RL's stack shape (D30) — the race trajectory as AVLite's global plan; no local planner
         # (A2RL tracking mode "legacy": the controller tracks the global line).
-        plan_stage = {"s3v1i": "s3v1", "s3m3a": "s3v1", "s3m3b": "s3v1"}.get(args.stack_profile, args.stack_profile)
+        plan_stage = {"s3v1i": "s3v1", "s3m3a": "s3v1", "s3m3b": "s3v1", "s4": "s3v1"}.get(args.stack_profile,
+                                                                                         args.stack_profile)
         s3b_plan = (str(Path(args.plugin) / f"data/c0-{plan_stage}-plan.json")
                     if args.stack_profile in S3_STAGES else "")
         icp = args.stack_profile in S3_ICP_STAGES
         s4_fixture = getattr(args, "s4_stationary_fixture", None) if not args.stack_profile else None
-        if s4_fixture:
+        s4_stack = bool(s4_fixture) or args.stack_profile in S4_STAGES
+        if s4_stack:
             # S4 stationary check (no motion): the S4 stack -- scan obstacles (D56), map ICP, the committed V1 plan and
             # the C0 lattice (D57/D58) -- with HoldController as the only command source.
             from avlite.c10_perception.c19_settings import PerceptionSettings
             PerceptionSettings.c12_detection_strategy = "ScanObstacleDetection"
             PerceptionSettings.c12_tracking_strategy = PerceptionSettings.c12_prediction_strategy = ""
-            s3b_plan = str(Path(args.plugin) / "data/c0-s3v1-plan.json")
+            s3b_plan = s3b_plan or str(Path(args.plugin) / "data/c0-s3v1-plan.json")
         if icp or s4_fixture:
             # S3-03 truth isolation: the bridge's ground-truth LOCALIZATION is filtered out, so AVLite runs the
             # localization strategy and never copies the simulator pose into the stack.
@@ -643,10 +651,10 @@ def plugin_observe(args):
             ExecutionSettings.c41_world_stack_capabilities = []
         executer = executor_factory(
             executer_type="SyncExecuter", bridge="AutoDriveBridge",
-            perception_strategy_name="PerceptionPipeline" if s4_fixture else "",
+            perception_strategy_name="PerceptionPipeline" if s4_stack else "",
             localization_strategy_name="MapIcpLocalization" if icp or s4_fixture else "", mapping_strategy_name="",
             global_planner_strategy_name="RaceLineGlobalPlanner" if s3b_plan else "",
-            local_planner_strategy_name="C0LatticePlanner" if s4_fixture else "", controller_strategy_name=controller_name,
+            local_planner_strategy_name="C0LatticePlanner" if s4_stack else "", controller_strategy_name=controller_name,
             execution_task_names=[],
             default_global_trajectory_file=s3b_plan, map_file="", load_plugins=True)
         plugin = sys.modules["avlite.plugins.roboracer"]
@@ -668,6 +676,11 @@ def plugin_observe(args):
                 raise RuntimeError("s3b global plan and controller plan differ")
             executer.controller.config = s3b.controller_config(args.stack_profile)
             executer.controller.tj = tracker
+            if args.stack_profile in S4_STAGES:
+                # D57: B tracks the lattice's selected path (A2RL tracking mode selected_local); D54 A: the fixture.
+                executer.controller.config.trajectory_reference_mode = "selected"
+                vo = importlib.import_module("avlite.plugins.roboracer.integration.virtual_obstacles")
+                bridge.obstacle_fixture = vo.load_fixture(args.obstacle_fixture)
             executer.controller.reset()
     else:
         import_plugin_modules(str(args.plugin), pkg_name="roboracer")
@@ -685,6 +698,15 @@ def plugin_observe(args):
     if executer is not None and args.stack_profile in S3_STAGES:
         state["controller_config"] = dict(executer.controller.config.__dict__)  # audit: B (S3)
         state["s3b_plan"] = s3b_info
+        if args.stack_profile in S4_STAGES:
+            state["s4"] = {"fixture": {"path": str(args.obstacle_fixture), "name": bridge.obstacle_fixture.name,
+                                       "sha256": bridge.obstacle_fixture.sha256, "label": "virtual obstacle (D54 A)"},
+                           "stack": {"perception": "PerceptionPipeline/ScanObstacleDetection",
+                                     "localization": "MapIcpLocalization (D61 A obstacle mask)",
+                                     "local_planner": "C0LatticePlanner", "controller": "RacingLineController (selected)"},
+                           "lattice_settings": executer.local_planner.settings_applied,
+                           "rules": {"obstacle_stale_abort_s": S4_OBSTACLE_STALE_S, "blocked_hold_s": S4_BLOCKED_HOLD_S},
+                           "blocked": None}
         state["pose_source"] = ("MapIcpLocalization (ICP on the validated C0 map; simulator pose filtered out)"
                                 if args.stack_profile in S3_ICP_STAGES else
                                 "bridge ego state = simulator IPS (D32 A bring-up; not an S3 result)")
@@ -1829,6 +1851,23 @@ class StackStage:
                     self.blackout_written = True
                     self.state["blackout_written_ns"] = time.monotonic_ns()
             else:
+                if self.profile in S4_STAGES and self.executer.local_planner.blocked:
+                    # D58: the lattice latched "blocked"; B's target is 0. Once at rest for S4_BLOCKED_HOLD_S the
+                    # episode ends as "blocked", scored independently of lap completion.
+                    planner = self.executer.local_planner
+                    blocked = self.state["s4"]["blocked"]
+                    if blocked is None:
+                        blocked = self.state["s4"]["blocked"] = {
+                            "reason": planner.blocked_reason, "elapsed_s": elapsed, "path_m": self.path_m,
+                            "speed_mps": speed, "monotonic_ns": time.monotonic_ns(), "rest_since_s": None}
+                    if speed is not None and speed < 0.02:
+                        blocked["rest_since_s"] = blocked["rest_since_s"] if blocked["rest_since_s"] is not None else elapsed
+                        if elapsed - blocked["rest_since_s"] >= S4_BLOCKED_HOLD_S:
+                            self._request(0.0)
+                            self._set("stopping", finish_reason="blocked")
+                            return True
+                    else:
+                        blocked["rest_since_s"] = None
                 distance, limit = ((M6_DISTANCE_M, M6_TIME_S) if self.profile == "m6" or self.profile in S3_STAGES
                                    else (M5_DISTANCE_M, M5_TIME_S))
                 if self.path_m >= distance or elapsed >= limit:
@@ -1981,6 +2020,14 @@ class StackStage:
                 return "localization lost"
             if now - getattr(self, "last_valid_fix", now) > ICP_INVALID_ABORT_S:
                 return "no valid localization for %.2f s" % (now - self.last_valid_fix)
+        if self.profile in S4_STAGES:
+            # D56: the obstacle list must come from a new scan; measured from when the detector last produced a result
+            # (the same basis as the observation-gap rule below), not from the scan's acquisition time.
+            stamp = self.executer.perception._detector.obstacles_stamp
+            if stamp != getattr(self, "last_obstacle_stamp", None):
+                self.last_obstacle_stamp, self.last_obstacle_new = stamp, now
+            if now - getattr(self, "last_obstacle_new", now) > S4_OBSTACLE_STALE_S:
+                return "no new obstacle observation for %.2f s" % (now - self.last_obstacle_new)
         gap = 0.6 if self.profile == "m4" else 0.5
         if now - self.last_new > gap:
             return "no new observation for %.2f s" % (now - self.last_new)
@@ -2028,7 +2075,12 @@ class StackStage:
             st = self.executer.localization.status
             record["localization"] = {k: st.get(k) for k in (
                 "state", "pose", "stamp", "inlier_fraction", "inlier_rms_m", "correction_m", "degenerate", "odometry_m",
-                "compute_s", "failed")}
+                "compute_s", "failed", "masked_obstacle_points")}
+        if self.profile in S4_STAGES:
+            detector, planner = self.executer.perception._detector, self.executer.local_planner
+            record["s4"] = {"obstacles_stamp": detector.obstacles_stamp, "detector": dict(detector.status),
+                            "obstacles": [[a.x, a.y, a.theta, a.length, a.width] for a in detector.obstacles],
+                            "planner": dict(planner.diagnostics), "blocked": planner.blocked}
         return record
 
 
@@ -2482,6 +2534,8 @@ def trial(args, context, out):
                                              if args.icp_init_offset else []),
                                            *(["--f2-case", args.f2_case] if args.f2_case else []),
                                            *(["--record-inputs"] if args.record_inputs else []),
+                                           *(["--obstacle-fixture", str(args.obstacle_fixture.resolve())]
+                                             if args.obstacle_fixture else []),
                                            "--episodes", str(args.episodes)],
                           plugin_environment)
                     status_name = "plugin-observer-status.json"
@@ -3260,6 +3314,8 @@ def main():
     parser.add_argument("--stack-profile", choices=sorted(AVLITE_MOTION_STAGES), default=None, help=argparse.SUPPRESS)
     parser.add_argument("--s3b-shadow", action="store_true",
                         help="S3: log B's commands on the live ego state in a stationary --plugin-stack run (no motion)")
+    parser.add_argument("--obstacle-fixture", type=Path, default=None,
+                        help="S4 stage s4: the virtual-obstacle fixture (D54 A, D55); required for, and only for, s4")
     parser.add_argument("--s4-stationary-fixture", type=Path, default=None,
                         help="S4: stationary --plugin-stack run with the S4 stack (scan obstacles, map ICP, C0 lattice) "
                              "under HoldController and this virtual-obstacle fixture; B's commands logged only (no motion)")
@@ -3326,6 +3382,9 @@ def main():
         parser.error("--icp-init-offset is for ICP stages only (S3 F3-2/F3-3)")
     if args.s3b_shadow and args.mode == "run" and (args.motion_stage or not args.plugin_stack):
         parser.error("--s3b-shadow is for a stationary --plugin-stack run (no motion stage)")
+    if args.mode in ("run", "plugin-observe") and \
+            bool(args.obstacle_fixture) != ((args.motion_stage or args.stack_profile) in S4_STAGES):
+        parser.error("--obstacle-fixture is required for, and only for, stage s4")
     if args.s4_stationary_fixture and (args.s3b_shadow or args.stack_profile or
                                        (args.mode == "run" and (args.motion_stage or not args.plugin_stack))):
         parser.error("--s4-stationary-fixture is for a stationary --plugin-stack run (no motion stage, no --s3b-shadow)")

@@ -32,7 +32,7 @@ REPO = Path(__file__).resolve().parents[1]
 AVLITE = Path("/home/a2rl/avlite")
 APPROVAL = REPO / "docs/planning/s1-motion-approval.json"
 # Only the approved AVLite motion stages (M6: lap proposal v0.1, "approve D9, D10, D11; run M6").
-LIVE_STAGES = ("m4", "m5", "m6", "s3b", "s3v1", "s3v2", "s3v1i", "s3m3a", "s3m3b")  # S3 B bring-up (D32 A); speed steps V1 (D35), V2 (D40)
+LIVE_STAGES = ("m4", "m5", "m6", "s3b", "s3v1", "s3v2", "s3v1i", "s3m3a", "s3m3b", "s4")  # S3 B bring-up (D32 A); speed steps V1 (D35), V2 (D40)
 
 
 def utc_now():
@@ -94,16 +94,23 @@ def export(results: Path, geometry_path: Path, output: Path, mode: str, invocati
     run_json, result_json = read_json(run / "run.json"), read_json(results / "result.json")
     status = read_json(run / "plugin-observer-status.json")
     geometry = json.loads(geometry_path.read_text())
-    score = rs.score(geometry, rs.truth_frames(run))
+    # S4: the run's own record names its virtual-obstacle fixture; the scorer reads it independently (hash-checked).
+    fixture = Path(status["s4"]["fixture"]["path"]) if status and status.get("s4") else None
+    obstacles, fixture_record = rs.load_obstacles(fixture) if fixture else (None, None)
+    score = rs.score(geometry, rs.truth_frames(run), obstacles)
     score["geometry"] = {"path": str(geometry_path), "sha256": rs.sha256(geometry_path)}
     end = outcome(status, run_json, runner_exit)
     summary = {k: score[k] for k in ("frames", "progress_m", "lap_length_m", "laps", "contact_events",
                                      "offtrack_events", "min_clearance_m", "start_offset_m")}
-    clean = not score["contact_events"] and not score["offtrack_events"]
+    clean = not score["contact_events"] and not score["offtrack_events"] and not score.get("obstacle_contact_events")
+    if fixture:
+        summary.update({k: score[k] for k in ("obstacle_contact_events", "min_obstacle_clearance_m", "obstacle_contact")})
+        summary["obstacle_fixture"] = fixture_record
     episode = {"schema": "roboracer.episode/1", "mode": mode, "results": str(results), "run": str(run),
                "stage": status.get("stack_profile") if status else None, "outcome": end,
                "score": summary, "contact_free_and_on_track": clean,
                "completed_laps": len(score["laps"]),
+               "s4_blocked": status["s4"]["blocked"] if status and status.get("s4") else None,
                "scorer": "roboracer_scoring.py (independent: simulator truth + qualified geometry only)"}
 
     children = (run_json or {}).get("children", [])
@@ -230,6 +237,7 @@ def main():
     live.add_argument("--m3-ic", type=int, default=None, help="S3-05 M3 initial condition 0-4 (stages s3m3a/s3m3b)")
     live.add_argument("--icp-init-offset", type=float, nargs=3, default=None, help="S3 F3-2/F3-3 configured-pose offset")
     live.add_argument("--record-video", action="store_true", help="record only the AutoDRIVE window")
+    live.add_argument("--obstacle-fixture", type=Path, default=None, help="S4 stage s4: virtual-obstacle fixture")
     live.add_argument("--ui-reference", type=Path, default=None,
                       help="S2 (D21 A): reviewed UI reference; the automated pre-Connect check replaces review.py")
     rec = sub.add_parser("recorded")
@@ -255,6 +263,7 @@ def main():
                    *(["--m3-ic", str(args.m3_ic)] if args.m3_ic is not None else []),
                    *(["--icp-init-offset", *map(str, args.icp_init_offset)] if args.icp_init_offset else []),
                    *(["--record-video"] if args.record_video else []),
+                   *(["--obstacle-fixture", str(args.obstacle_fixture.resolve())] if args.obstacle_fixture else []),
                    *(["--ui-reference", str(args.ui_reference)] if args.ui_reference else [])]
         invocation["runner_argv"] = command
         print(json.dumps({"runner": "started", "manual_step": None if args.ui_reference else

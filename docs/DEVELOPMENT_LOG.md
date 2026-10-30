@@ -1262,3 +1262,14 @@
 - **D62 B.** T1/T2 boxes at 0.30 m block the line. Sim: T1 passed left (0.37 m from the box), T2 passed right (0.41 m), T3 blocked at 1.41 m.
 - **Tests:** plugin 94/94, scripts 193/193.
 - **Next:** build the S4 motion stage. Report: [S4 §6–§7](stages/S4.md).
+
+## 2026-10-30 — S4 motion stage `s4` built (no motion); first run set proposed
+
+- **Request:** "下一步".
+- **Built.** Stage `s4` = V1 envelope on ICP with the S4 stack and `--obstacle-fixture`.
+  - D56: abort when there is no new obstacle result for 0.5 s.
+  - D58: blocked + 2 s at rest → "blocked" outcome.
+  - Episode export scores obstacle contact.
+  - Refused until the approval record lists S4.
+- **Checks.** Plugin 95/95, scripts 197/197; build smoke test (no simulator, guard or supervisor) assembled correctly; export check scores obstacles.
+- **Proposed:** T1, T2, T3 once each on `s4`, stopping at the first failure. Report: [S4 §7](stages/S4.md).

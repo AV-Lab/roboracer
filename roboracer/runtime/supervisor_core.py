@@ -60,7 +60,9 @@ AVLITE_STAGES = {"m4": {"max_speed_mps": 0.3, "max_steer_rad": 0.0},
                  "s3v1i": {"max_speed_mps": 0.5, "max_steer_rad": 0.35, "u_max": 0.12, "overspeed_abs_mps": 0.7},
                  # S3-05 M3 A/B baseline (D44-D47): the V1 envelope for both configurations.
                  "s3m3a": {"max_speed_mps": 0.5, "max_steer_rad": 0.35, "u_max": 0.12, "overspeed_abs_mps": 0.7},
-                 "s3m3b": {"max_speed_mps": 0.5, "max_steer_rad": 0.35, "u_max": 0.12, "overspeed_abs_mps": 0.7}}
+                 "s3m3b": {"max_speed_mps": 0.5, "max_steer_rad": 0.35, "u_max": 0.12, "overspeed_abs_mps": 0.7},
+                 # S4 (s4-proposal v0.1, D59): the V1 envelope on ICP with the static-obstacle stack.
+                 "s4": {"max_speed_mps": 0.5, "max_steer_rad": 0.35, "u_max": 0.12, "overspeed_abs_mps": 0.7}}
 STEER_LIMIT_RAD = 0.5235987755982988  # normalized steering 1.0 (M0)
 
 

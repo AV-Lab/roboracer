@@ -86,6 +86,19 @@ class S3bStageTests(unittest.TestCase):
         self.assertEqual(check_confirmation(str(REPO / "docs/planning/s1-motion-approval.json"), "s3b") is not None,
                          expected)
 
+    def test_supervisor_refuses_s4_until_approved(self):
+        """S4: stage s4 has V1 limits in the supervisor and is refused until the approval record lists S4."""
+        self.assertEqual(AVLITE_STAGES["s3v1i"], AVLITE_STAGES["s4"])
+        approval = REPO / "docs/planning/s1-motion-approval.json"
+        expected = "S4" in json.loads(approval.read_text()).get("stages", [])
+        self.assertEqual(expected, check_confirmation(str(approval), "s4") is not None)
+        with tempfile.TemporaryDirectory() as d:
+            record = json.loads(approval.read_text())
+            record["stages"] = [s for s in record["stages"] if s != "S4"]
+            refused = Path(d) / "approval.json"
+            refused.write_text(json.dumps(record))
+            self.assertIsNone(check_confirmation(str(refused), "s4"))
+
     def test_factory_assembles_s3b(self):
         r = probe("factory_s3b")
         self.assertEqual(r["controller"], "RacingLineController")

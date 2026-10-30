@@ -77,7 +77,8 @@
   "S3V2",
   "S3V1I",
   "S3M3A",
-  "S3M3B"
+  "S3M3B",
+  "S4"
  ],
  "stage_approvals": [
   {
@@ -359,6 +360,13 @@
    "date": "2026-10-28",
    "user_reply": "D53A",
    "note": "fresh process; same command, thresholds T1-T8 and code as the acceptance sessions; the original failure stays retained"
+  },
+  {
+   "stage": "S4 first live checks: stage s4 (V1 envelope on ICP, S4 stack, virtual obstacles D54 A) with T1, T2, T3 once each, fresh process, unattended, stopping at the first failure",
+   "date": "2026-10-30",
+   "user_reply": "批准",
+   "proposal": "docs/stages/S4.md section 7",
+   "note": "pass criteria fixed before the runs (S4 §7); first live checks, not the S4-05 baseline or M4 acceptance"
   }
  ],
  "not_authorized": [

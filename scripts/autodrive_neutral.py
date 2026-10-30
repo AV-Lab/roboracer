@@ -1770,6 +1770,15 @@ class StackStage:
                     return True
                 if check["passed"]:
                     self.start_pose = (snap.pose.x, snap.pose.y, snap.pose.yaw)
+                    if self.profile in S4_STAGES:
+                        # D58 "latched until rearm": the run starts the armed episode, so the lattice is reset here, on
+                        # the ICP pose verified at settle. Replans before that ran on a not-yet-localized ego (S4 §8:
+                        # the first T1 attempt latched "blocked" in wait-armed and stopped at the start).
+                        planner = self.executer.local_planner
+                        self.state["s4"]["planner_reset_at_run"] = {"was_blocked": bool(planner.blocked),
+                                                                    "reason": planner.blocked_reason}
+                        planner.reset()
+                        planner.step(self.executer.pm.ego_vehicle)
                     self._set("run")
                 else:
                     self._set("stopping", abort="workspace precheck")

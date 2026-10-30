@@ -1273,3 +1273,10 @@
   - Refused until the approval record lists S4.
 - **Checks.** Plugin 95/95, scripts 197/197; build smoke test (no simulator, guard or supervisor) assembled correctly; export check scores obstacles.
 - **Proposed:** T1, T2, T3 once each on `s4`, stopping at the first failure. Report: [S4 §7](stages/S4.md).
+
+## 2026-10-30 — S4 first live checks: stopped at T1 attempt 1 ("blocked" latched before the run); fixed
+
+- **Run:** "批准". T1 attempt 1 ended "blocked" at the start; the car never moved, no contact, ICP 0.6 mm. T2/T3 not run. Player unchanged.
+- **Cause.** My integration: the lattice latched in `wait-armed` on the not-yet-localized ego; the latch held into the run.
+- **Fix.** The stage resets the lattice at run start (D58 "until rearm"); regression test added. Failure retained.
+- **Rerun** of T1–T3 needs approval. Report: [S4 §8](stages/S4.md).

@@ -28,9 +28,18 @@ class Harness:
         self.b = NS(enabled=False, last={"steer": 0.0})
         self.loc = FakeLocalizer()
         self.detector = NS(obstacles_stamp=None, obstacles=[], status={})
-        self.planner = NS(blocked=False, blocked_reason="", diagnostics={})
+        self.planner = NS(blocked=False, blocked_reason="", diagnostics={}, resets=0, steps=0)
+
+        def reset():
+            self.planner.blocked, self.planner.blocked_reason = False, ""
+            self.planner.resets += 1
+
+        def step(ego):
+            self.planner.steps += 1
+
+        self.planner.reset, self.planner.step = reset, step
         self.executer = NS(controller=self.b, localization=self.loc, perception=NS(_detector=self.detector),
-                           local_planner=self.planner)
+                           local_planner=self.planner, pm=NS(ego_vehicle=NS(x=X0, y=Y0, theta=HEADING)))
         self.bridge = NS(latest=self.latest, _encoder_speed={}, get_sensor_frame=lambda: NS())
         args = NS(results=results, stack_profile="s4", f1_case=None, episodes=1, f2_case=None, m3_ic=None)
         self.state = {"s4": {"blocked": None}}
@@ -98,6 +107,18 @@ class S4StageTests(unittest.TestCase):
         # Held at rest for S4_BLOCKED_HOLD_S (2 s at 0.1 s ticks), not ended immediately.
         self.assertGreaterEqual(ticks, int(an.S4_BLOCKED_HOLD_S / 0.1))
         self.assertLessEqual(ticks, int(an.S4_BLOCKED_HOLD_S / 0.1) + 2)
+
+    def test_a_latch_from_before_the_run_is_cleared_at_run_start(self):
+        """Regression (first T1 attempt): replans before ICP initialization latched "blocked"; the run resets it."""
+        self.h.planner.blocked, self.h.planner.blocked_reason = True, "no collision-free in-bounds edge"
+        self.assertTrue(self.h.run_until("run"))
+        self.assertEqual(1, self.h.planner.resets)
+        self.assertFalse(self.h.planner.blocked)
+        self.assertEqual({"was_blocked": True, "reason": "no collision-free in-bounds edge"},
+                         self.h.state["s4"]["planner_reset_at_run"])
+        for _ in range(40):
+            self.h.tick()
+        self.assertEqual("run", self.h.stage.phase, self.h.state)
 
     def test_stale_obstacle_observation_aborts(self):
         self.assertTrue(self.h.run_until("run"))

@@ -1280,3 +1280,13 @@
 - **Cause.** My integration: the lattice latched in `wait-armed` on the not-yet-localized ego; the latch held into the run.
 - **Fix.** The stage resets the lattice at run start (D58 "until rearm"); regression test added. Failure retained.
 - **Rerun** of T1–T3 needs approval. Report: [S4 §8](stages/S4.md).
+
+## 2026-10-30 — S4 first live checks rerun: 3/3 passed
+
+- **Run:** "批准"; code `2f89192`.
+- **T1.** Passed left (0.37 m from the box).
+- **T2.** Passed right (0.40 m from the box).
+- **T3.** Blocked; at rest 1.59 m before the barrier.
+- **All runs.** No contact or abort; ICP valid on every driving tick; player unchanged.
+- **The run-start reset** cleared a pre-run latch in every run.
+- **Next:** F4 cases and controlled rearm, then the M4 baseline. Report: [S4 §9–§10](stages/S4.md).

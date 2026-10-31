@@ -86,6 +86,9 @@ def main():
               "icp_error_vs_ips_m": {"p50": sorted(errors)[len(errors) // 2], "p95": sorted(errors)[int(len(errors) * 0.95)],
                                      "max": max(errors)} if errors else None,
               "stack_tick_ms": {"p50": tick_ms[len(tick_ms) // 2], "max": tick_ms[-1]} if tick_ms else None,
+              "max_abs_yaw_error_rad": max((abs((t.get("controller") or {}).get("yaw_error_rad") or 0.0) for t in driving),
+                                           default=None),
+              "safe_stop_yaw_error_rad": (status.get("controller_config") or {}).get("safe_stop_yaw_error_rad"),
               "tick_overruns": status.get("tick_overruns"),
               "note": "ICP error compares the tick's ICP pose with the IPS of the same tick's snapshot (scan-time skew "
                       "included); virtual obstacles (D54 A): contact is a scored footprint overlap"}

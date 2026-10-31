@@ -61,7 +61,8 @@
   "D61": "A: map ICP excludes scan points inside the previous scan's confirmed obstacles (box + 0.10 m); otherwise unchanged; re-qualified offline (no-obstacle results identical) and at the T3 stop before motion",
   "D62": "B: T1/T2 box offset 0.30 m from the racing line, so the line is blocked and B must avoid",
   "D63": "A: controlled rearm in the same episode after a blocked stop: the stage disarms and re-arms the guard (supervised, as F1-5), which resets the lattice; rearm-blocked (obstacle still there) must latch blocked again and stay at rest; rearm-cleared (fixture removed at the rearm) must drive on and complete the lap",
-  "D64": "M4 baseline: stage s4, T1 x3, T2 x3, T3 x3 interleaved, fresh process each, live-check criteria; failures retained and the set continues; stops only on infrastructure; then M4 criteria proposed"
+  "D64": "M4 baseline: stage s4, T1 x3, T2 x3, T3 x3 interleaved, fresh process each, live-check criteria; failures retained and the set continues; stops only on infrastructure; then M4 criteria proposed",
+  "D65": "A: on stage s4 B's yaw-error tracking safe stop uses 0.35 rad, A2RL's validated Autoverse value (activation.py), still active at all speeds; lattice unchanged; accepted S3 stages unchanged"
  },
  "stages": [
   "M0",
@@ -523,6 +524,13 @@
     "D64"
    ],
    "user_reply": "approve"
+  },
+  {
+   "date": "2026-11-01",
+   "decisions": [
+    "D65"
+   ],
+   "user_reply": "A"
   }
  ]
 }

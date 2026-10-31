@@ -153,6 +153,9 @@ S3_ICP_STAGES = ("s3v1i", *S3_M3_STAGES, *S4_STAGES)
 S3_TARGET_CAP_MPS = {"s3b": 0.3, "s3v1": 0.5, "s3v2": 1.0, "s3v1i": 0.5, "s3m3a": 0.5, "s3m3b": 0.5, "s4": 0.5}
 S4_OBSTACLE_STALE_S = 0.5  # D56: no new obstacle result for this long while driving -> abort (as the observation gap)
 S4_BLOCKED_HOLD_S = 2.0    # D58: blocked and at rest for this long -> the episode ends as "blocked"
+# D65 A: B's yaw-error tracking safe stop on s4 = A2RL's validated Autoverse value (A2RL_AUTOVERSE_BASE_STACK_SAFE_STOP_
+# YAW_ERROR_RAD, activation.py); the S3 stages keep the 0.2 rad dataclass default. Still active at all speeds.
+S4_SAFE_STOP_YAW_ERROR_RAD = 0.35
 # D60 F4 cases injected on stage s4 (F4-1, the blocked path, is the T3 fixture itself): f4-2 freezes the obstacle
 # detector (scans keep arriving), f4-3 makes every lattice replan raise. Injected F4_INJECT_S into the run.
 F4_CASES = ("f4-2", "f4-3")
@@ -690,6 +693,7 @@ def plugin_observe(args):
             if args.stack_profile in S4_STAGES:
                 # D57: B tracks the lattice's selected path (A2RL tracking mode selected_local); D54 A: the fixture.
                 executer.controller.config.trajectory_reference_mode = "selected"
+                executer.controller.config.safe_stop_yaw_error_rad = S4_SAFE_STOP_YAW_ERROR_RAD  # D65 A
                 vo = importlib.import_module("avlite.plugins.roboracer.integration.virtual_obstacles")
                 bridge.obstacle_fixture = vo.load_fixture(args.obstacle_fixture)
             executer.controller.reset()

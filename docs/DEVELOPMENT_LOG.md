@@ -1340,3 +1340,9 @@
 - **Threshold.** A2RL's validated activation uses 0.35 rad (and only above 7 m/s); our port took the 0.2 rad dataclass default.
 - **Proposed (D65).** A: 0.35 rad on s4 (recommended); B: smoother lattice; C: both.
 - **Then** re-run the baseline. Report: [S4 §18](stages/S4.md).
+
+## 2026-11-01 — S4 D65 A built (no motion)
+
+- **Built.** Stage s4: B's yaw-error safe stop 0.35 rad (A2RL validated value); S3 unchanged; experimental lattice cost removed; peak heading error added to the judge and baseline summary.
+- **Checks.** Smoke test confirms the setting; tests 204/204, 95/95.
+- **Proposed:** baseline rerun. Report: [S4 §19](stages/S4.md).

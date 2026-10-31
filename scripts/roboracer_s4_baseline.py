@@ -37,7 +37,7 @@ def main():
         c = cases.setdefault(judge["case"], {"runs": [], "lap_s": [], "obstacle_m": [], "wall_m": [], "swerve_m": [],
                                              "rest_m": [], "latch_path_m": [], "latch_speed_mps": [], "icp_p95_m": [],
                                              "icp_max_m": [], "icp_invalid": 0, "tick_ms": [], "icp_ms": [],
-                                             "detect_ms": [], "replan_ms": [], "passed": 0})
+                                             "detect_ms": [], "replan_ms": [], "yaw_error_rad": [], "passed": 0})
         c["runs"].append(str(results))
         c["passed"] += bool(judge["passed"])
         c["lap_s"].append(judge["laps"][0]["lap_time_s"] if judge.get("laps") else None)
@@ -49,6 +49,7 @@ def main():
             c["latch_path_m"].append((judge.get("blocked") or {}).get("path_m"))
             c["latch_speed_mps"].append((judge.get("blocked") or {}).get("speed_mps"))
         icp = judge.get("icp_error_vs_ips_m") or {}
+        c["yaw_error_rad"].append(judge.get("max_abs_yaw_error_rad"))
         c["icp_p95_m"].append(icp.get("p95"))
         c["icp_max_m"].append(icp.get("max"))
         c["icp_invalid"] += sum(v for k, v in (judge.get("icp_states_while_driving") or {}).items() if k != "valid")

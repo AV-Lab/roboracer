@@ -76,12 +76,6 @@ class C0LatticePlanner(GreedyLatticePlanner):
     """``GreedyLatticePlanner`` with C0 settings and the D58 latched blocked-track stop."""
 
     blocked_after = 2
-    # S4 §18 (experimental, default off = AVLite's cost): weight on the lateral change within one edge, so that a
-    # return to the line after a pass is spread over more than one edge (a gentler S-curve).
-    lateral_change_weight = 0.0
-
-    def _edge_cost(self, edge) -> float:
-        return super()._edge_cost(edge) + self.lateral_change_weight * abs(edge.end.d - edge.start.d)
 
     def __init__(self, global_plan, env, setting=PlanningSettings):
         self.settings_applied = apply_c0_planning_settings()

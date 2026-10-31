@@ -60,6 +60,7 @@ def build_stack(plugin_dir: Path):
     s3b = importlib.import_module("avlite.plugins.roboracer.planning.s3b")
     cfg = s3b.controller_config("s3v1")
     cfg.trajectory_reference_mode = "selected"  # A2RL tracking mode selected_local (D57)
+    cfg.safe_stop_yaw_error_rad = 0.35  # D65 A, as stage s4
     executer.controller.config = cfg
     executer.controller.reset()
     plugin.PluginSettings.max_target_speed_mps = cfg.speed_cap_mps
@@ -111,7 +112,7 @@ def make_world(plugin, geometry, fixture_path, rng, range_noise):
 
 
 def simulate(fixture_path, geometry, plugin_dir, *, pose_period, pose_age, range_noise, seed, t_max, accel=1.5,
-             brake=2.0, speed_tau=0.15, slew_radps=math.radians(183.0), maneuver_distance=None, lateral_change_weight=None):
+             brake=2.0, speed_tau=0.15, slew_radps=math.radians(183.0), maneuver_distance=None):
     import collections
     import numpy as np
     from shapely.affinity import rotate, translate
@@ -127,8 +128,6 @@ def simulate(fixture_path, geometry, plugin_dir, *, pose_period, pose_age, range
     if maneuver_distance is not None:  # S4 §18: edge-length comparison
         from avlite.c20_planning.c29_settings import PlanningSettings
         PlanningSettings.c28_maneuver_distance = planner.maneuver_distance = float(maneuver_distance)
-    if lateral_change_weight is not None:
-        planner.lateral_change_weight = float(lateral_change_weight)
     max_yaw_error, safe_stops = 0.0, []
     detector = executer.perception._detector
     line = planner.global_trajectory
@@ -248,7 +247,7 @@ def simulate(fixture_path, geometry, plugin_dir, *, pose_period, pose_age, range
             "icp_error_at_rest_m": icp_error_end if v < 0.01 else None,
             "max_abs_d_from_line_m": max_lateral, "blocked": blocked_at, "icp_states": icp_states, "events": events,
             "max_abs_yaw_error_rad": max_yaw_error, "tracking_safe_stop": safe_stops[0] if safe_stops else None,
-            "maneuver_distance_m": planner.maneuver_distance, "lateral_change_weight": planner.lateral_change_weight,
+            "maneuver_distance_m": planner.maneuver_distance, "safe_stop_yaw_error_rad": ctl.config.safe_stop_yaw_error_rad,
             "planner": dict(planner.diagnostics), "detector": dict(detector.status),
             "tick_ms": {"p50": 1e3 * sorted(timing)[len(timing) // 2], "max": 1e3 * max(timing)} if timing else None}
 
@@ -263,7 +262,6 @@ def main():
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--t-max", type=float, default=90.0)
     parser.add_argument("--maneuver-distance", type=float, default=None, help="override the C0 lattice edge length")
-    parser.add_argument("--lateral-change-weight", type=float, default=None, help="C0LatticePlanner lateral-change cost")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.output.exists():
@@ -273,8 +271,7 @@ def main():
     for fixture in args.fixture or [Path("none")]:
         row = simulate(None if str(fixture) == "none" else fixture, geometry, REPO / "roboracer",
                        pose_period=args.pose_period, pose_age=args.pose_age, range_noise=args.range_noise,
-                       seed=args.seed, t_max=args.t_max, maneuver_distance=args.maneuver_distance,
-                       lateral_change_weight=args.lateral_change_weight)
+                       seed=args.seed, t_max=args.t_max, maneuver_distance=args.maneuver_distance)
         results.append(row)
         print(json.dumps({k: (round(v, 3) if isinstance(v, float) else v) for k, v in row.items() if k != "events"}),
               flush=True)

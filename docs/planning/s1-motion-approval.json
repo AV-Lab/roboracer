@@ -402,6 +402,12 @@
    "date": "2026-10-31",
    "user_reply": "approve",
    "proposal": "docs/stages/S4.md section 17"
+  },
+  {
+   "stage": "S4-05 M4 baseline rerun after D65 A (D64 set): stage s4, T1/T2/T3 x3 interleaved",
+   "date": "2026-11-01",
+   "user_reply": "approve",
+   "note": "the first baseline's T2 failures (S4 §18) stay retained"
   }
  ],
  "not_authorized": [

@@ -388,6 +388,12 @@
    "user_reply": "批准",
    "proposal": "docs/stages/S4.md section 13",
    "note": "criteria fixed before the runs (S4 §13, roboracer_s4_rearm.py)"
+  },
+  {
+   "stage": "S4 D63 A controlled rearm, rerun after passing --s4-rearm to the bridge child: rearm-blocked x3, rearm-cleared x3 on stage s4 (T3), stopping at the first failure",
+   "date": "2026-10-31",
+   "user_reply": "批准",
+   "note": "same criteria (S4 §13); rearm-blocked 1 of the first attempt stays retained (S4 §14)"
   }
  ],
  "not_authorized": [

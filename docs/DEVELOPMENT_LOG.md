@@ -1346,3 +1346,13 @@
 - **Built.** Stage s4: B's yaw-error safe stop 0.35 rad (A2RL validated value); S3 unchanged; experimental lattice cost removed; peak heading error added to the judge and baseline summary.
 - **Checks.** Smoke test confirms the setting; tests 204/204, 95/95.
 - **Proposed:** baseline rerun. Report: [S4 §19](stages/S4.md).
+
+## 2026-11-01 — S4 M4 baseline rerun: 9/9; M4 acceptance proposed (D66–D68)
+
+- **Run:** "approve"; code `82730e2`.
+- **Results.** T1/T2/T3 3/3 each; T2 heading-error peaks up to 0.234 rad (would have failed at 0.2); no contact; ICP valid.
+- **Proposed.**
+  - D66: U1–U7 criteria.
+  - D67: 30 episodes in three sessions + F4 × 3.
+  - D68: strict.
+- **Report:** [S4 §20](stages/S4.md), [proposal](planning/s4-acceptance-proposal.md).

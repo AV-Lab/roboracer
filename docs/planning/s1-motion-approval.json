@@ -381,6 +381,13 @@
    "user_reply": "批准",
    "proposal": "docs/stages/S4.md section 11",
    "note": "criteria fixed before the runs (S4 §11): rest <= 1.7 s and travel <= 0.65 m from the injection, expected detection, no positive throttle after injection + 1.7 s, no contact; D63 (controlled rearm) not decided"
+  },
+  {
+   "stage": "S4 D63 A controlled rearm on stage s4 (T3 fixture): rearm-blocked x3, rearm-cleared x3; fresh process each, unattended, stopping at the first failure",
+   "date": "2026-10-31",
+   "user_reply": "批准",
+   "proposal": "docs/stages/S4.md section 13",
+   "note": "criteria fixed before the runs (S4 §13, roboracer_s4_rearm.py)"
   }
  ],
  "not_authorized": [

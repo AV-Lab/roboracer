@@ -111,7 +111,7 @@ def make_world(plugin, geometry, fixture_path, rng, range_noise):
 
 
 def simulate(fixture_path, geometry, plugin_dir, *, pose_period, pose_age, range_noise, seed, t_max, accel=1.5,
-             brake=2.0, speed_tau=0.15, slew_radps=math.radians(183.0)):
+             brake=2.0, speed_tau=0.15, slew_radps=math.radians(183.0), maneuver_distance=None, lateral_change_weight=None):
     import collections
     import numpy as np
     from shapely.affinity import rotate, translate
@@ -124,6 +124,12 @@ def simulate(fixture_path, geometry, plugin_dir, *, pose_period, pose_age, range
     obstacles = (unary_union([Polygon(o["polygon"]) for o in json.loads(Path(fixture_path).read_text())["obstacles"]])
                  if fixture_path else None)
     planner, loc, ctl = executer.local_planner, executer.localization, executer.controller
+    if maneuver_distance is not None:  # S4 §18: edge-length comparison
+        from avlite.c20_planning.c29_settings import PlanningSettings
+        PlanningSettings.c28_maneuver_distance = planner.maneuver_distance = float(maneuver_distance)
+    if lateral_change_weight is not None:
+        planner.lateral_change_weight = float(lateral_change_weight)
+    max_yaw_error, safe_stops = 0.0, []
     detector = executer.perception._detector
     line = planner.global_trajectory
     lap_m = float(line.path_s[-1])
@@ -165,6 +171,12 @@ def simulate(fixture_path, geometry, plugin_dir, *, pose_period, pose_age, range
         request = world.last_request
         if request is not None:
             target, steer = float(request.target_speed), float(request.steer)
+        last = ctl.last or {}
+        if last.get("yaw_error_rad") is not None:
+            max_yaw_error = max(max_yaw_error, abs(last["yaw_error_rad"]))
+        if last.get("safe_stop") and not safe_stops:
+            safe_stops.append({"t": round(t, 2), "reason": last["safe_stop"], "s_m": last.get("s_m")})
+            events.append({"t": round(t, 2), "event": "tracking safe stop", "reason": last["safe_stop"]})
         state = loc.status.get("state")
         icp_states[state] = icp_states.get(state, 0) + 1
         if state == "lost":
@@ -235,6 +247,8 @@ def simulate(fixture_path, geometry, plugin_dir, *, pose_period, pose_age, range
             "rest_obstacle_clearance_m": rest_obstacle if v < 0.01 else None, "final_speed_mps": v,
             "icp_error_at_rest_m": icp_error_end if v < 0.01 else None,
             "max_abs_d_from_line_m": max_lateral, "blocked": blocked_at, "icp_states": icp_states, "events": events,
+            "max_abs_yaw_error_rad": max_yaw_error, "tracking_safe_stop": safe_stops[0] if safe_stops else None,
+            "maneuver_distance_m": planner.maneuver_distance, "lateral_change_weight": planner.lateral_change_weight,
             "planner": dict(planner.diagnostics), "detector": dict(detector.status),
             "tick_ms": {"p50": 1e3 * sorted(timing)[len(timing) // 2], "max": 1e3 * max(timing)} if timing else None}
 
@@ -248,6 +262,8 @@ def main():
     parser.add_argument("--range-noise", type=float, default=0.005)
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--t-max", type=float, default=90.0)
+    parser.add_argument("--maneuver-distance", type=float, default=None, help="override the C0 lattice edge length")
+    parser.add_argument("--lateral-change-weight", type=float, default=None, help="C0LatticePlanner lateral-change cost")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.output.exists():
@@ -257,7 +273,8 @@ def main():
     for fixture in args.fixture or [Path("none")]:
         row = simulate(None if str(fixture) == "none" else fixture, geometry, REPO / "roboracer",
                        pose_period=args.pose_period, pose_age=args.pose_age, range_noise=args.range_noise,
-                       seed=args.seed, t_max=args.t_max)
+                       seed=args.seed, t_max=args.t_max, maneuver_distance=args.maneuver_distance,
+                       lateral_change_weight=args.lateral_change_weight)
         results.append(row)
         print(json.dumps({k: (round(v, 3) if isinstance(v, float) else v) for k, v in row.items() if k != "events"}),
               flush=True)

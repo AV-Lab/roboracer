@@ -1332,3 +1332,11 @@
 
 - **Built.** Detection and lattice timing fields; `roboracer_s4_baseline.py` aggregator.
 - **Proposed (D64).** T1/T2/T3 × 3 interleaved, failures retained, stop only on infrastructure; then M4 criteria from the spreads. Report: [S4 §17](stages/S4.md).
+
+## 2026-10-31 — S4 M4 baseline: T1 3/3, T2 1/3, T3 3/3; yaw-error safe-stop margin (D65 proposed)
+
+- **Failures.** T2 r1/r2: B's tracking safe stop (yaw error > 0.2 rad) latched on the S-curve back to the line after the pass. Passing runs also peaked at 0.18–0.198 rad.
+- **Sim.** Lattice reshaping gains only about 0.03 rad.
+- **Threshold.** A2RL's validated activation uses 0.35 rad (and only above 7 m/s); our port took the 0.2 rad dataclass default.
+- **Proposed (D65).** A: 0.35 rad on s4 (recommended); B: smoother lattice; C: both.
+- **Then** re-run the baseline. Report: [S4 §18](stages/S4.md).

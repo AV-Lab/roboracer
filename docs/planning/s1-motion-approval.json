@@ -59,7 +59,8 @@
   "D59": "speed: V1 envelope on ICP (0.5 m/s) with its accepted stop criteria",
   "D60": "F4 x3 each: F4-1 blocked path (T3 geometry), F4-2 stale obstacle observation, F4-3 planning failure; stop within V1 criteria, nothing applied afterwards",
   "D61": "A: map ICP excludes scan points inside the previous scan's confirmed obstacles (box + 0.10 m); otherwise unchanged; re-qualified offline (no-obstacle results identical) and at the T3 stop before motion",
-  "D62": "B: T1/T2 box offset 0.30 m from the racing line, so the line is blocked and B must avoid"
+  "D62": "B: T1/T2 box offset 0.30 m from the racing line, so the line is blocked and B must avoid",
+  "D63": "A: controlled rearm in the same episode after a blocked stop: the stage disarms and re-arms the guard (supervised, as F1-5), which resets the lattice; rearm-blocked (obstacle still there) must latch blocked again and stay at rest; rearm-cleared (fixture removed at the rearm) must drive on and complete the lap"
  },
  "stages": [
   "M0",
@@ -488,6 +489,13 @@
     "D62"
    ],
    "user_reply": "D61 A, D62 B"
+  },
+  {
+   "date": "2026-10-31",
+   "decisions": [
+    "D63"
+   ],
+   "user_reply": "D63  A"
   }
  ]
 }

@@ -174,6 +174,64 @@ class S4FaultCaseTests(unittest.TestCase):
         self.assertEqual("f4-3", h.state["s4"]["f4"]["case"])
 
 
+class S4RearmTests(unittest.TestCase):
+    """D63 A: after the blocked hold the stage disarms/re-arms through the guard trigger, then resets lattice and B."""
+
+    def harness(self, case):
+        self.tmp = tempfile.TemporaryDirectory()
+        h = Harness(Path(self.tmp.name))
+        h.stage.s4_rearm = case
+        h.bridge.obstacle_fixture = NS(name="t3-blocked")
+        h.b.reset = lambda: setattr(h.b, "was_reset", True)
+        an.save(h.results / "bridge-status.json", {"guard": {"state": "armed"}})
+        self.assertTrue(h.run_until("run"))
+        for _ in range(5):
+            h.tick()
+        h.planner.blocked, h.planner.blocked_reason = True, "no collision-free in-bounds edge"
+        self.assertTrue(h.run_until("rearm", limit=40))
+        return h
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def guard(self, h, state):
+        an.save(h.results / "bridge-status.json", {"guard": {"state": state}})
+
+    def test_rearm_waits_for_disarm_then_arm_and_resets_lattice_and_b(self):
+        h = self.harness("blocked")
+        trigger = an.read(h.results / "guard-trigger.json")
+        self.assertEqual({"disarm": True, "rearm_after_s": an.S4_REARM_AFTER_S, "source": "s4-rearm"}, trigger)
+        self.assertIsNotNone(h.bridge.obstacle_fixture)  # "blocked": the obstacle stays
+        h.tick()
+        self.assertEqual("rearm", h.stage.phase)  # still armed: the disarm has not taken effect
+        self.guard(h, "disarmed")
+        for _ in range(5):
+            h.tick()
+        self.assertEqual("rearm", h.stage.phase)
+        resets = h.planner.resets
+        self.guard(h, "armed")
+        h.tick()
+        self.assertEqual("run", h.stage.phase)
+        self.assertEqual(resets + 1, h.planner.resets)
+        self.assertFalse(h.planner.blocked)
+        self.assertTrue(getattr(h.b, "was_reset", False))
+        self.assertIsNotNone(h.state["s4"]["blocked_before_rearm"])
+        self.assertIsNone(h.state["s4"]["blocked"])
+        self.assertIsNotNone(h.state["s4"]["rearm"]["rearmed_ns"])
+
+    def test_cleared_removes_the_fixture_at_the_disarm(self):
+        h = self.harness("cleared")
+        self.assertIsNone(h.bridge.obstacle_fixture)
+        self.assertTrue(h.state["s4"]["rearm"]["fixture_removed"])
+        self.assertEqual("t3-blocked", h.state["s4"]["rearm"]["fixture"])
+
+    def test_rearm_that_never_completes_aborts(self):
+        h = self.harness("blocked")
+        self.guard(h, "disarmed")
+        self.assertTrue(h.run_until("stopping", limit=int(an.S4_REARM_TIMEOUT_S / 0.1) + 5))
+        self.assertIn("rearm not completed", h.state["abort"])
+
+
 class S4ArgumentTests(unittest.TestCase):
     def runner(self, *argv):
         with tempfile.TemporaryDirectory() as d:

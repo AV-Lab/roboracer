@@ -97,7 +97,11 @@ def export(results: Path, geometry_path: Path, output: Path, mode: str, invocati
     # S4: the run's own record names its virtual-obstacle fixture; the scorer reads it independently (hash-checked).
     fixture = Path(status["s4"]["fixture"]["path"]) if status and status.get("s4") else None
     obstacles, fixture_record = rs.load_obstacles(fixture) if fixture else (None, None)
-    score = rs.score(geometry, rs.truth_frames(run), obstacles)
+    rearm = (status.get("s4") or {}).get("rearm") or {} if status else {}
+    removed_ns = rearm.get("requested_ns") if rearm.get("fixture_removed") else None  # D63 A rearm-cleared
+    score = rs.score(geometry, rs.truth_frames(run), obstacles, obstacles_until_ns=removed_ns)
+    if removed_ns:
+        score["obstacles_until_ns"] = removed_ns
     score["geometry"] = {"path": str(geometry_path), "sha256": rs.sha256(geometry_path)}
     end = outcome(status, run_json, runner_exit)
     summary = {k: score[k] for k in ("frames", "progress_m", "lap_length_m", "laps", "contact_events",
@@ -239,6 +243,7 @@ def main():
     live.add_argument("--record-video", action="store_true", help="record only the AutoDRIVE window")
     live.add_argument("--obstacle-fixture", type=Path, default=None, help="S4 stage s4: virtual-obstacle fixture")
     live.add_argument("--f4-case", default=None, help="S4 F4 fault case (D60): f4-2 or f4-3 (stage s4)")
+    live.add_argument("--s4-rearm", default=None, help="S4 D63 A: blocked or cleared (stage s4, T3 fixture)")
     live.add_argument("--ui-reference", type=Path, default=None,
                       help="S2 (D21 A): reviewed UI reference; the automated pre-Connect check replaces review.py")
     rec = sub.add_parser("recorded")
@@ -266,6 +271,7 @@ def main():
                    *(["--record-video"] if args.record_video else []),
                    *(["--obstacle-fixture", str(args.obstacle_fixture.resolve())] if args.obstacle_fixture else []),
                    *(["--f4-case", args.f4_case] if args.f4_case else []),
+                   *(["--s4-rearm", args.s4_rearm] if args.s4_rearm else []),
                    *(["--ui-reference", str(args.ui_reference)] if args.ui_reference else [])]
         invocation["runner_argv"] = command
         print(json.dumps({"runner": "started", "manual_step": None if args.ui_reference else

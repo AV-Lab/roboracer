@@ -1306,3 +1306,10 @@
 - **F4-3 × 3:** D58 planner-error latch; rest 0.67–0.77 s, 0.17–0.20 m.
 - **All runs:** no contact; no throttle afterwards; player unchanged.
 - **Open:** D63. Report: [S4 §12](stages/S4.md).
+
+## 2026-10-31 — S4 D63 A: controlled rearm built (no motion); run set proposed
+
+- **Decision:** "D63  A".
+- **Built.** `--s4-rearm blocked|cleared`: after the blocked hold, the stage disarms and re-arms the guard (as F1-5) and resets the lattice and B; `cleared` removes the fixture at the disarm. The scorer counts a removed obstacle only until removal.
+- **Tests:** scripts 204/204, plugin 95/95.
+- **Proposed:** rearm-blocked × 3, rearm-cleared × 3. Report: [S4 §13](stages/S4.md).

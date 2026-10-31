@@ -156,6 +156,12 @@ S4_BLOCKED_HOLD_S = 2.0    # D58: blocked and at rest for this long -> the episo
 # D60 F4 cases injected on stage s4 (F4-1, the blocked path, is the T3 fixture itself): f4-2 freezes the obstacle
 # detector (scans keep arriving), f4-3 makes every lattice replan raise. Injected F4_INJECT_S into the run.
 F4_CASES = ("f4-2", "f4-3")
+# D63 A: controlled rearm after a blocked stop. Once blocked and at rest for S4_BLOCKED_HOLD_S, the stage disarms the
+# guard and has it re-armed S4_REARM_AFTER_S later (supervised, as F1-5); the rearm resets the lattice and B.
+# "blocked": the obstacle stays (must latch again); "cleared": the fixture is removed at the disarm (must drive on).
+S4_REARM_CASES = ("blocked", "cleared")
+S4_REARM_AFTER_S = 2.0
+S4_REARM_TIMEOUT_S = 15.0
 F4_INJECT_S = 4.0
 M3_IC_S_M = (0.0, 6.25, 12.5, 18.75, 25.0)  # D44: positions on B's committed line (IC0 = the spawn)
 M3_IC_TOLERANCE = (0.10, math.radians(5.0))  # D44: position (m), heading (rad)
@@ -324,7 +330,8 @@ def bridge(args):
             if args.guard == "batch" and args.motion_stage else None
         driver = ScenarioDriver(inbox, lambda number: str(number) in read(out / "actions-done.json"),
                                 mode=args.guard, duration_ns=int(args.duration * 1e9),
-                                trigger=lambda: read(out / "guard-trigger.json"), case=args.f1_case or args.f2_case,
+                                trigger=lambda: read(out / "guard-trigger.json"),
+                                case=args.f1_case or args.f2_case or ("s4-rearm" if args.s4_rearm else None),
                                 episodes=args.episodes, episode_done=episode_done, motion=bool(args.motion_stage))
         state.update(guard_mode=args.guard, guard_socket=socket_name(os.getpid()))
 
@@ -1640,6 +1647,7 @@ class StackStage:
         self.saw_unarmed = False
         self.f2, self.f2_injected = getattr(args, "f2_case", None), None
         self.f4, self.f4_injected = getattr(args, "f4_case", None), None
+        self.s4_rearm, self.rearm = getattr(args, "s4_rearm", None), None
         state.update(stage_phase=self.phase, abort=None, finish_reason=None, precheck=None, f1_case=self.f1,
                      f2_case=self.f2, stage_episodes=[])
         self._request(0.0)
@@ -1880,6 +1888,9 @@ class StackStage:
                     if speed is not None and speed < 0.02:
                         blocked["rest_since_s"] = blocked["rest_since_s"] if blocked["rest_since_s"] is not None else elapsed
                         if elapsed - blocked["rest_since_s"] >= S4_BLOCKED_HOLD_S:
+                            if self.s4_rearm and self.rearm is None:
+                                self._start_rearm()
+                                return True
                             self._request(0.0)
                             self._set("stopping", finish_reason="blocked")
                             return True
@@ -1893,6 +1904,8 @@ class StackStage:
                     return True
                 self._request(1.0)
             return True
+        if self.phase == "rearm":
+            return self._rearm_tick(now, snap, speed, guard_state, elapsed)
         if self.phase == "stopping":
             self._request(0.0)
             if elapsed >= STOP_HOLD_S:
@@ -1929,6 +1942,45 @@ class StackStage:
             save(results / "runner-error-request.json", {"requested_ns": record["injected_ns"]})
         save(results / "fault-inject.json", record)
         self.state["f1_injected_ns"] = record["injected_ns"]
+
+    def _start_rearm(self):
+        """D63 A: disarm now, re-arm S4_REARM_AFTER_S later (the guard driver does both, as for F1-5)."""
+        fixture = self.bridge.obstacle_fixture
+        if self.s4_rearm == "cleared":
+            self.bridge.obstacle_fixture = None  # the obstacle is taken away while the car is disarmed
+        self.rearm = {"case": self.s4_rearm, "requested_ns": time.monotonic_ns(), "saw_disarmed": False,
+                      "fixture_removed": self.s4_rearm == "cleared", "fixture": fixture.name if fixture else None,
+                      "rearmed_ns": None}
+        self.state["s4"]["rearm"] = self.rearm
+        save(self.args.results / "guard-trigger.json",
+             {"disarm": True, "rearm_after_s": S4_REARM_AFTER_S, "source": "s4-rearm"})
+        self._set("rearm")
+
+    def _rearm_tick(self, now, snap, speed, guard_state, elapsed):
+        if guard_state == "fault":
+            self._request(0.0)
+            self._set("stopping", abort="guard fault")
+            return True
+        if elapsed > S4_REARM_TIMEOUT_S:
+            self._request(0.0)
+            self._set("stopping", abort="rearm not completed in %.0f s" % S4_REARM_TIMEOUT_S)
+            return True
+        if guard_state != "armed":
+            self.rearm["saw_disarmed"] = True
+            return True
+        if not self.rearm["saw_disarmed"]:
+            return True  # the disarm has not taken effect yet
+        # Re-armed in a new epoch: the rearm resets the lattice (D58 "until rearm") and B, on the current ICP pose.
+        planner = self.executer.local_planner
+        self.state["s4"]["blocked_before_rearm"] = self.state["s4"]["blocked"]
+        self.state["s4"]["blocked"] = None
+        planner.reset()
+        planner.step(self.executer.pm.ego_vehicle)
+        self.controller.reset()
+        self.rearm["rearmed_ns"] = time.monotonic_ns()
+        self._request(1.0)
+        self._set("run")
+        return True
 
     def _inject_f4(self, elapsed, speed):
         """D60: F4-2 freezes the obstacle detector (it keeps re-reporting its last obstacles, never a new result);
@@ -2576,6 +2628,7 @@ def trial(args, context, out):
                                            *(["--obstacle-fixture", str(args.obstacle_fixture.resolve())]
                                              if args.obstacle_fixture else []),
                                            *(["--f4-case", args.f4_case] if args.f4_case else []),
+                                           *(["--s4-rearm", args.s4_rearm] if args.s4_rearm else []),
                                            "--episodes", str(args.episodes)],
                           plugin_environment)
                     status_name = "plugin-observer-status.json"
@@ -3354,6 +3407,8 @@ def main():
     parser.add_argument("--stack-profile", choices=sorted(AVLITE_MOTION_STAGES), default=None, help=argparse.SUPPRESS)
     parser.add_argument("--s3b-shadow", action="store_true",
                         help="S3: log B's commands on the live ego state in a stationary --plugin-stack run (no motion)")
+    parser.add_argument("--s4-rearm", choices=S4_REARM_CASES, default=None,
+                        help="S4 D63 A on stage s4: controlled rearm after the blocked stop; 'cleared' removes the obstacle")
     parser.add_argument("--f4-case", choices=F4_CASES, default=None,
                         help="S4 F4 fault case (D60) on stage s4: f4-2 stale obstacle observation, f4-3 planning failure")
     parser.add_argument("--obstacle-fixture", type=Path, default=None,
@@ -3426,6 +3481,8 @@ def main():
         parser.error("--s3b-shadow is for a stationary --plugin-stack run (no motion stage)")
     if args.f4_case and (args.motion_stage or args.stack_profile) not in S4_STAGES:
         parser.error("--f4-case is for stage s4 only")
+    if args.s4_rearm and ((args.motion_stage or args.stack_profile) not in S4_STAGES or args.f4_case):
+        parser.error("--s4-rearm is for stage s4 only, without --f4-case")
     if args.mode in ("run", "plugin-observe") and \
             bool(args.obstacle_fixture) != ((args.motion_stage or args.stack_profile) in S4_STAGES):
         parser.error("--obstacle-fixture is required for, and only for, stage s4")

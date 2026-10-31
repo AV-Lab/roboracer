@@ -443,7 +443,7 @@ class ScenarioDriver:
                 yield Reply()  # D16: after a runner-requested disarm nothing more is forwarded
                 continue
             yield self._fresh_reply()
-        if self.case == "f1-5":
+        if self.case in ("f1-5", "s4-rearm"):  # S4 D63 A: the same supervised disarm / re-arm checks
             self._check_rearm_case(since)
         elif self.external is not None:
             self._expect_seen("disarm-request", self.external["disarm_mark"], r"^disarm-request$")

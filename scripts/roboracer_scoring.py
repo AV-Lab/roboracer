@@ -204,9 +204,10 @@ def load_obstacles(fixture: Path) -> tuple[list, dict]:
                       "obstacles": len(polygons)}
 
 
-def score(geometry: dict, frames: list[dict], obstacles: list | None = None) -> dict:
+def score(geometry: dict, frames: list[dict], obstacles: list | None = None, obstacles_until_ns: int | None = None) -> dict:
     """``obstacles`` (S4): virtual obstacle polygons. Contact with them is a scored footprint overlap (the car
-    passes through a virtual box) and is reported separately from wall contact, as is their clearance."""
+    passes through a virtual box) and is reported separately from wall contact, as is their clearance.
+    ``obstacles_until_ns`` (S4 D63 A, rearm-cleared): the obstacles exist only for frames received before it."""
     from shapely import wkt
     from shapely.geometry import LinearRing, Point
     from shapely.ops import unary_union
@@ -245,7 +246,7 @@ def score(geometry: dict, frames: list[dict], obstacles: list | None = None) -> 
         offtrack.append(not region.contains(swept))
         clearance.append(walls.distance(poly))
         samples.append({"sim_time": f["sim_time"], "s_m": s, "progress_m": progress, "clearance_m": clearance[-1]})
-        if blocks is not None:
+        if blocks is not None and (obstacles_until_ns is None or f.get("received_ns", 0) < obstacles_until_ns):
             obstacle_contact.append(swept.intersects(blocks))
             obstacle_clearance.append(blocks.distance(poly))
             samples[-1]["obstacle_clearance_m"] = obstacle_clearance[-1]

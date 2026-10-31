@@ -105,6 +105,17 @@ class ScoringTests(unittest.TestCase):
         self.assertGreater(r["min_obstacle_clearance_m"], 0.2)
         self.assertLess(r["min_obstacle_clearance_m"], 2.9 - 0.05 - R_MID - 0.145 + 0.01)
 
+    def test_an_obstacle_removed_before_the_car_reaches_it_is_not_contact(self):
+        """S4 D63 A rearm-cleared: obstacles count only for frames received before their removal."""
+        from shapely.geometry import box
+        frames = frames_along([0.05 * k for k in range(20)])  # received_ns = frame index
+        a = 0.5  # frame 10 passes through the box
+        on_path = box(R_MID * math.cos(a) - 0.1, R_MID * math.sin(a) - 0.1, R_MID * math.cos(a) + 0.1, R_MID * math.sin(a) + 0.1)
+        self.assertEqual(1, len(rs.score(self.g, frames, [on_path], obstacles_until_ns=15)["obstacle_contact_events"]))
+        removed = rs.score(self.g, frames, [on_path], obstacles_until_ns=5)
+        self.assertEqual([], removed["obstacle_contact_events"])
+        self.assertGreater(removed["min_obstacle_clearance_m"], 0.0)
+
     def test_obstacle_fixture_must_match_its_provenance(self):
         import hashlib
         import json

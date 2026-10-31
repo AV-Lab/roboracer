@@ -1327,3 +1327,8 @@
 - **rearm-cleared × 3:** drove on and completed the lap.
 - **Guard rearm checks** (new epoch, not-armed and stale-epoch rejections, no fault) all OK; no contact; player unchanged.
 - **S4-04** demonstrated. **Next:** S4-05 M4 baseline. Report: [S4 §15–§16](stages/S4.md).
+
+## 2026-10-31 — S4-05: baseline tools ready; D64 proposed
+
+- **Built.** Detection and lattice timing fields; `roboracer_s4_baseline.py` aggregator.
+- **Proposed (D64).** T1/T2/T3 × 3 interleaved, failures retained, stop only on infrastructure; then M4 criteria from the spreads. Report: [S4 §17](stages/S4.md).

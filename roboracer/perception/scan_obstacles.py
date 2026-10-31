@@ -24,6 +24,7 @@ the unseen depth is defaulted (``default_depth_m``), extending away from the car
 from __future__ import annotations
 
 import math
+import time
 
 import numpy as np
 
@@ -54,7 +55,7 @@ class ScanObstacleDetection(FastBEVLidarDetection):
         self._last_stamp = None
         self.obstacles: list[AgentState] = []
         self.obstacles_stamp = None
-        self.status = {"scans": 0, "candidates": 0, "confirmed": 0, "wall_points": 0, "free_points": 0}
+        self.status = {"scans": 0, "candidates": 0, "confirmed": 0, "wall_points": 0, "free_points": 0, "compute_s": None}
 
     def _fit_rectangle(self, cluster: np.ndarray, ego=(0.0, 0.0, 0.0)) -> AgentState | None:
         if len(cluster) < 2:
@@ -108,6 +109,7 @@ class ScanObstacleDetection(FastBEVLidarDetection):
             return perception_model
         if lidar.stamp != self._last_stamp:  # each scan once: the stack ticks faster than scans arrive
             self._last_stamp = lidar.stamp
+            started = time.perf_counter()
             ego = perception_model.ego_vehicle
             points = np.asarray(lidar.to_map(lidar.points, ego), dtype=float)
             found = self.candidates(points, ego)
@@ -116,6 +118,7 @@ class ScanObstacleDetection(FastBEVLidarDetection):
             self._previous = [(a.x, a.y) for a, _ in found]
             self.obstacles = confirmed
             self.obstacles_stamp = lidar.stamp
-            self.status.update(scans=self.status["scans"] + 1, candidates=len(found), confirmed=len(confirmed))
+            self.status.update(scans=self.status["scans"] + 1, candidates=len(found), confirmed=len(confirmed),
+                               compute_s=time.perf_counter() - started)
         perception_model.agent_vehicles = list(self.obstacles)
         return perception_model

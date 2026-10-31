@@ -17,6 +17,7 @@ unchanged; it is what A2RL runs in tracking mode ``selected_local``. Two things 
 from __future__ import annotations
 
 import logging
+import time
 
 from avlite.c20_planning.c28_local_lattice_planners import GreedyLatticePlanner
 from avlite.c20_planning.c29_settings import PlanningSettings
@@ -88,7 +89,7 @@ class C0LatticePlanner(GreedyLatticePlanner):
         self.blocked_reason = ""
         self._blocked_streak = 0
         self.diagnostics = {"replans": 0, "level0_edges": 0, "clear_level0_edges": 0, "blocked_streak": 0,
-                            "replan_errors": 0}
+                            "replan_errors": 0, "replan_s": None}
 
     def reset(self, wp: int = 0):
         super().reset(wp)
@@ -98,6 +99,7 @@ class C0LatticePlanner(GreedyLatticePlanner):
         if perception_model is not None and getattr(perception_model, "ego_vehicle", None) is not None:
             set_c0_ego(perception_model.ego_vehicle)
         error = None
+        started = time.perf_counter()
         try:
             super().replan(perception_model=perception_model, sensors=sensors, back_to_ref_horizon=back_to_ref_horizon)
         except Exception as exc:  # planning failure (D58): counted as blocked, never driven through
@@ -109,6 +111,7 @@ class C0LatticePlanner(GreedyLatticePlanner):
             and self.location_sd[0] + self.maneuver_distance > self.global_trajectory.track_end_s
         d = self.diagnostics
         d["replans"] += 1
+        d["replan_s"] = time.perf_counter() - started
         d["level0_edges"], d["clear_level0_edges"] = len(edges), len(clear)
         if error is not None or (not clear and not handed_off and len(self.traversed_s) > 0):
             self._blocked_streak += 1

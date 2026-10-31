@@ -2573,6 +2573,9 @@ def trial(args, context, out):
             sim1 += ["--f1-case", args.f1_case]
         if args.f2_case:
             sim1 += ["--f2-case", args.f2_case]
+        if args.s4_rearm:
+            # S4 D63 A: the guard driver (in the bridge child) applies the supervised-rearm checks to case s4-rearm.
+            sim1 += ["--s4-rearm", args.s4_rearm]
         if args.guard:
             sim1 += ["--guard", args.guard, "--duration", str(args.duration)]
             if args.guard == "batch":

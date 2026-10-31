@@ -1313,3 +1313,9 @@
 - **Built.** `--s4-rearm blocked|cleared`: after the blocked hold, the stage disarms and re-arms the guard (as F1-5) and resets the lattice and B; `cleared` removes the fixture at the disarm. The scorer counts a removed obstacle only until removal.
 - **Tests:** scripts 204/204, plugin 95/95.
 - **Proposed:** rearm-blocked × 3, rearm-cleared × 3. Report: [S4 §13](stages/S4.md).
+
+## 2026-10-31 — S4 rearm runs: stopped at rearm-blocked 1 (guard-check routing defect, mine); fixed
+
+- **Run.** Behaviour correct: re-blocked after the rearm, 0 m creep, 1.48 m from the barrier, no contact.
+- **Failure.** The guard driver (bridge child) never received `--s4-rearm`, so it applied the generic "no rejection" check to the expected `not-armed` rejections.
+- **Fix.** Option passed to the bridge child. Failure retained; rerun needs approval. Report: [S4 §14](stages/S4.md).

@@ -1319,3 +1319,11 @@
 - **Run.** Behaviour correct: re-blocked after the rearm, 0 m creep, 1.48 m from the barrier, no contact.
 - **Failure.** The guard driver (bridge child) never received `--s4-rearm`, so it applied the generic "no rejection" check to the expected `not-armed` rejections.
 - **Fix.** Option passed to the bridge child. Failure retained; rerun needs approval. Report: [S4 §14](stages/S4.md).
+
+## 2026-10-31 — S4 rearm rerun: 6/6 passed; S4-04 demonstrated
+
+- **Run:** "批准"; code `b973133`.
+- **rearm-blocked × 3:** latched again, 0 m creep, about 1.45 m from the barrier.
+- **rearm-cleared × 3:** drove on and completed the lap.
+- **Guard rearm checks** (new epoch, not-armed and stale-epoch rejections, no fault) all OK; no contact; player unchanged.
+- **S4-04** demonstrated. **Next:** S4-05 M4 baseline. Report: [S4 §15–§16](stages/S4.md).

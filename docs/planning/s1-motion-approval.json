@@ -65,7 +65,14 @@
   "D65": "A: on stage s4 B's yaw-error tracking safe stop uses 0.35 rad, A2RL's validated Autoverse value (activation.py), still active at all speeds; lattice unchanged; accepted S3 stages unchanged",
   "D66": "M4 per-episode criteria U1-U7 (s4-acceptance-proposal v0.1 section 2): outcome; no contact/off-track/abort; T1/T2 obstacle >= 0.25 m, wall >= 0.20 m; T3 rest >= 1.0 m; ICP valid, per-tick p95 <= 0.05 m, max <= 0.15 m; T1/T2 lap <= 72 s; stack tick max <= 80 ms, no overruns",
   "D67": "M4 matrix: T1/T2/T3 x 10 in three interleaved sessions of 10, fresh process each; F4-1/2/3 x 3 in a separate session with the S4 section 11 criteria",
-  "D68": "strict: any episode or F4 run failing its criteria fails the item; retained; rerun only with approval; sessions continue past failures and stop only on infrastructure"
+  "D68": "strict: any episode or F4 run failing its criteria fails the item; retained; rerun only with approval; sessions continue past failures and stop only on infrastructure",
+  "D69": "release candidate frozen at the S5 entry commit: recommended profile B on map ICP, V1, with the S4 obstacle stack; pins AVLite 50dcd00, A2RL port 0b5cfa8/fe2fc01, Devkit 0.3.0 with overlays, player patch 04; no algorithm or configuration change before the held-out M5 evaluation",
+  "D70": "A: exact locks exported from the two qualified venvs and committed; wheels downloaded once from PyPI into a local wheelhouse with sha256; fresh environment built offline (--no-index --require-hashes); Devkit build/overlay/patch scripted; simulator verified by its 604-file sha256 list",
+  "D71": "single entrypoint scripts/roboracer.py: live, replay, export, compare (wrapping existing tools, defaults unchanged)",
+  "D72": "M5: 3 nominal B laps (s4, no fixture), T1/T2/T3 once, applicable F1-F4 once, frozen fixtures offline; held-out H1 = new IC at s = 21.875 m via the D49 approach x5, H2 = T1 box at s = 8.0 m x5; the 3 nominal laps are the fresh-environment smoke runs",
+  "D73": "release thresholds reused: S3 T1-T8 (laps, H1), S4 U1-U7 (T1/T2/T3, H2), stage F criteria, fixtures exact; strict",
+  "D74": "GUI/settings check in an isolated AVLite profile on desktop :1 (screenshots + saved profile files; no motion)",
+  "D75": "documentation and audit; private-repository-ready working tree on a branch; nothing published"
  },
  "stages": [
   "M0",
@@ -563,6 +570,26 @@
     "D68"
    ],
    "user_reply": "confirmed"
+  },
+  {
+   "date": "2026-11-01",
+   "decisions": [
+    "D69",
+    "D70",
+    "D71",
+    "D72",
+    "D73",
+    "D74",
+    "D75"
+   ],
+   "user_reply": "confirm"
+  }
+ ],
+ "corrections": [
+  {
+   "date": "2026-11-01",
+   "decision": "D69",
+   "correction": "AVLite pin is 50dcd0043db0cc17efbe82bda81cd0e8875810a0 (package metadata 0.6.3), the commit the PRE tarball was archived from (artifacts/preflight/20260928T113745Z/avlite-environment-setup.json); the confirmed D69 text and the S3/S5 proposals said c8b0ce1, which does not exist in the AVLite repository"
   }
  ]
 }

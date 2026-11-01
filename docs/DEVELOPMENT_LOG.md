@@ -1389,3 +1389,8 @@
   - D74: GUI/settings check.
   - D75: documentation and audit.
 - **Report:** [S5.md](stages/S5.md), [proposal](planning/s5-proposal.md).
+
+## 2026-11-01 — S5 decisions D69–D75 confirmed; AVLite pin corrected
+
+- **Decisions:** "confirm" (D69–D75).
+- **Correction.** The AVLite pin is `50dcd00` (package metadata 0.6.3), the commit the PRE tarball was archived from. The S3 and S5 proposals and the confirmed D69 text said `c8b0ce1`, which does not exist in the AVLite repository. Corrected, with notes in the proposals and the approval record.

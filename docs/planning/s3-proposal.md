@@ -14,7 +14,7 @@ Version **0.2 — decisions recorded 2026-10-22**: "D30. yes D31 参考其代码
   - Stage 15C ran 5 laps with a mean flying lap of **62.72 s** (best 62.66 s), commit message of `0b5cfa8`.
   - The best recorded lap is 57.85 s (YasMarina North, about 3 km, up to 38.6 m/s; `docs/a2rl_autoverse_optimization_summary_report.md`).
 - **Validated stack** (profile `a2rl_can`): `RaceGlobalPlanner` → AVLite `GreedyLatticePlanner` → `A2RLBaseStackController`, on ground-truth localization. The latest presets drive with the lateral MPC applied (delay 0.14 s, understeer gradient 0.001 s²/m).
-- **Compatibility:** every AVLite module the reused files import exists in our pinned AVLite `c8b0ce1` (`c51_capabilities`, `c54_trajectory_tracker`, `GreedyLatticePlanner`, `GlobalPlan`, `ControlComand`).
+- **Compatibility:** every AVLite module the reused files import exists in our pinned AVLite `50dcd00` (package metadata 0.6.3; the PRE tarball's `git archive` commit). *Corrected 2026-11-01: earlier text said `c8b0ce1`, which does not exist in the AVLite repository.* (`c51_capabilities`, `c54_trajectory_tracker`, `GreedyLatticePlanner`, `GlobalPlan`, `ControlComand`).
 
 ## 2. What is reused, and how
 

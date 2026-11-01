@@ -1401,3 +1401,9 @@
 - **Fresh environment.** Built offline with hashes; package sets equal the locks; imports and simulator identity verified; tests 95/95 and 204/204 in it.
 - **Fixed.** A PYTHONPATH leak in the freeze (package counts corrected to 26/16); AVLite wheel prebuilt.
 - **Report:** [S5 §2](stages/S5.md).
+
+## 2026-11-01 — S5-03: single entrypoint built
+
+- **Built.** `scripts/roboracer.py` live / replay / export / compare, wrapping the qualified tools; defaults unchanged.
+- **Checks.** From the fresh environment: replay fixtures pass, a recorded lap replays exactly, compare reproduces the S4 acceptance table.
+- **Tests:** scripts 208/208. Report: [S5 §3](stages/S5.md).

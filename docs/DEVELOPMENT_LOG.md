@@ -1362,3 +1362,9 @@
 - **Decisions:** "confirmed".
 - **Built.** `roboracer_s4_m4.py` (U1–U7, strict). It passes the D65 baseline 9/9 and fails the retained T2 failures correctly.
 - **Proposed.** Three 10-episode sessions plus an F4 session; needs run approval. Report: [S4 §21](stages/S4.md).
+
+## 2026-11-01 — S4 M4 acceptance: not passed (T1 8/10, F4-2 2/3, F4-3 2/3); stale pre-localization detections; fixed
+
+- **Run:** "approve"; code `c8fcd06`. T2 10/10, T3 10/10, F4-1 3/3.
+- **Failures.** 4 runs latched "blocked" at the run start: the detector still held obstacles confirmed before localization; my run-start reset (§8) covered only the lattice.
+- **Fix.** The detector is reset at run start too. Failures retained. Full rerun proposed. Report: [S4 §22](stages/S4.md).

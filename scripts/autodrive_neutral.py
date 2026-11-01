@@ -1794,6 +1794,12 @@ class StackStage:
                         planner = self.executer.local_planner
                         self.state["s4"]["planner_reset_at_run"] = {"was_blocked": bool(planner.blocked),
                                                                     "reason": planner.blocked_reason}
+                        # The detector too (S4 §22): obstacles confirmed before the pose was localized are walls seen
+                        # through the wrong pose; a stale list blocked two replans at run start in 4 of 39 M4 runs.
+                        detector = self.executer.perception._detector
+                        self.state["s4"]["detector_reset_at_run"] = {"obstacles": len(detector.obstacles)}
+                        detector.reset()
+                        self.executer.pm.agent_vehicles = []
                         planner.reset()
                         planner.step(self.executer.pm.ego_vehicle)
                     self._set("run")

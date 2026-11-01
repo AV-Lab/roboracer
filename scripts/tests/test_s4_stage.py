@@ -27,7 +27,12 @@ class Harness:
         self.seq, self.s, self.speed = 0, 0.0, 0.0
         self.b = NS(enabled=False, last={"steer": 0.0})
         self.loc = FakeLocalizer()
-        self.detector = NS(obstacles_stamp=None, obstacles=[], status={})
+        self.detector = NS(obstacles_stamp=None, obstacles=[], status={}, resets=0)
+
+        def detector_reset():
+            self.detector.obstacles, self.detector.resets = [], self.detector.resets + 1
+
+        self.detector.reset = detector_reset
         self.planner = NS(blocked=False, blocked_reason="", diagnostics={}, resets=0, steps=0)
 
         def reset():
@@ -39,7 +44,7 @@ class Harness:
 
         self.planner.reset, self.planner.step = reset, step
         self.executer = NS(controller=self.b, localization=self.loc, perception=NS(_detector=self.detector),
-                           local_planner=self.planner, pm=NS(ego_vehicle=NS(x=X0, y=Y0, theta=HEADING)))
+                           local_planner=self.planner, pm=NS(ego_vehicle=NS(x=X0, y=Y0, theta=HEADING), agent_vehicles=[]))
         self.bridge = NS(latest=self.latest, _encoder_speed={}, get_sensor_frame=lambda: NS())
         args = NS(results=results, stack_profile="s4", f1_case=None, episodes=1, f2_case=None, m3_ic=None)
         self.state = {"s4": {"blocked": None}}
@@ -111,8 +116,14 @@ class S4StageTests(unittest.TestCase):
     def test_a_latch_from_before_the_run_is_cleared_at_run_start(self):
         """Regression (first T1 attempt): replans before ICP initialization latched "blocked"; the run resets it."""
         self.h.planner.blocked, self.h.planner.blocked_reason = True, "no collision-free in-bounds edge"
+        self.h.detector.obstacles = ["phantom", "phantom"]  # confirmed before the pose was localized (S4 §22)
+        self.h.executer.pm.agent_vehicles = list(self.h.detector.obstacles)
         self.assertTrue(self.h.run_until("run"))
         self.assertEqual(1, self.h.planner.resets)
+        self.assertEqual(1, self.h.detector.resets)
+        self.assertEqual([], self.h.detector.obstacles)
+        self.assertEqual([], self.h.executer.pm.agent_vehicles)
+        self.assertEqual({"obstacles": 2}, self.h.state["s4"]["detector_reset_at_run"])
         self.assertFalse(self.h.planner.blocked)
         self.assertEqual({"was_blocked": True, "reason": "no collision-free in-bounds edge"},
                          self.h.state["s4"]["planner_reset_at_run"])

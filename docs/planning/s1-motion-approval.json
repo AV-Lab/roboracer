@@ -62,7 +62,10 @@
   "D62": "B: T1/T2 box offset 0.30 m from the racing line, so the line is blocked and B must avoid",
   "D63": "A: controlled rearm in the same episode after a blocked stop: the stage disarms and re-arms the guard (supervised, as F1-5), which resets the lattice; rearm-blocked (obstacle still there) must latch blocked again and stay at rest; rearm-cleared (fixture removed at the rearm) must drive on and complete the lap",
   "D64": "M4 baseline: stage s4, T1 x3, T2 x3, T3 x3 interleaved, fresh process each, live-check criteria; failures retained and the set continues; stops only on infrastructure; then M4 criteria proposed",
-  "D65": "A: on stage s4 B's yaw-error tracking safe stop uses 0.35 rad, A2RL's validated Autoverse value (activation.py), still active at all speeds; lattice unchanged; accepted S3 stages unchanged"
+  "D65": "A: on stage s4 B's yaw-error tracking safe stop uses 0.35 rad, A2RL's validated Autoverse value (activation.py), still active at all speeds; lattice unchanged; accepted S3 stages unchanged",
+  "D66": "M4 per-episode criteria U1-U7 (s4-acceptance-proposal v0.1 section 2): outcome; no contact/off-track/abort; T1/T2 obstacle >= 0.25 m, wall >= 0.20 m; T3 rest >= 1.0 m; ICP valid, per-tick p95 <= 0.05 m, max <= 0.15 m; T1/T2 lap <= 72 s; stack tick max <= 80 ms, no overruns",
+  "D67": "M4 matrix: T1/T2/T3 x 10 in three interleaved sessions of 10, fresh process each; F4-1/2/3 x 3 in a separate session with the S4 section 11 criteria",
+  "D68": "strict: any episode or F4 run failing its criteria fails the item; retained; rerun only with approval; sessions continue past failures and stop only on infrastructure"
  },
  "stages": [
   "M0",
@@ -537,6 +540,15 @@
     "D65"
    ],
    "user_reply": "A"
+  },
+  {
+   "date": "2026-11-01",
+   "decisions": [
+    "D66",
+    "D67",
+    "D68"
+   ],
+   "user_reply": "confirmed"
   }
  ]
 }

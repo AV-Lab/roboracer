@@ -1,0 +1,11 @@
+--- official/autodrive_incoming_bridge.py
++++ overlay/autodrive_incoming_bridge.py
+@@ -281,7 +281,7 @@
+     # Recursive operations while node is alive
+     while rclpy.ok():
+         app = socketio.WSGIApp(sio) # Create socketio WSGI application
+-        pywsgi.WSGIServer(('', 4567), app, handler_class=WebSocketHandler).serve_forever() # Deploy as a gevent WSGI server            
++        pywsgi.WSGIServer(('127.0.0.1', 4567), app, handler_class=WebSocketHandler).serve_forever() # Deploy as a gevent WSGI server            
+         rclpy.spin_once(autodrive_incoming_bridge) # Spin the node once
+     
+     autodrive_incoming_bridge.destroy_node() # Explicitly destroy the node

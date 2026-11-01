@@ -14,8 +14,8 @@ Version **0.1, 2026-11-01**. Entry: S4 accepted, then S5 approved ("accept, go a
 
 | Part | Today | Gap for S5-01 |
 | --- | --- | --- |
-| AVLite environment | `preflight-20260928T113745Z/avlite-venv` (173 packages); AVLite source pinned: AVLite `50dcd00` (package metadata 0.6.3; the PRE tarball's `git archive` commit). *Corrected 2026-11-01: earlier text said `c8b0ce1`, which does not exist in the AVLite repository.* | no lock file in the repository; built by hand in PRE |
-| Devkit environment | `preflight-20260928T120809Z/devkit-venv` (162 packages); colcon build of the pinned Devkit; compatibility overlay; attrdict patch (file hashes recorded in `run-context.json`) | the PRE freeze exists only as evidence (`devkit-freeze-after-repair.json`); no rebuild script |
+| AVLite environment | `preflight-20260928T113745Z/avlite-venv` (26 packages + AVLite; *corrected from 173, see S5 §1*); AVLite source pinned: AVLite `50dcd00` (package metadata 0.6.3; the PRE tarball's `git archive` commit). *Corrected 2026-11-01: earlier text said `c8b0ce1`, which does not exist in the AVLite repository.* | no lock file in the repository; built by hand in PRE |
+| Devkit environment | `preflight-20260928T120809Z/devkit-venv` (16 packages; *corrected from 162*); colcon build of the pinned Devkit; compatibility overlay; attrdict patch (file hashes recorded in `run-context.json`) | the PRE freeze exists only as evidence (`devkit-freeze-after-repair.json`); no rebuild script |
 | Simulator | patch-04 player, frozen (D18); identity in `artifacts/sim1-06/.../player-files.sha256` (604 files) | already verifiable; it is provided separately, not rebuilt (plan) |
 | Plugin | `roboracer/` in this repository | no packaging metadata; installed by AVLite's plugin loader from a path |
 | Pip cache | empty | **a fresh rebuild needs PyPI or a local wheelhouse (D70)** |

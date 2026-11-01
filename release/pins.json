@@ -1,0 +1,88 @@
+{
+ "schema": "roboracer.release-pins/1",
+ "python": "3.10.12 (/usr/bin/python3.10)",
+ "ros": "/opt/ros/humble",
+ "avlite": {
+  "commit": "50dcd0043db0cc17efbe82bda81cd0e8875810a0",
+  "tarball": "/home/a2rl/roboracer-work/preflight-20260928T113745Z/avlite-source.tar",
+  "tarball_sha256": "b399ffdd5b2ebff3c38b6097887791902d43b4338776fd7a74485cb7245c9f60",
+  "version": "0.6.3"
+ },
+ "devkit": {
+  "commit": "4abf7cd819042aaf65539375c870247d453c7fe2",
+  "checkout": "/home/a2rl/roboracer-work/preflight-20260928T113745Z/devkit-0.3.0",
+  "package": "ADSS Toolkit/autodrive_ros2/autodrive_f1tenth",
+  "patches": {
+   "devkit-loopback.patch": "35b77d1cf080719dbf516e666c4c853e42aa476eab39a4f514d220ea2e183345",
+   "devkit-tf-lifecycle.patch": "bf1481f62eb502839a80c20c0b9c6603df76fdf3b36c8fa65a80d3fa7de2fdb2"
+  },
+  "patched_file": "autodrive_f1tenth/autodrive_incoming_bridge.py",
+  "patched_file_sha256": "c8c2908cfc3ee0312f92a754828f46eeb9c222587fc319089cb3313ffb73d10a",
+  "colcon_argv_recorded": [
+   "colcon",
+   "--log-base",
+   "/tmp/roboracer-work/preflight-20260928T124339Z/colcon-log",
+   "build",
+   "--base-paths",
+   "/tmp/roboracer-work/preflight-20260928T124339Z/devkit-src/autodrive_f1tenth",
+   "--build-base",
+   "/tmp/roboracer-work/preflight-20260928T124339Z/build",
+   "--install-base",
+   "/tmp/roboracer-work/preflight-20260928T124339Z/install",
+   "--merge-install",
+   "--packages-select",
+   "autodrive_f1tenth",
+   "--event-handlers",
+   "console_direct+",
+   "desktop_notification-"
+  ]
+ },
+ "attrdict_overlay": {
+  "package": "attrdict==2.0.1",
+  "patch": "attrdict-python310.patch",
+  "patch_sha256": "2695056891f33ee922795a6c3de7861c66dc2aa938595c4aa364019b36457684",
+  "files": {
+   "__init__.py": "7dd25f901de140adad72a724ec54a608a8f2ce68f1dbd67730143201ebf8dc4d",
+   "default.py": "d1253b29f667af7189d870567ba25aa5a267e769f767d9c7eb94cd846689937f",
+   "dictionary.py": "123a257cc77e9339f92b4d3da53c7632bfcee0e0843c483ee7b67febe2ec8b1c",
+   "mapping.py": "f6a955471657277a170df1b350d7ddde75cc7c3a3a49d1fd803a2d76bc728012",
+   "merge.py": "c7e3260af25f1555992ab2fbeef46b0e36b1f87364bff7a3ff1b494674db0a62",
+   "mixins.py": "0a34d2bf78345274ded52f70f11f67a50947a1e2c9b5fae9bea0b7e4e16c4582"
+  },
+  "recorded_patch": [
+   {
+    "file": "merge.py",
+    "original_sha256": "7df963a884357ca45650e70b46da199c3cd9a7d874e9a626185198cfaebec256",
+    "patched_sha256": "c7e3260af25f1555992ab2fbeef46b0e36b1f87364bff7a3ff1b494674db0a62"
+   },
+   {
+    "file": "mixins.py",
+    "original_sha256": "2726b972b3bb36c51b6496153149d9bdcd908f1a52583505a0812aef170c77a5",
+    "patched_sha256": "0a34d2bf78345274ded52f70f11f67a50947a1e2c9b5fae9bea0b7e4e16c4582"
+   },
+   {
+    "file": "default.py",
+    "original_sha256": "769a254a90b4275f39008006ef91344a6e9fa8e929fbb86cb07fb1d6eeaff1ca",
+    "patched_sha256": "d1253b29f667af7189d870567ba25aa5a267e769f767d9c7eb94cd846689937f"
+   },
+   {
+    "file": "mapping.py",
+    "original_sha256": "406132fb3fb73b73a73d7041f57804ed65e55ad33f9e1790c016aa9927e67d1b",
+    "patched_sha256": "f6a955471657277a170df1b350d7ddde75cc7c3a3a49d1fd803a2d76bc728012"
+   }
+  ]
+ },
+ "simulator": {
+  "identity_list": "/home/a2rl/Workspace/roboracer/artifacts/sim1-06/20261008T070835Z/player-files.sha256",
+  "identity_list_sha256": "c69b992a462b98f2cbfe3a1a488257c5b59303557d47da0b6a021da6b6aec015",
+  "files": 604,
+  "note": "separately provided patch-04 player (D18); verified, not rebuilt or redistributed"
+ },
+ "a2rl_port": {
+  "source": "AV-Lab/a2rl dev 0b5cfa8 (S3); fe2fc01 checked unchanged for the ported files (S4)"
+ },
+ "freeze_counts": {
+  "avlite": 26,
+  "devkit": 16
+ }
+}

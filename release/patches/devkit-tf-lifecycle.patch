@@ -1,0 +1,58 @@
+--- loopback-only/autodrive_incoming_bridge.py
++++ bounded-lifecycle/autodrive_incoming_bridge.py
+@@ -29,6 +29,9 @@
+ ################################################################################
+ 
+ # ROS 2 module imports
++import signal
++import gevent
++from rclpy.signals import SignalHandlerOptions
+ import rclpy # ROS 2 client library (rcl) for Python (built on rcl C API)
+ from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy # Ouality of Service (tune communication between nodes)
+ import tf2_ros # ROS bindings for tf2 library to handle transforms
+@@ -136,7 +139,10 @@
+     return img
+ 
+ def broadcast_transform(child_frame_id, parent_frame_id, position_tf, orientation_tf):
+-    tb = tf2_ros.TransformBroadcaster(autodrive_incoming_bridge)
++    tb = getattr(autodrive_incoming_bridge, '_preflight_tf_broadcaster', None)
++    if tb is None:
++        tb = tf2_ros.TransformBroadcaster(autodrive_incoming_bridge)
++        autodrive_incoming_bridge._preflight_tf_broadcaster = tb
+     tf = TransformStamped()
+     tf.header.stamp = autodrive_incoming_bridge.get_clock().now().to_msg()
+     tf.header.frame_id = parent_frame_id
+@@ -267,7 +273,7 @@
+     global throttle_command, steering_command
+ 
+     # ROS 2 infrastructure
+-    rclpy.init() # Initialize ROS 2 communication for this context
++    rclpy.init(signal_handler_options=SignalHandlerOptions.NO) # Owned gevent lifecycle handles signals
+     autodrive_incoming_bridge = rclpy.create_node('autodrive_incoming_bridge') # Create ROS 2 node
+     qos_profile = QoSProfile( # Ouality of Service profile
+         reliability=QoSReliabilityPolicy.RMW_QOS_POLICY_RELIABILITY_RELIABLE, # Reliable (not best effort) communication
+@@ -278,14 +284,16 @@
+     publishers = {e.name: autodrive_incoming_bridge.create_publisher(e.type, e.topic, qos_profile)
+                   for e in config.pub_sub_dict.publishers} # Publishers
+ 
+-    # Recursive operations while node is alive
+-    while rclpy.ok():
+-        app = socketio.WSGIApp(sio) # Create socketio WSGI application
+-        pywsgi.WSGIServer(('127.0.0.1', 4567), app, handler_class=WebSocketHandler).serve_forever() # Deploy as a gevent WSGI server            
+-        rclpy.spin_once(autodrive_incoming_bridge) # Spin the node once
+-    
+-    autodrive_incoming_bridge.destroy_node() # Explicitly destroy the node
+-    rclpy.shutdown() # Shutdown this context
++    app = socketio.WSGIApp(sio)
++    server = pywsgi.WSGIServer(('127.0.0.1', 4567), app, handler_class=WebSocketHandler)
++    handlers = [gevent.signal_handler(sig, server.stop, 1) for sig in (signal.SIGTERM, signal.SIGINT)]
++    try:
++        server.serve_forever()
++    finally:
++        for handler in handlers:
++            handler.cancel()
++        autodrive_incoming_bridge.destroy_node()
++        rclpy.try_shutdown()
+ 
+ ################################################################################
+ 

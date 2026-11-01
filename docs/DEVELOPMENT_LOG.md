@@ -1394,3 +1394,10 @@
 
 - **Decisions:** "confirm" (D69–D75).
 - **Correction.** The AVLite pin is `50dcd00` (package metadata 0.6.3), the commit the PRE tarball was archived from. The S3 and S5 proposals and the confirmed D69 text said `c8b0ce1`, which does not exist in the AVLite repository. Corrected, with notes in the proposals and the approval record.
+
+## 2026-11-01 — S5-01: locks, one-time wheelhouse, offline fresh rebuild verified
+
+- **Built.** `roboracer_s5_env.py` (lock / wheelhouse / build / verify); `release/` holds the locks, patches and `pins.json`.
+- **Fresh environment.** Built offline with hashes; package sets equal the locks; imports and simulator identity verified; tests 95/95 and 204/204 in it.
+- **Fixed.** A PYTHONPATH leak in the freeze (package counts corrected to 26/16); AVLite wheel prebuilt.
+- **Report:** [S5 §2](stages/S5.md).

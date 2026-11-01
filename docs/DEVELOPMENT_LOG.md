@@ -1407,3 +1407,11 @@
 - **Built.** `scripts/roboracer.py` live / replay / export / compare, wrapping the qualified tools; defaults unchanged.
 - **Checks.** From the fresh environment: replay fixtures pass, a recorded lap replays exactly, compare reproduces the S4 acceptance table.
 - **Tests:** scripts 208/208. Report: [S5 §3](stages/S5.md).
+
+## 2026-11-01 — S5-04: GUI visibility and settings round trip shown; D76 proposed
+
+- **Fresh environment, isolated profile.** Our strategies visible in AVLite's stock dropdowns; plugin settings edited, saved and reloaded (500 → 450) through AVLite's settings code.
+- **Finding.** The visualizer's start needs `get_ground_truth_perception_model()`, which the bridge deliberately lacks (truth isolation).
+- **Proposed (D76).** A: document, don't implement.
+- **Not done.** Interactive window editing: the desktop is the user's live session and synthetic clicks didn't reach the Tk dialog.
+- **Report:** [S5 §4](stages/S5.md).

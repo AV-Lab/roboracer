@@ -23,7 +23,7 @@ Decisions D54–D68: [approval record](../planning/s1-motion-approval.json). Bac
 - **Driving outputs are truth-isolated.** With a fixture, the truth left on each snapshot (IPS pose, IMU) was perturbed after the fixture was applied, and B's outputs stayed bit-identical.
 - **No failure is waived.** Six failed attempts are retained with their causes (§4). Four of them were my own integration defects, each found from the run logs and fixed before the next approved run.
 - **Two deviations need your view at review:** §5.1 (the footprint check) and §5.2 (S4-03 wording).
-- **If accepted:** the original plan goes from **23/34 to 29/34**.
+- **Stage review: accepted 2026-11-01** ("accept, go ahead S5"). All boxes are ticked, S4-02 and S4-03 worded per §5.1 and §5.2: **S4 is complete**; the original plan is at 29/34.
 
 ## 1. S4 items
 

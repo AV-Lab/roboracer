@@ -1375,3 +1375,17 @@
 - **Results.** T1/T2/T3 10/10 each on U1–U7; F4-1/2/3 3/3 each; no contact; player unchanged.
 - **Finding.** The run-start detector reset cleared stale pre-localization obstacles in all 39 runs.
 - **Report:** [S4-completion.md](stages/S4-completion.md). Recommends accepting S4-01 to S4-06; deviations §5.1 (footprint check is AVLite's corridor sweep) and §5.2 (virtual-obstacle fixtures). The plan would reach 29/34.
+
+## 2026-11-01 — S4 accepted; S5 entered, proposal v0.1 (D69–D75)
+
+- **Review:** "accept, go ahead S5". **S4 complete**; original plan **29/34**.
+- **S5 inventory.** Two venvs without repository locks; empty pip cache; simulator identity verifiable.
+- **Proposed.**
+  - D69: release candidate freeze.
+  - D70: locks + one-time wheelhouse + offline hashed rebuild.
+  - D71: single entrypoint.
+  - D72: M5 set, with held-out H1 = new IC at s = 21.875 m and H2 = T1 box at s = 8.0 m.
+  - D73: thresholds reused.
+  - D74: GUI/settings check.
+  - D75: documentation and audit.
+- **Report:** [S5.md](stages/S5.md), [proposal](planning/s5-proposal.md).

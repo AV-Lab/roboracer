@@ -26,7 +26,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--episode", type=Path, required=True)
     parser.add_argument("--results", type=Path, required=True)
-    parser.add_argument("--case", choices=("t1", "t2", "t3"), required=True)
+    parser.add_argument("--case", choices=("t1", "t2", "t3", "lap"), required=True,
+                        help="lap: the release profile on the clear track (no fixture; S5 M5)")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     from shapely.geometry import LinearRing, Point, Polygon
@@ -35,8 +36,8 @@ def main():
     run = next(args.results.glob("run-*"))
     status = json.loads((run / "plugin-observer-status.json").read_text())
     ticks = [json.loads(l) for l in (run / "plugin-ticks.jsonl").read_text().splitlines() if l.strip()]
-    fixture = json.loads(Path(status["s4"]["fixture"]["path"]).read_text())
-    obstacle = Polygon(fixture["obstacles"][0]["polygon"])
+    fixture = status["s4"]["fixture"]
+    obstacle = Polygon(json.loads(Path(fixture["path"]).read_text())["obstacles"][0]["polygon"]) if fixture else None
     plan = json.loads((Path(__file__).resolve().parents[1] / "roboracer/data/c0-s3v1-plan.json").read_text())
     line = LinearRing([p[:2] for p in plan["ReferenceLine"]])
 
@@ -49,7 +50,7 @@ def main():
         icp_states[loc.get("state")] = icp_states.get(loc.get("state"), 0) + 1
         if loc.get("state") == "valid" and loc.get("pose") and t.get("pose"):
             errors.append(math.dist(loc["pose"][:2], t["pose"][:2]))
-        if t.get("pose"):
+        if t.get("pose") and obstacle is not None:
             p = Point(t["pose"][0], t["pose"][1])
             if p.distance(obstacle) < 1.5:
                 # signed lateral offset from the racing line: + left of the driving direction
@@ -64,7 +65,11 @@ def main():
     checks = {"no_abort": end["state"] != "aborted", "contact_free_and_on_track": contact_free,
               "icp_valid_while_driving": icp_ok}
     blocked = status["s4"].get("blocked")
-    if args.case in ("t1", "t2"):
+    if args.case == "lap":
+        checks["one_lap"] = episode["completed_laps"] >= 1
+        checks["not_blocked"] = blocked is None
+        checks["no fixture (clear track)"] = fixture is None
+    elif args.case in ("t1", "t2"):
         checks["one_lap"] = episode["completed_laps"] >= 1
         side = max(swerve, key=abs) if swerve else 0.0
         checks["expected_side"] = (side > 0) if args.case == "t1" else (side < 0)

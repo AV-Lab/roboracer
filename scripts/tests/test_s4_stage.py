@@ -250,13 +250,11 @@ class S4ArgumentTests(unittest.TestCase):
                                    "--results", d, "--plugin", str(ROOT / "roboracer"), *argv],
                                   capture_output=True, text=True, timeout=60)
 
-    def test_obstacle_fixture_is_required_for_and_only_for_s4(self):
-        missing = self.runner("--stack-profile", "s4")
-        self.assertNotEqual(0, missing.returncode)
-        self.assertIn("--obstacle-fixture is required for, and only for, stage s4", missing.stderr)
+    def test_obstacle_fixture_is_for_s4_only(self):
+        """S5: the fixture is optional on s4 (the release profile on the clear track) and refused on other stages."""
         stray = self.runner("--stack-profile", "s3v1i", "--obstacle-fixture", str(ROOT / "scripts/s4-fixtures/t1-left-pass.json"))
         self.assertNotEqual(0, stray.returncode)
-        self.assertIn("--obstacle-fixture is required for, and only for, stage s4", stray.stderr)
+        self.assertIn("--obstacle-fixture is for stage s4 only", stray.stderr)
         f4_elsewhere = self.runner("--stack-profile", "s3v1i", "--f4-case", "f4-2")
         self.assertNotEqual(0, f4_elsewhere.returncode)
         self.assertIn("--f4-case is for stage s4 only", f4_elsewhere.stderr)

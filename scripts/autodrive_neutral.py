@@ -166,7 +166,8 @@ S4_REARM_CASES = ("blocked", "cleared")
 S4_REARM_AFTER_S = 2.0
 S4_REARM_TIMEOUT_S = 15.0
 F4_INJECT_S = 4.0
-M3_IC_S_M = (0.0, 6.25, 12.5, 18.75, 25.0)  # D44: positions on B's committed line (IC0 = the spawn)
+M3_IC_S_M = (0.0, 6.25, 12.5, 18.75, 25.0,  # D44: positions on B's committed line (IC0 = the spawn)
+             21.875)  # S5 D72: IC 5 = held-out H1, never used before M5 (same layout; not unseen-map evidence)
 M3_IC_TOLERANCE = (0.10, math.radians(5.0))  # D44: position (m), heading (rad)
 M3_IC_HOLD_S = 2.0
 M3_APPROACH_DECEL = 0.25  # approach target speed sqrt(2 a d) (D49; baseline 0.5): slows to the creep speed
@@ -694,8 +695,9 @@ def plugin_observe(args):
                 # D57: B tracks the lattice's selected path (A2RL tracking mode selected_local); D54 A: the fixture.
                 executer.controller.config.trajectory_reference_mode = "selected"
                 executer.controller.config.safe_stop_yaw_error_rad = S4_SAFE_STOP_YAW_ERROR_RAD  # D65 A
-                vo = importlib.import_module("avlite.plugins.roboracer.integration.virtual_obstacles")
-                bridge.obstacle_fixture = vo.load_fixture(args.obstacle_fixture)
+                if args.obstacle_fixture:  # S5: without a fixture, s4 is the release profile on the clear track
+                    vo = importlib.import_module("avlite.plugins.roboracer.integration.virtual_obstacles")
+                    bridge.obstacle_fixture = vo.load_fixture(args.obstacle_fixture)
             executer.controller.reset()
     else:
         import_plugin_modules(str(args.plugin), pkg_name="roboracer")
@@ -714,8 +716,9 @@ def plugin_observe(args):
         state["controller_config"] = dict(executer.controller.config.__dict__)  # audit: B (S3)
         state["s3b_plan"] = s3b_info
         if args.stack_profile in S4_STAGES:
-            state["s4"] = {"fixture": {"path": str(args.obstacle_fixture), "name": bridge.obstacle_fixture.name,
-                                       "sha256": bridge.obstacle_fixture.sha256, "label": "virtual obstacle (D54 A)"},
+            state["s4"] = {"fixture": None if bridge.obstacle_fixture is None else {
+                               "path": str(args.obstacle_fixture), "name": bridge.obstacle_fixture.name,
+                               "sha256": bridge.obstacle_fixture.sha256, "label": "virtual obstacle (D54 A)"},
                            "stack": {"perception": "PerceptionPipeline/ScanObstacleDetection",
                                      "localization": "MapIcpLocalization (D61 A obstacle mask)",
                                      "local_planner": "C0LatticePlanner", "controller": "RacingLineController (selected)"},
@@ -3431,7 +3434,7 @@ def main():
                              "under HoldController and this virtual-obstacle fixture; B's commands logged only (no motion)")
     parser.add_argument("--icp-init-offset", type=float, nargs=3, default=None, metavar=("DX", "DY", "DYAW"),
                         help="S3 F3-2/F3-3: offset added to the configured ICP spawn pose (ICP stages only; a fault case)")
-    parser.add_argument("--m3-ic", type=int, choices=range(5), default=None,
+    parser.add_argument("--m3-ic", type=int, choices=range(6), default=None,
                         help="S3-05 M3 initial condition 0-4 (stages s3m3a/s3m3b, D44)")
     parser.add_argument("--f1-case", choices=F1_CASES, default=None,
                         help="S1-06 F1 fault case (M1 protocol v0.1); motion stage m6 only")
@@ -3496,9 +3499,9 @@ def main():
         parser.error("--f4-case is for stage s4 only")
     if args.s4_rearm and ((args.motion_stage or args.stack_profile) not in S4_STAGES or args.f4_case):
         parser.error("--s4-rearm is for stage s4 only, without --f4-case")
-    if args.mode in ("run", "plugin-observe") and \
-            bool(args.obstacle_fixture) != ((args.motion_stage or args.stack_profile) in S4_STAGES):
-        parser.error("--obstacle-fixture is required for, and only for, stage s4")
+    if args.mode in ("run", "plugin-observe") and args.obstacle_fixture and \
+            (args.motion_stage or args.stack_profile) not in S4_STAGES:
+        parser.error("--obstacle-fixture is for stage s4 only")
     if args.s4_stationary_fixture and (args.s3b_shadow or args.stack_profile or
                                        (args.mode == "run" and (args.motion_stage or not args.plugin_stack))):
         parser.error("--s4-stationary-fixture is for a stationary --plugin-stack run (no motion stage, no --s3b-shadow)")

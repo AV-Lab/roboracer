@@ -1415,3 +1415,10 @@
 - **Proposed (D76).** A: document, don't implement.
 - **Not done.** Interactive window editing: the desktop is the user's live session and synthetic clicks didn't reach the Tk dialog.
 - **Report:** [S5 §4](stages/S5.md).
+
+## 2026-11-01 — S5 M5 prep: harness additions; H2 at s = 8.0 m ambiguous; held-out sim finding (D77)
+
+- **Harness.** IC 5 (s = 21.875 m) for H1; s4 without a fixture for clear-track release-profile laps; judge `lap` case. Scripts 208/208.
+- **H2.** D72's s = 8.0 m is ambiguous (both sides passable); s = 7.0 m chosen before simulation.
+- **Sim finding.** At s = 7.0 m the sim shows no pass, and "blocked" latched only 0.226 m from the box (< D58 0.30 m): an S4-stack limitation where the track narrows.
+- **Proposed (D77).** A: keep s = 7.0 m and run it as frozen. Report: [S5 §5](stages/S5.md).

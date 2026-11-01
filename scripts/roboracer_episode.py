@@ -95,7 +95,7 @@ def export(results: Path, geometry_path: Path, output: Path, mode: str, invocati
     status = read_json(run / "plugin-observer-status.json")
     geometry = json.loads(geometry_path.read_text())
     # S4: the run's own record names its virtual-obstacle fixture; the scorer reads it independently (hash-checked).
-    fixture = Path(status["s4"]["fixture"]["path"]) if status and status.get("s4") else None
+    fixture = Path(status["s4"]["fixture"]["path"]) if status and (status.get("s4") or {}).get("fixture") else None
     obstacles, fixture_record = rs.load_obstacles(fixture) if fixture else (None, None)
     rearm = (status.get("s4") or {}).get("rearm") or {} if status else {}
     removed_ns = rearm.get("requested_ns") if rearm.get("fixture_removed") else None  # D63 A rearm-cleared

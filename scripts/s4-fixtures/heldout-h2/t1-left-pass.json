@@ -1,0 +1,27 @@
+{
+ "schema": "roboracer.virtual-obstacles/1",
+ "name": "t1-left-pass",
+ "obstacles": [
+  {
+   "id": "t1-left-pass-1",
+   "polygon": [
+    [
+     0.10537,
+     -3.68829
+    ],
+    [
+     0.08985,
+     -3.93781
+    ],
+    [
+     0.33936,
+     -3.95333
+    ],
+    [
+     0.35489,
+     -3.70381
+    ]
+   ]
+  }
+ ]
+}

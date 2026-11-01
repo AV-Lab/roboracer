@@ -419,6 +419,12 @@
    "proposal": "docs/planning/s4-acceptance-proposal.md",
    "proposal_version": "0.1",
    "note": "criteria D66 U1-U7, matrix D67, strict D68; unattended; stops only on infrastructure"
+  },
+  {
+   "stage": "S4-06 M4 acceptance, full rerun after the run-start detector reset: three interleaved sessions of 10 and the F4 session, stage s4, back to back",
+   "date": "2026-11-01",
+   "user_reply": "a p pro ve",
+   "note": "reply read as 'approve'; same criteria D66-D68; the first acceptance attempt (S4 §22) stays retained"
   }
  ],
  "not_authorized": [

@@ -1368,3 +1368,10 @@
 - **Run:** "approve"; code `c8fcd06`. T2 10/10, T3 10/10, F4-1 3/3.
 - **Failures.** 4 runs latched "blocked" at the run start: the detector still held obstacles confirmed before localization; my run-start reset (§8) covered only the lattice.
 - **Fix.** The detector is reset at run start too. Failures retained. Full rerun proposed. Report: [S4 §22](stages/S4.md).
+
+## 2026-11-01 — S4 M4 acceptance passed (30/30, F4 9/9); completion report; stage review requested
+
+- **Run:** full rerun ("a p pro ve", read as approve); code `95b9e28`.
+- **Results.** T1/T2/T3 10/10 each on U1–U7; F4-1/2/3 3/3 each; no contact; player unchanged.
+- **Finding.** The run-start detector reset cleared stale pre-localization obstacles in all 39 runs.
+- **Report:** [S4-completion.md](stages/S4-completion.md). Recommends accepting S4-01 to S4-06; deviations §5.1 (footprint check is AVLite's corridor sweep) and §5.2 (virtual-obstacle fixtures). The plan would reach 29/34.

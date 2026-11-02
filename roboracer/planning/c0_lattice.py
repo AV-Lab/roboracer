@@ -27,11 +27,19 @@ unchanged; it is what A2RL runs in tracking mode ``selected_local``. Added here:
 4. **AVLite's overtake mode off (D78 A)** (``_agent_blocks_ahead``): it is for moving cars and, with a static box
    ahead, pushed the tail edges to the far wall and back across the line; and the **wall inset** is half the car
    width + 0.20 m (U3), not + 0.10 m. The obstacle corridor stays D57's + 0.10 m.
+5. **Map-derived lattice bounds (D79 A).** The lattice's track bounds come from ``data/c0-lattice-bounds.json``
+   (built from the C0 map by ``scripts/roboracer_s5_lattice_bounds.py``), not from the plan's LeftBound/RightBound,
+   which are outside the real walls by up to 0.24 m in places (S5 §12). They apply only if they were built for
+   the plan in use (same waypoints); otherwise the planner refuses to start. The racing line and the global plan
+   object are unchanged.
 """
 
 from __future__ import annotations
 
+import json
 import logging
+import math
+from pathlib import Path
 import time
 
 from avlite.c20_planning.c28_local_lattice_planners import GreedyLatticePlanner
@@ -47,6 +55,7 @@ C0_FRONT_M = 0.425  # footprint front ahead of the pose (scorer geometry)
 GUARD_REST_M = 0.30  # D58: stop at least this far from the obstacle
 GUARD_LATENCY_S = 0.8  # pose age 0.3 s + stop request to braking (S3 F1-1: 0.28 m travel at 0.5 m/s ~ 0.45 s)
 GUARD_RADIUS_M = C0_EGO_WIDTH_M / 2 + 0.05  # narrower than the D57 corridor: only a plan into the obstacle trips it
+LATTICE_BOUNDS = Path(__file__).resolve().parents[1] / "data/c0-lattice-bounds.json"  # D79 A
 
 # name: (value, reason)
 C0_PLANNING = {
@@ -89,6 +98,18 @@ def apply_c0_planning_settings() -> dict:
     return applied
 
 
+def load_lattice_bounds(global_plan, path: Path = LATTICE_BOUNDS) -> dict:
+    """D79 A: the map-derived bounds for ``global_plan``; refused if they were built for other waypoints."""
+    data = json.loads(Path(path).read_text())
+    points = [tuple(p[:2]) for p in global_plan.path]
+    first, last = data["reference_line_first_last"]
+    if (len(points) != data["waypoints"] or len(data["LeftBound"]) != len(points)
+            or math.dist(points[0], first) > 1e-6 or math.dist(points[-1], last) > 1e-6):
+        raise ValueError(f"{Path(path).name} was built for another plan ({data['waypoints']} waypoints, "
+                         f"plan sha256 {data['plan_sha256'][:12]}); the plan in use has {len(points)}")
+    return data
+
+
 def set_c0_ego(ego) -> None:
     """The lattice corridor uses the ego box; AVLite's State defaults to 4.5 x 2.0 m."""
     ego.length, ego.width = C0_EGO_LENGTH_M, C0_EGO_WIDTH_M
@@ -104,7 +125,20 @@ class C0LatticePlanner(GreedyLatticePlanner):
         super().__init__(global_plan, env, setting)
         if env is not None and getattr(env, "ego_vehicle", None) is not None:
             set_c0_ego(env.ego_vehicle)
+        self._apply_map_bounds(global_plan)
         self._init_blocked()
+
+    def set_global_plan(self, global_plan, ego_xy=None) -> None:
+        super().set_global_plan(global_plan, ego_xy=ego_xy)
+        if getattr(self, "lattice", None) is not None:
+            self._apply_map_bounds(global_plan)
+
+    def _apply_map_bounds(self, global_plan) -> None:
+        """D79 A: the lattice samples and checks against the map-derived bounds, not the plan's."""
+        data = load_lattice_bounds(global_plan)
+        self.lattice.ref_left_boundary_d = list(data["LeftBound"])
+        self.lattice.ref_right_boundary_d = list(data["RightBound"])
+        self.bounds_source = {"file": LATTICE_BOUNDS.name, "plan_sha256": data["plan_sha256"]}
 
     def _init_blocked(self):
         self.blocked = False

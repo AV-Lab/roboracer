@@ -1,0 +1,32 @@
+{
+ "schema": "roboracer.lattice-bounds-provenance/1",
+ "file": "c0-lattice-bounds.json",
+ "sha256": "fe73c414a0c32d223f9cbc378d725536df8c685d6f7798f518355d56ff07d7fe",
+ "inputs": {
+  "plan": {
+   "path": "roboracer/data/c0-s3v1-plan.json",
+   "sha256": "c9ecdeb261dae756fc310705f9c3375eca68500d9289a89ad19678938bfd93ff"
+  },
+  "geometry": {
+   "path": "/home/a2rl/Workspace/roboracer/artifacts/s1/20261006T051902Z-s1-05/c0-geometry.json",
+   "sha256": "a6992771beb1dda691289f893bbffd7607b12d1665f18d89a35a8a88ecb64beb"
+  }
+ },
+ "builder": {
+  "path": "scripts/roboracer_s5_lattice_bounds.py",
+  "sha256": "a062b774543da71aa57a19855999861dd032e1f7049031f4ad83516ba541cf79"
+ },
+ "parameters": {
+  "window_m": 0.2,
+  "step_m": 0.01,
+  "wall_margin_m": 0.2,
+  "half_width_m": 0.144
+ },
+ "checks": {
+  "no bound outside a real wall (m, <= 0.001: 0.01 m sampling, 1e-5 rounding)": 7.585354157413349e-05,
+  "racing line inside the lattice limit at every waypoint (min room, m, >= 0)": 0.13117,
+  "waypoints tightened for the 2-D margin": 310,
+  "plan bound minus map bound, max (m)": 0.4140295135266716
+ },
+ "passed": true
+}

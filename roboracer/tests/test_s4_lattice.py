@@ -4,6 +4,8 @@ import math
 from pathlib import Path
 import unittest
 
+import numpy as np
+
 from avlite.c10_perception.c11_perception_model import AgentState, EgoState, PerceptionModel
 from avlite.c20_planning.c21_planning_model import GlobalPlan
 from avlite.c20_planning.c29_settings import PlanningSettings
@@ -104,6 +106,26 @@ class C0LatticeTests(unittest.TestCase):
         self.assertGreaterEqual(abs(planner.selected_local_plan.end.d), PlanningSettings.c28_d0_reference_threshold)
         self.assertFalse(planner.selected_local_plan.collision)
         self.assertFalse(planner.blocked)
+
+    def test_lattice_uses_the_map_derived_bounds(self):
+        # D79 A: the lattice's bounds are the map-derived file's, not the plan's LeftBound/RightBound.
+        planner, pm = self.planner()
+        import json
+        data = json.loads(c0_lattice.LATTICE_BOUNDS.read_text())
+        self.assertEqual(data["LeftBound"], planner.lattice.ref_left_boundary_d)
+        self.assertEqual(data["RightBound"], planner.lattice.ref_right_boundary_d)
+        self.assertNotEqual(list(planner.global_plan.right_boundary_d), planner.lattice.ref_right_boundary_d)
+        # at s ~ 12.3 m the plan's right bound is outside the real wall; the map bound is well inside it
+        i = int(np.searchsorted(np.asarray(planner.global_trajectory.path_s), 12.3))
+        self.assertGreater(planner.lattice.ref_right_boundary_d[i] - planner.global_plan.right_boundary_d[i], 0.3)
+        planner.replan(pm)
+        self.assertFalse(planner.blocked)
+
+    def test_bounds_for_another_plan_are_refused(self):
+        plan = GlobalPlan.from_file(str(PLAN))
+        plan.path = plan.path[:-1]
+        with self.assertRaises(ValueError):
+            c0_lattice.load_lattice_bounds(plan)
 
     def test_a_planner_error_counts_as_blocked(self):
         planner, pm = self.planner()

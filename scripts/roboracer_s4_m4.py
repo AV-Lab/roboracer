@@ -32,7 +32,11 @@ def judge_episode(j: dict) -> dict:
     tick = j.get("stack_tick_ms") or {}
     out[f"U7 stack tick max <= {TICK_MS} ms, no overruns"] = (tick.get("max") is not None and tick["max"] <= TICK_MS
                                                              and not j.get("tick_overruns"))
-    if case in ("t1", "t2"):
+    if case == "lap":  # S5 M5: the release profile on the clear track (no obstacle criteria)
+        out["U1 one lap, not blocked"] = bool(c["one_lap"]) and bool(c["not_blocked"])
+        lap = j["laps"][0]["lap_time_s"] if j.get("laps") else None
+        out[f"U6 lap <= {LAP_S} s"] = lap is not None and lap <= LAP_S
+    elif case in ("t1", "t2"):
         out["U1 one lap, expected side, not blocked"] = bool(c["one_lap"]) and bool(c["expected_side"]) and bool(c["not_blocked"])
         out[f"U3 obstacle clearance >= {OBSTACLE_M} m"] = (j["min_obstacle_clearance_m"] is not None
                                                           and j["min_obstacle_clearance_m"] >= OBSTACLE_M)

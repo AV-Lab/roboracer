@@ -1422,3 +1422,9 @@
 - **H2.** D72's s = 8.0 m is ambiguous (both sides passable); s = 7.0 m chosen before simulation.
 - **Sim finding.** At s = 7.0 m the sim shows no pass, and "blocked" latched only 0.226 m from the box (< D58 0.30 m): an S4-stack limitation where the track narrows.
 - **Proposed (D77).** A: keep s = 7.0 m and run it as frozen. Report: [S5 §5](stages/S5.md).
+
+## 2026-11-02 — S5: D76 A, D77 A; M5 run set ready
+
+- **Decisions:** "D76 A D77 A".
+- **Fresh check.** Fresh-environment s4 build smoke OK; M4 checker gains the clear-track `lap` case.
+- **M5.** 24 live runs (laps × 3, T1–T3, F1/F3/F4, H1 × 5, H2 × 5) plus offline fixtures, all from the fresh environment; needs run approval. Report: [S5 §6](stages/S5.md).

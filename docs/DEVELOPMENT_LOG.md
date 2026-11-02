@@ -1453,3 +1453,10 @@
   - a U3 wall inset.
 - **Checks.** Sim 25/25 across five noise and pose-age settings; H2 now passes. Pass clearance 0.29–0.34 m (was 0.37–0.42 m). Tests 98/98 and 208/208.
 - **Next.** Re-qualification run set (52 `s4` runs, about 3.2 h), awaiting approval. Report: [S5 §11](stages/S5.md).
+
+## 2026-11-02 — S5 D78 re-qualification: M4 30/30, F4 9/9, H2 5/5; held-out H3 0/5 on U3 wall (plan-bound error); D79 proposed
+
+- **Passed:** 52 `s4` runs from the fresh environment. M4 30/30; F4 9/9; clear laps 3/3; H2 5/5 (was 0/5); offline all pass; no contact.
+- **H3 0/5 on U3 wall:** 0.155–0.164 m at s = 14.77 m, where the plan's right bound is 0.054 m outside the real wall.
+- **Bound audit:** the plan bounds are outside a real wall by up to 0.24 m in places (s ≈ 12.3, 25.6).
+- **Proposed (D79):** derive the lattice bounds from the map and re-qualify with a new held-out H4, or a scope revision. Report: [S5 §12–§13](stages/S5.md).

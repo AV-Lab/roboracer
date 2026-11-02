@@ -1428,3 +1428,9 @@
 - **Decisions:** "D76 A D77 A".
 - **Fresh check.** Fresh-environment s4 build smoke OK; M4 checker gains the clear-track `lap` case.
 - **M5.** 24 live runs (laps × 3, T1–T3, F1/F3/F4, H1 × 5, H2 × 5) plus offline fixtures, all from the fresh environment; needs run approval. Report: [S5 §6](stages/S5.md).
+
+## 2026-11-02 — S5 M5 attempt 1: no run started (setup defects); fixed; fresh live path checked
+
+- **Attempt 1.** 24 episodes stopped at the runner's pre-launch check (missing zeroed `api_config.ini` in the fresh Devkit install); nothing launched or moved; offline part passed.
+- **Fixes.** The zeroed file is now pinned, written and verified (rebuild `s5-fresh-20261102T3`). Runner launches keep the ROS PYTHONPATH.
+- **Check.** No-motion stationary run from the fresh environment passed. Report: [S5 §7](stages/S5.md).

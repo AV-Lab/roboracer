@@ -35,7 +35,9 @@
    "--event-handlers",
    "console_direct+",
    "desktop_notification-"
-  ]
+  ],
+  "api_config_ini": "[f1tenth_1]\nthrottle_command = 0.0\nsteering_command = 0.0\n",
+  "api_config_ini_sha256": "c5cde846288d882609c5cd29091430261441db1d3faed94453b15ee73b5032d0"
  },
  "attrdict_overlay": {
   "package": "attrdict==2.0.1",

@@ -110,7 +110,13 @@ def cmd_lock(args):
                    "package": DEVKIT_PACKAGE, "patches": {n: sha256(RELEASE / "patches" / n) for n in PATCHES["devkit"]},
                    "patched_file": BRIDGE_FILE,
                    "patched_file_sha256": sha256(QUALIFIED["devkit_build_copy"] / BRIDGE_FILE),
-                   "colcon_argv_recorded": colcon},
+                   "colcon_argv_recorded": colcon,
+                   # The Devkit's outgoing bridge writes install/share/autodrive_f1tenth/api_config.ini at runtime; PRE
+                   # left it zeroed, and the runner refuses to start unless both commands are zero. Not a build product.
+                   "api_config_ini": (QUALIFIED["devkit_build_copy"].parents[1] / "install/share/autodrive_f1tenth/"
+                                      "api_config.ini").read_text(),
+                   "api_config_ini_sha256": sha256(QUALIFIED["devkit_build_copy"].parents[1] /
+                                                   "install/share/autodrive_f1tenth/api_config.ini")},
         "attrdict_overlay": {"package": "attrdict==2.0.1", "patch": PATCHES["attrdict"][0],
                              "patch_sha256": sha256(RELEASE / "patches" / PATCHES["attrdict"][0]),
                              "files": {f: sha256(QUALIFIED["compat"] / "attrdict" / f)
@@ -211,6 +217,9 @@ def cmd_build(args):
               f"--build-base {out}/build --install-base {out}/install --merge-install --packages-select autodrive_f1tenth "
               f"--event-handlers console_direct+ desktop_notification-")
     run(["bash", "-c", colcon], env=dict(clean_env(), PATH=f"{out}/devkit-venv/bin:" + os.environ["PATH"]))
+    api = out / "install/share/autodrive_f1tenth/api_config.ini"
+    api.write_text(pins["devkit"]["api_config_ini"])
+    record["checks"]["devkit api_config.ini zeroed, sha256 as qualified"] = sha256(api) == pins["devkit"]["api_config_ini_sha256"]
     # attrdict overlay: the locked wheel's package files + the recorded Python 3.10 patch.
     wheel = next(p for p in house.iterdir() if p.name.lower().startswith("attrdict-2.0.1"))
     overlay = out / "compat"
@@ -268,6 +277,11 @@ def cmd_verify(args):
               "print(\"ok\")'" % (context["compat_overlay"], out, context["devkit_python"]))
     r2 = subprocess.run(["bash", "-c", devkit], env=env, capture_output=True, text=True)
     checks["devkit bridge import (rclpy, overlay, colcon install)"] = r2.returncode == 0 and r2.stdout.strip().endswith("ok")
+    import configparser
+    api = configparser.ConfigParser()
+    api.read(out / "install/share/autodrive_f1tenth/api_config.ini")
+    checks["devkit api_config.ini present with zero commands (runner pre-launch check)"] = (
+        api.has_section("f1tenth_1") and all(api.getfloat("f1tenth_1", k) == 0 for k in ("throttle_command", "steering_command")))
     r3 = subprocess.run(["sha256sum", "-c", "--quiet", pins["simulator"]["identity_list"]], cwd=QUALIFIED["player_dir"],
                         capture_output=True, text=True)
     checks[f"simulator identity ({pins['simulator']['files']} files)"] = r3.returncode == 0

@@ -1460,3 +1460,12 @@
 - **H3 0/5 on U3 wall:** 0.155–0.164 m at s = 14.77 m, where the plan's right bound is 0.054 m outside the real wall.
 - **Bound audit:** the plan bounds are outside a real wall by up to 0.24 m in places (s ≈ 12.3, 25.6).
 - **Proposed (D79):** derive the lattice bounds from the map and re-qualify with a new held-out H4, or a scope revision. Report: [S5 §12–§13](stages/S5.md).
+
+## 2026-11-02 — S5 D79 A: H4 sealed; map-derived lattice bounds; sim shows U3 unreachable in narrow gaps; D80 proposed
+
+- **D79 A** ("D79 A"). H4 drawn and committed before the change: box at s = 18.25 m, pass right.
+- **Change** (`ae0d1cc`): lattice bounds built from the C0 map, with a 2-D wall-margin check; tests pass (100/100 plugin, 208/208 scripts).
+- **Sim:** H3 still fails on the wall (0.177 m) because of tracking error (the car cuts the bend by about 0.07 m), not the bounds.
+- **Not kept:** a tracking allowance fixes the wall side but drops obstacle clearance below 0.25 m.
+- **Finding:** U3 needs about 0.88 m of free gap with this controller; H3 and H4 have about 0.83 m.
+- **Proposed (D80):** gap-tiered criterion (recommended), narrow gaps not supported, or a scope revision. No live runs. Report: [S5 §15–§16](stages/S5.md).

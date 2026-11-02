@@ -184,6 +184,8 @@ def simulate(fixture_path, geometry, plugin_dir, *, pose_period, pose_age, range
                 "t": round(t, 2), "s": round(float(line.convert_xy_to_sd(x, y)[0]), 3), "v": round(v, 3),
                 "loc_sd": [round(float(c), 3) for c in planner.location_sd] if len(planner.traversed_s) else None,
                 "obstacle_m": round(car_now.distance(obstacles), 3) if obstacles is not None else None,
+                "wall_m": round(min(car_now.exterior.distance(r) for r in [region.exterior, *region.interiors]), 3),
+                "heading_rad": round(th, 3),
                 "agents": len(executer.pm.agent_vehicles), "blocked": planner.blocked,
                 "yaw_error": (ctl.last or {}).get("yaw_error_rad"),
                 "plan_gap_m": planner.diagnostics.get("plan_obstacle_gap_m"), "blocked_reason": planner.blocked_reason,

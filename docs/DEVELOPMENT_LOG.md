@@ -1474,3 +1474,10 @@
 
 - Judge reports the fixture passing gap; checker applies the tier. Scripts 212/212.
 - H4 still unseen; run approval pending. Report: [S5 §17](stages/S5.md).
+
+## 2026-11-02 — S5 D79/D80 re-qualification: held-out H4 5/5; M5 items 18/18; F4 9/9; matrix 29/30 (runner-lease stop); D81 proposed
+
+- 57 s4 runs from the fresh environment; no contact; offline all pass.
+- H4 (narrow tier): obstacle 0.159-0.168 m, wall >= 0.296 m. H2 obstacle 0.257 m (thin). T2 worst 0.279 m.
+- s1-t1-r02: supervisor runner-lease-expired at s = 20.44 m after a correct pass; fail-safe stop; stack normal. Strict verdict not passed.
+- Proposed (D81): classify and re-run that episode, re-run the matrix, or accept 29/30 as a deviation. Report: [S5 §18-§19](stages/S5.md).

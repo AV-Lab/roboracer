@@ -441,6 +441,12 @@
    "user_reply": "批准 M5 运行",
    "proposal": "docs/stages/S5.md section 6",
    "note": "failures retained; stops only on infrastructure; F2 not run with B (S2 batch harness drives A)"
+  },
+  {
+   "stage": "S5 M5 rerun (same set as 2026-11-02 approval) from the rebuilt fresh environment s5-fresh-20261102T3",
+   "date": "2026-11-02",
+   "user_reply": "批准重新运行 M5",
+   "note": "attempt 1 (no run started; S5 §7) stays retained"
   }
  ],
  "not_authorized": [

@@ -1434,3 +1434,10 @@
 - **Attempt 1.** 24 episodes stopped at the runner's pre-launch check (missing zeroed `api_config.ini` in the fresh Devkit install); nothing launched or moved; offline part passed.
 - **Fixes.** The zeroed file is now pinned, written and verified (rebuild `s5-fresh-20261102T3`). Runner launches keep the ROS PYTHONPATH.
 - **Check.** No-motion stationary run from the fresh environment passed. Report: [S5 §7](stages/S5.md).
+
+## 2026-11-02 — S5 M5 rerun: regression and H1 pass; H2 0/5 (blocked 0.21 m short); D78 proposed
+
+- **Run:** fresh environment `s5-fresh-20261102T3`.
+- **Passed.** Laps 3/3; T1–T3; F1/F3/F4; H1 5/5; offline all pass.
+- **H2 0/5.** Blocked, at rest 0.208–0.234 m from the box (< D58 0.30 m), no contact: the narrowing-track limitation confirmed live.
+- **Verdict.** M5 not passed (strict). **Proposed (D78):** fix and re-qualify (with a new held-out H3), or a scope revision. Report: [S5 §8–§9](stages/S5.md).

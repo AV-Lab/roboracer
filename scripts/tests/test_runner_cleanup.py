@@ -44,6 +44,23 @@ class RunnerHeartbeatTests(unittest.TestCase):
         self.assertTrue(hb.tick())
         self.assertAlmostEqual(hb.summary()["max_main_loop_gap_s"], 0.5)
 
+    def test_long_gaps_are_recorded_only_while_beats_are_due(self):
+        # D81 A: a stall while beats are due is recorded with when it ended; a pre-Connect gap is not.
+        due = [False]
+        hb = self.make(enabled=lambda: due[0])
+        hb.progress()
+        self.clock.advance(1.5)  # before Connect: not recorded
+        hb.progress()
+        due[0] = True
+        self.clock.advance(0.1)
+        hb.progress()  # short: not recorded
+        self.clock.advance(0.7)
+        hb.progress()
+        gaps = hb.summary()["long_gaps_while_due"]
+        self.assertEqual(1, len(gaps))
+        self.assertAlmostEqual(0.7, gaps[0]["gap_s"])
+        self.assertEqual(self.clock(), gaps[0]["ended_monotonic_ns"])
+
     def test_hung_loop_stops_beats_within_window(self):
         hb = self.make()
         hb.progress()

@@ -2385,16 +2385,25 @@ class RunnerHeartbeat:
         self.window_ns, self.period_s = int(progress_window_s * 1e9), period_s
         self.last_progress_ns = None
         self.max_progress_gap_ns = 0
+        self.long_gaps = []
         self.sent = self.withheld = 0
         self.error = None
         self.stopped = threading.Event()
         self.thread = threading.Thread(target=self._run, name="runner-heartbeat", daemon=True)
 
+    LONG_GAP_NS = 200_000_000  # D81 A: main-loop gaps worth recording while beats are due
+    MAX_LONG_GAPS = 200
+
     def progress(self):
         """Called by the main loop on every iteration (and by its GUI waits)."""
         now = self.clock()
         if self.last_progress_ns is not None:
-            self.max_progress_gap_ns = max(self.max_progress_gap_ns, now - self.last_progress_ns)
+            gap = now - self.last_progress_ns
+            self.max_progress_gap_ns = max(self.max_progress_gap_ns, gap)
+            # D81 A: S5 s1-t1-r02 lost the lease to a stall while driving; the overall maximum is dominated by
+            # the pre-Connect gap, so stalls while beats are due are recorded with when they ended.
+            if gap > self.LONG_GAP_NS and self.enabled() and len(self.long_gaps) < self.MAX_LONG_GAPS:
+                self.long_gaps.append({"ended_monotonic_ns": now, "gap_s": round(gap / 1e9, 3)})
         self.last_progress_ns = now
 
     def tick(self):
@@ -2427,7 +2436,8 @@ class RunnerHeartbeat:
 
     def summary(self):
         return {"sent": self.sent, "withheld_no_progress": self.withheld, "progress_window_s": self.window_ns / 1e9,
-                "max_main_loop_gap_s": round(self.max_progress_gap_ns / 1e9, 3), "error": self.error}
+                "max_main_loop_gap_s": round(self.max_progress_gap_ns / 1e9, 3), "error": self.error,
+                "long_gaps_while_due": list(self.long_gaps)}
 
 
 def cleanup_order(children, label=lambda c: c[2]["label"]):

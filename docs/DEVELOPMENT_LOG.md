@@ -1481,3 +1481,7 @@
 - H4 (narrow tier): obstacle 0.159-0.168 m, wall >= 0.296 m. H2 obstacle 0.257 m (thin). T2 worst 0.279 m.
 - s1-t1-r02: supervisor runner-lease-expired at s = 20.44 m after a correct pass; fail-safe stop; stack normal. Strict verdict not passed.
 - Proposed (D81): classify and re-run that episode, re-run the matrix, or accept 29/30 as a deviation. Report: [S5 §18-§19](stages/S5.md).
+
+## 2026-11-02 — S5 D81 A: s1-t1-r02 classified as an infrastructure stop; runner stalls recorded; T1 x 1 re-run ready
+
+- 95 heartbeats withheld while driving in s1-t1-r02 (one other ever, in 172 runs). The runner now records stalls while beats are due. Scripts 213/213. Run approval pending. Report: [S5 §20](stages/S5.md).

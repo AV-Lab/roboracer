@@ -38,6 +38,14 @@ def main():
     ticks = [json.loads(l) for l in (run / "plugin-ticks.jsonl").read_text().splitlines() if l.strip()]
     fixture = status["s4"]["fixture"]
     obstacle = Polygon(json.loads(Path(fixture["path"]).read_text())["obstacles"][0]["polygon"]) if fixture else None
+    passing_gap = None  # D80 A: the free gap on the expected passing side, from the fixture's own provenance check
+    if fixture:
+        prov_path = Path(fixture["path"]).with_name(Path(fixture["path"]).stem + ".provenance.json")
+        if prov_path.exists():
+            prov = json.loads(prov_path.read_text())
+            side = prov["check"].get("expected_corridor")
+            if side and prov.get("fixture_sha256") == fixture.get("sha256"):
+                passing_gap = {"side": side, "gap_m": prov["check"]["gaps_m"][f"{side}_m"], "provenance": str(prov_path)}
     plan = json.loads((Path(__file__).resolve().parents[1] / "roboracer/data/c0-s3v1-plan.json").read_text())
     line = LinearRing([p[:2] for p in plan["ReferenceLine"]])
 
@@ -82,6 +90,8 @@ def main():
     tick_ms = sorted((t["end_ns"] - t["start_ns"]) / 1e6 for t in ticks if t.get("stepped"))
     report = {"schema": "roboracer.s4-live-check/1", "case": args.case, "passed": all(checks.values()),
               "checks": checks, "outcome": end, "laps": s.get("laps"),
+              "fixture": {"name": fixture["name"], "sha256": fixture.get("sha256")} if fixture else None,
+              "passing_gap": passing_gap,
               "min_obstacle_clearance_m": s.get("min_obstacle_clearance_m"),
               "min_wall_clearance_m": s.get("min_clearance_m"),
               "obstacle_contact_events": s.get("obstacle_contact_events"),

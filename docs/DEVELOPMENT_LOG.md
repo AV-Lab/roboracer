@@ -1469,3 +1469,8 @@
 - **Not kept:** a tracking allowance fixes the wall side but drops obstacle clearance below 0.25 m.
 - **Finding:** U3 needs about 0.88 m of free gap with this controller; H3 and H4 have about 0.83 m.
 - **Proposed (D80):** gap-tiered criterion (recommended), narrow gaps not supported, or a scope revision. No live runs. Report: [S5 §15–§16](stages/S5.md).
+
+## 2026-11-02 — S5 D80 A: U3 gap-tiered (narrow gaps < 0.88 m: U3n 0.10/0.10 m); harness and tests; re-qualification set (57 runs) ready
+
+- Judge reports the fixture passing gap; checker applies the tier. Scripts 212/212.
+- H4 still unseen; run approval pending. Report: [S5 §17](stages/S5.md).

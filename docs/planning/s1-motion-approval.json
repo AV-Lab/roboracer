@@ -455,6 +455,11 @@
    "stage": "S5 D78 A re-qualification of stage s4 from s5-fresh-20261102T3: M4 matrix T1/T2/T3 x 10, F4 x 9, clear laps x 3, held-out H3 x 5, H2 x 5 (development case), offline checks (S5 §11)",
    "date": "2026-11-02",
    "user_reply": "批准重新验收运行"
+  },
+  {
+   "stage": "S5 D79 A / D80 A re-qualification of stage s4 from s5-fresh-20261102T3: M4 matrix T1/T2/T3 x 10, F4 x 9, clear laps x 3, held-out H4 x 5, H3 x 5 and H2 x 5 (development cases), offline checks (S5 §17)",
+   "date": "2026-11-02",
+   "user_reply": "批准"
   }
  ],
  "not_authorized": [

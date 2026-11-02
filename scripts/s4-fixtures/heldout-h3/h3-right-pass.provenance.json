@@ -1,0 +1,48 @@
+{
+ "schema": "roboracer.virtual-obstacles-provenance/1",
+ "fixture": "h3-right-pass.json",
+ "fixture_sha256": "c3a82a3ab338a3edbf740e80832ce267eff812030d3ec3fb26f19d9b1203557d",
+ "inputs": {
+  "plan": {
+   "path": "roboracer/data/c0-s3v1-plan.json",
+   "sha256": "c9ecdeb261dae756fc310705f9c3375eca68500d9289a89ad19678938bfd93ff"
+  },
+  "geometry": {
+   "path": "/home/a2rl/Workspace/roboracer/artifacts/s1/20261006T051902Z-s1-05/c0-geometry.json",
+   "sha256": "a6992771beb1dda691289f893bbffd7607b12d1665f18d89a35a8a88ecb64beb"
+  }
+ },
+ "builder": {
+  "path": "scripts/roboracer_s5_h3_draw.py",
+  "sha256": "6011411e4e6b538259093fb954bfee4204118578f4091a396f2f55f46d2d5129"
+ },
+ "draw": {
+  "key": "roboracer S5 D78 A H3 draw 2026-11-02",
+  "lap_length_m": 31.24704843232965,
+  "needed_m": 0.488042587403323,
+  "n_candidates": 105,
+  "median_width_m": 1.3672006988927614,
+  "n_narrow": 54,
+  "index": 11,
+  "draw": {
+   "s": 14.75,
+   "pass": "right",
+   "width_m": 1.2914519259750428,
+   "gaps_m": {
+    "left_m": 0.20421276296243487,
+    "right_m": 0.8372340694803497
+   }
+  }
+ },
+ "check": {
+  "gaps_m": {
+   "left_m": 0.20421276296243487,
+   "right_m": 0.8372340694803497
+  },
+  "needed_m": 0.488042587403323,
+  "car_width_m": 0.288042587403323,
+  "expected_corridor": "right",
+  "obstacle_area_m2": 0.06250159530000002,
+  "obstacle_inside_region_m2": 0.06250159530000002
+ }
+}

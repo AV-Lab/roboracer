@@ -74,7 +74,8 @@
   "D74": "GUI/settings check in an isolated AVLite profile on desktop :1 (screenshots + saved profile files; no motion)",
   "D75": "documentation and audit; private-repository-ready working tree on a branch; nothing published",
   "D76": "A: AutoDriveBridge does not implement get_ground_truth_perception_model (truth isolation); the AVLite visualizer is documented for configuration and profile editing, live runs use the stage runner / scripts/roboracer.py live",
-  "D77": "A: H2 = the T1 box at s = 7.0 m (chosen before simulation; D72's s = 8.0 m is ambiguous), run x5 as frozen and reported as is (the sim predicts blocked short of the box)"
+  "D77": "A: H2 = the T1 box at s = 7.0 m (chosen before simulation; D72's s = 8.0 m is ambiguous), run x5 as frozen and reported as is (the sim predicts blocked short of the box)",
+  "D78": "A: fix the S4 stack so 'blocked' is decided early enough (D58 stop distance held) and/or the lattice plans through narrowings; re-run M4 and M5. H2 is no longer held out; a new held-out case H3 is drawn from geometry only and sealed before the fix is evaluated (scripts/roboracer_s5_h3_draw.py; box at s = 14.75 m, pass right)"
  },
  "stages": [
   "M0",
@@ -606,6 +607,13 @@
     "D77"
    ],
    "user_reply": "D76 A D77 A"
+  },
+  {
+   "date": "2026-11-02",
+   "decisions": [
+    "D78"
+   ],
+   "user_reply": "D78 A"
   }
  ],
  "corrections": [

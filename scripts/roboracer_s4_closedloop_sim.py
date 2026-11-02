@@ -111,8 +111,18 @@ def make_world(plugin, geometry, fixture_path, rng, range_noise):
     return world, region
 
 
+def _chain(edge):
+    """The committed lattice chain as [start s, end s, end d, collision] rows (trace only)."""
+    rows = []
+    while edge is not None:
+        rows.append([round(float(edge.start.s), 2), round(float(edge.end.s), 2), round(float(edge.end.d), 3),
+                     bool(edge.collision)])
+        edge = edge.selected_next_local_plan
+    return rows
+
+
 def simulate(fixture_path, geometry, plugin_dir, *, pose_period, pose_age, range_noise, seed, t_max, accel=1.5,
-             brake=2.0, speed_tau=0.15, slew_radps=math.radians(183.0), maneuver_distance=None):
+             brake=2.0, speed_tau=0.15, slew_radps=math.radians(183.0), maneuver_distance=None, trace=False):
     import collections
     import numpy as np
     from shapely.affinity import rotate, translate
@@ -144,7 +154,7 @@ def simulate(fixture_path, geometry, plugin_dir, *, pose_period, pose_age, range
     min_wall, min_obstacle, contact, offtrack = math.inf, math.inf, False, False
     events, icp_states, blocked_at, rest_since, initialized = [], {}, None, None, False
     max_lateral = 0.0
-    timing = []
+    timing, trace_rows = [], []
 
     def offer_due(now):
         nonlocal next_snapshot, seq
@@ -167,6 +177,21 @@ def simulate(fixture_path, geometry, plugin_dir, *, pose_period, pose_age, range
         started = time.perf_counter()
         executer.step(sim_dt=0.1, control_dt=0.099, replan_dt=0.099, perception_dt=0.099, localization_dt=0.099)
         timing.append(time.perf_counter() - started)
+        if trace:  # S5 D78: per-tick lattice view (diagnosis only)
+            car_now = translate(rotate(body, th, origin=(0, 0), use_radians=True), x, y)
+            sel = planner.selected_local_plan
+            trace_rows.append({
+                "t": round(t, 2), "s": round(float(line.convert_xy_to_sd(x, y)[0]), 3), "v": round(v, 3),
+                "loc_sd": [round(float(c), 3) for c in planner.location_sd] if len(planner.traversed_s) else None,
+                "obstacle_m": round(car_now.distance(obstacles), 3) if obstacles is not None else None,
+                "agents": len(executer.pm.agent_vehicles), "blocked": planner.blocked,
+                "yaw_error": (ctl.last or {}).get("yaw_error_rad"),
+                "plan_gap_m": planner.diagnostics.get("plan_obstacle_gap_m"), "blocked_reason": planner.blocked_reason,
+                "selected_end_d": round(float(sel.end.d), 3) if sel is not None else None,
+                "chain": _chain(sel),
+                "edges": [{"d": round(float(e.end.d), 3), "col": bool(e.collision), "bnd": bool(e.boundary_violation),
+                           "curv": bool(planner._is_curvature_feasible(e)), "clr": round(float(e.min_clearance), 3)}
+                          for e in planner.lattice.level0_edges]})
         request = world.last_request
         if request is not None:
             target, steer = float(request.target_speed), float(request.steer)
@@ -249,7 +274,8 @@ def simulate(fixture_path, geometry, plugin_dir, *, pose_period, pose_age, range
             "max_abs_yaw_error_rad": max_yaw_error, "tracking_safe_stop": safe_stops[0] if safe_stops else None,
             "maneuver_distance_m": planner.maneuver_distance, "safe_stop_yaw_error_rad": ctl.config.safe_stop_yaw_error_rad,
             "planner": dict(planner.diagnostics), "detector": dict(detector.status),
-            "tick_ms": {"p50": 1e3 * sorted(timing)[len(timing) // 2], "max": 1e3 * max(timing)} if timing else None}
+            "tick_ms": {"p50": 1e3 * sorted(timing)[len(timing) // 2], "max": 1e3 * max(timing)} if timing else None} \
+        | ({"trace": trace_rows} if trace else {})
 
 
 def main():
@@ -262,6 +288,7 @@ def main():
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--t-max", type=float, default=90.0)
     parser.add_argument("--maneuver-distance", type=float, default=None, help="override the C0 lattice edge length")
+    parser.add_argument("--trace", action="store_true", help="record the level-0 lattice edges every tick (diagnosis)")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.output.exists():
@@ -271,9 +298,10 @@ def main():
     for fixture in args.fixture or [Path("none")]:
         row = simulate(None if str(fixture) == "none" else fixture, geometry, REPO / "roboracer",
                        pose_period=args.pose_period, pose_age=args.pose_age, range_noise=args.range_noise,
-                       seed=args.seed, t_max=args.t_max, maneuver_distance=args.maneuver_distance)
+                       seed=args.seed, t_max=args.t_max, maneuver_distance=args.maneuver_distance, trace=args.trace)
         results.append(row)
-        print(json.dumps({k: (round(v, 3) if isinstance(v, float) else v) for k, v in row.items() if k != "events"}),
+        print(json.dumps({k: (round(v, 3) if isinstance(v, float) else v) for k, v in row.items()
+                          if k not in ("events", "trace")}),
               flush=True)
     args.output.write_text(json.dumps({"model": "kinematic bicycle, no slip; synthesized scans (planning evidence, "
                                        "not a driving result)", "args": {k: str(v) for k, v in vars(args).items()},

@@ -621,6 +621,11 @@
    "date": "2026-11-01",
    "decision": "D69",
    "correction": "AVLite pin is 50dcd0043db0cc17efbe82bda81cd0e8875810a0 (package metadata 0.6.3), the commit the PRE tarball was archived from (artifacts/preflight/20260928T113745Z/avlite-environment-setup.json); the confirmed D69 text and the S3/S5 proposals said c8b0ce1, which does not exist in the AVLite repository"
+  },
+  {
+   "date": "2026-11-02",
+   "corrects": "S5 §5, §8, §9 (H2 cause)",
+   "statement": "H2 does not fail because the track narrows (left gap 1.06 m; ~0.07 m shift needed). A lattice trace shows a deferred shift in the committed chain, no switch to the clear fresh edges, and a D58 latch that fired beside the box while the followed plan cleared it. See S5 §11."
   }
  ]
 }

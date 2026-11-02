@@ -1441,3 +1441,15 @@
 - **Passed.** Laps 3/3; T1–T3; F1/F3/F4; H1 5/5; offline all pass.
 - **H2 0/5.** Blocked, at rest 0.208–0.234 m from the box (< D58 0.30 m), no contact: the narrowing-track limitation confirmed live.
 - **Verdict.** M5 not passed (strict). **Proposed (D78):** fix and re-qualify (with a new held-out H3), or a scope revision. Report: [S5 §8–§9](stages/S5.md).
+
+## 2026-11-02 — S5 D78 A: H3 sealed; H2 diagnosed (not narrowing); lattice fix; sim 25/25; re-qualification set ready
+
+- **D78 A** ("D78 A"). H3 drawn from geometry and committed before any fix work: box at s = 14.75 m, pass right.
+- **Diagnosis.** H2 failed for three reasons: a deferred shift in the committed chain, no switch to a clear edge, and a D58 latch that fires beside a box being passed. It was not because the track narrows. AVLite's overtake mode also pushed T2's tail edges to the wall.
+- **Fix** (`7ffc5de`, subclass only):
+  - early avoidance;
+  - a gated latch with a stop-distance guard;
+  - overtake mode off;
+  - a U3 wall inset.
+- **Checks.** Sim 25/25 across five noise and pose-age settings; H2 now passes. Pass clearance 0.29–0.34 m (was 0.37–0.42 m). Tests 98/98 and 208/208.
+- **Next.** Re-qualification run set (52 `s4` runs, about 3.2 h), awaiting approval. Report: [S5 §11](stages/S5.md).

@@ -1,0 +1,27 @@
+{
+ "schema": "roboracer.virtual-obstacles/1",
+ "name": "h4-right-pass",
+ "obstacles": [
+  {
+   "id": "h4-right-pass-1",
+   "polygon": [
+    [
+     -1.52787,
+     -2.16792
+    ],
+    [
+     -1.46452,
+     -1.92608
+    ],
+    [
+     -1.70636,
+     -1.86273
+    ],
+    [
+     -1.76971,
+     -2.10457
+    ]
+   ]
+  }
+ ]
+}

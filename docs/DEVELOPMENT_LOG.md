@@ -1485,3 +1485,7 @@
 ## 2026-11-02 — S5 D81 A: s1-t1-r02 classified as an infrastructure stop; runner stalls recorded; T1 x 1 re-run ready
 
 - 95 heartbeats withheld while driving in s1-t1-r02 (one other ever, in 172 runs). The runner now records stalls while beats are due. Scripts 213/213. Run approval pending. Report: [S5 §20](stages/S5.md).
+
+## 2026-11-03 — S5 D81 T1 re-run passed: M4 matrix 30/30; s4 re-qualification passed (H4 held-out 5/5)
+
+- Re-run obstacle 0.334 m, lap 68.5 s; 0 heartbeats withheld. Remaining: S5-04 docs, S5-05 audit, completion report. Report: [S5 §21](stages/S5.md).

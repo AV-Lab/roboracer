@@ -461,6 +461,11 @@
    "stage": "S5 D79 A / D80 A re-qualification of stage s4 from s5-fresh-20261102T3: M4 matrix T1/T2/T3 x 10, F4 x 9, clear laps x 3, held-out H4 x 5, H3 x 5 and H2 x 5 (development cases), offline checks (S5 §17)",
    "date": "2026-11-02",
    "user_reply": "批准"
+  },
+  {
+   "stage": "S5 D81 A: T1 x 1 re-run (stage s4, fresh environment s5-fresh-20261102T3) to complete the M4 matrix (S5 §20)",
+   "date": "2026-11-03",
+   "user_reply": "批准"
   }
  ],
  "not_authorized": [

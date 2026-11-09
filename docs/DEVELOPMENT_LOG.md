@@ -1493,3 +1493,7 @@
 ## 2026-11-09 — S5-04 docs: release/README.md (operations guide) and roboracer/README.md (release 1)
 
 - Versions, build, launch, reset, calibration and envelope, results, limitations; facts cited and checked against code. Report: [S5 §22](stages/S5.md).
+
+## 2026-11-09 — S5-05 audit: evidence verified; deviations register; runner stall coincides with host maintenance
+
+- 375 cited paths and 60 manifests (18,776 files) verified; 12 deviations; 2 corrections. Report: [S5 audit](stages/S5-audit.md), [S5 §23](stages/S5.md).

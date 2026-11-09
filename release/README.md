@@ -153,7 +153,10 @@ F1, F3 and H1 were not re-run in the re-qualification: their stages do not use t
 - The ICP map and the scorer share one source (the C0 collider geometry).
 
 **Infrastructure:**
-- **Runner stalls:** a runner main-loop stall once expired the supervisor lease and stopped a run (D81). The stop was safe; the cause is not yet known. Stalls are now recorded per run.
+- **Runner stalls:** a runner main-loop stall once expired the supervisor lease and stopped a run (D81). The stop was safe.
+  - It coincided to the second with host maintenance: a systemd reload, a snap auto-refresh, and apt and fwupd timers ([S5 audit §6](../docs/stages/S5-audit.md)).
+  - Hold snap and apt auto-updates during run sessions.
+  - Stalls are now recorded per run.
 - **Simulator:**
   - a genuine stall about once in 50 laps;
   - a blank-window start about once in 110 runs;

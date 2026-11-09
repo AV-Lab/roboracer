@@ -1497,3 +1497,7 @@
 ## 2026-11-09 — S5-05 audit: evidence verified; deviations register; runner stall coincides with host maintenance
 
 - 375 cited paths and 60 manifests (18,776 files) verified; 12 deviations; 2 corrections. Report: [S5 audit](stages/S5-audit.md), [S5 §23](stages/S5.md).
+
+## 2026-11-09 — S5-05 release tree: root README, THIRD_PARTY.md; clean clone passes 100/100 and 213/213; local branch release-1 (not pushed)
+
+- Report: [S5 §24](stages/S5.md).

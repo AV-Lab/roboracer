@@ -1501,3 +1501,7 @@
 ## 2026-11-09 — S5-05 release tree: root README, THIRD_PARTY.md; clean clone passes 100/100 and 213/213; local branch release-1 (not pushed)
 
 - Report: [S5 §24](stages/S5.md).
+
+## 2026-11-09 — S5 completion report: all five items delivered; awaiting review
+
+- Report: [S5 completion](stages/S5-completion.md). Plan S5 boxes marked "delivered; awaiting review".

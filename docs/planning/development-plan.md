@@ -262,11 +262,11 @@ Qualification failures require a report with alternatives, cost and impact. Ther
 
 **Scope:** packaging, dependency reproducibility, recommended profile, unattended run/replay, standard AVLite GUI registration/settings checks required by the plugin guide, held-out cases and limitations. **Dependencies:** accepted scoped stages and frozen release criteria. **Non-goals:** redistributing simulator binaries without license review, GitHub publication, real-car certification or future-event compliance.
 
-- [ ] S5-01 — Rebuild plugin/Devkit dependencies from recorded locks in a fresh permitted environment; verify the separately provided simulator's identity and demonstrate installation/registration/example.
-- [ ] S5-02 — Freeze algorithm/configuration choices before held-out M5 evaluation; run the approved cases and retain all attempts.
-- [ ] S5-03 — Demonstrate single-entrypoint recorded-input replay, live result export and A/B comparison without changing production defaults.
-- [ ] S5-04 — Complete supported-version, launch/reset, calibration-boundary and limitation documentation; demonstrate plugin/strategy visibility in the standard AVLite GUI and settings/profile editing/loading in an isolated profile. No custom dashboard is required.
-- [ ] S5-05 — Audit todos/evidence, actual metrics and deviations; prepare a private-repository-ready working tree without publishing.
+- [ ] S5-01 — Rebuild plugin/Devkit dependencies from recorded locks in a fresh permitted environment; verify the separately provided simulator's identity and demonstrate installation/registration/example. **2026-11-09: delivered; awaiting review.** See [S5 completion report](../stages/S5-completion.md).
+- [ ] S5-02 — Freeze algorithm/configuration choices before held-out M5 evaluation; run the approved cases and retain all attempts. **2026-11-09: delivered; awaiting review.** See [S5 completion report](../stages/S5-completion.md).
+- [ ] S5-03 — Demonstrate single-entrypoint recorded-input replay, live result export and A/B comparison without changing production defaults. **2026-11-09: delivered; awaiting review.** See [S5 completion report](../stages/S5-completion.md).
+- [ ] S5-04 — Complete supported-version, launch/reset, calibration-boundary and limitation documentation; demonstrate plugin/strategy visibility in the standard AVLite GUI and settings/profile editing/loading in an isolated profile. No custom dashboard is required. **2026-11-09: delivered; awaiting review.** See [S5 completion report](../stages/S5-completion.md).
+- [ ] S5-05 — Audit todos/evidence, actual metrics and deviations; prepare a private-repository-ready working tree without publishing. **2026-11-09: delivered; awaiting review.** See [S5 completion report](../stages/S5-completion.md).
 
 **Acceptance:** fresh-environment demonstration and all frozen release criteria pass. Required unavailable GUI, unattended-sensing or scene cases are unverified, not silently skipped. Distinguish reconstructing plugin/Devkit dependencies from acquiring the separately distributed simulator. **Evidence:** `artifacts/s5/<run-id>/`, small versioned summaries and `docs/stages/S5.md`.
 

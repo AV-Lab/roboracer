@@ -1489,3 +1489,7 @@
 ## 2026-11-03 — S5 D81 T1 re-run passed: M4 matrix 30/30; s4 re-qualification passed (H4 held-out 5/5)
 
 - Re-run obstacle 0.334 m, lap 68.5 s; 0 heartbeats withheld. Remaining: S5-04 docs, S5-05 audit, completion report. Report: [S5 §21](stages/S5.md).
+
+## 2026-11-09 — S5-04 docs: release/README.md (operations guide) and roboracer/README.md (release 1)
+
+- Versions, build, launch, reset, calibration and envelope, results, limitations; facts cited and checked against code. Report: [S5 §22](stages/S5.md).

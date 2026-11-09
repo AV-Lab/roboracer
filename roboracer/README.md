@@ -1,27 +1,41 @@
 # RoboRacer AVLite plugin
 
-Community plugin for RoboRacer development with AVLite and the source-built AutoDRIVE F1TENTH simulator. **Status: S1-02 observation path.** The plugin loads, registers and validates its settings. On `connect()` the bridge reads the provenance-enabled Devkit topics and serves checked observation snapshots. It drives nothing.
+Community plugin that lets AVLite drive the source-built AutoDRIVE F1TENTH simulator.
+
+**Status: release 1 (S5).** The release profile is stage `s4`: the A2RL racing-line stack on map ICP at 0.5 m/s, with static-obstacle detection and avoidance on the C0 track. Versions, launch, reset, calibration and limitations are in the operations guide, [`../release/README.md`](../release/README.md). Qualification evidence is in [`../docs/stages/S5.md`](../docs/stages/S5.md).
+
+Importing the package never starts a simulator, socket, ROS node, thread or process.
 
 ## Exports
 
-| Class | Role |
-| --- | --- |
-| `TargetSpeedSteeringCommand` | The approved command: target speed [m/s, ≥ 0] and front steering angle [rad, positive left], plus its generation time on the monotonic clock. It is a `ControlCommandBase` subclass, not a relabelled Ackermann acceleration. |
-| `AutoDriveBridge` | World bridge for the guarded SIM1-02 AutoDRIVE player. Construction has no side effects. `connect()` starts a private rclpy subscription thread; `close()` stops it. Advertises `LIDAR_2D` and `IMU`, and ground-truth `LOCALIZATION` (labelled simulator truth from IPS + IMU), like the built-in `BasicSim`. Each telemetry frame becomes one snapshot only when every member matches the frame's provenance (see `integration/autodrive_observation.py`). Commands are validated, never sent: it accepts only valid `TargetSpeedSteeringCommand`s and refuses stock Ackermann commands, including the GUI's manual buttons. |
-| `HoldController` | Always requests a standstill. It is the safe default and command-path probe, and needs no plan or localization. |
-| `PluginSettings` | Validated settings: loopback host, port, request life (at most the guard's 1 s), speed limit (0 until the motion protocol is confirmed), and steering limit (at most 30°). Saved by AVLite to `plugin_roboracer.yaml` in the user config directory (`~/.config/avlite/`, or `AVLITE_CONFIG_DIR`). |
+| Class | AVLite role | What it does |
+| --- | --- | --- |
+| `AutoDriveBridge` | world bridge | Reads the provenance-enabled Devkit topics and serves checked snapshots (LiDAR, IMU, wheel odometry). It withholds simulator truth when the stage asks it to, can add virtual obstacles to the scans (a fixture, D54), and sends `TargetSpeedSteeringCommand`s to the supervisor. It refuses stock Ackermann commands. |
+| `MapIcpLocalization` | localization | Extends AVLite's `LidarLocalization`: its point-to-point ICP of each scan against the committed map `data/c0-icp-map.json` (hash-checked), with KD-tree correspondences, initialization by configuration only, a start-up check, validity gating and an obstacle mask (D61). |
+| `ScanObstacleDetection` | perception | Wall-map subtraction and AVLite FastBEV clustering. An obstacle is confirmed after 2 scans. |
+| `RaceLineGlobalPlanner` | global planner | The committed racing line (`data/c0-s3v1-plan.json`, the V1 profile). |
+| `C0LatticePlanner` | local planner | AVLite's `GreedyLatticePlanner` at C0 scale. Additions: a latched blocked stop (D58, gated, with a stop-distance guard), early avoidance, AVLite's overtake mode off, and map-derived bounds (`data/c0-lattice-bounds.json`) (D78–D79). |
+| `RacingLineController` | controller | The A2RL racing-line tracking (lateral MPC, speed profile), in mode `selected` on the lattice plan. Safe stop on a yaw error > 0.35 rad (D65). |
+| `HoldController` | controller | Always requests a standstill (safe default, command-path probe). |
+| `SpeedStepController`, `GapFollowController` | controllers | Calibration and S1/S2 tools. Not part of the release profile. |
+| `TargetSpeedSteeringCommand` | command | Target speed [m/s, ≥ 0] and front steering angle [rad, positive left], stamped on the monotonic clock. |
+| `PluginSettings` | settings | Validated: loopback host and port, request life (at most 1 s), speed limit, steering limit (at most 30°). AVLite saves them to `plugin_roboracer.yaml` in its config directory. |
 
-## Supervisor (separate process)
+## Supervisor and guard
 
-`python -m roboracer.runtime.supervisor_process --name <socket> --target <guard inbox> --origin sup-1 --status <json> --trace <jsonl>` (repository root on `PYTHONPATH`). Protocol `roboracer.supervisor/1` is documented in `runtime/supervisor_core.py`. It requires runner heartbeats (500 ms lease, sticky inhibition), measures expiry from each request's original generation, and forwards only exact zero until the motion protocol is confirmed (the gate cannot be opened in code). The bridge sends to it after `connect(supervisor=...)`.
+Every command passes through a separate supervisor process (`roboracer/runtime/supervisor_process.py`, protocol `roboracer.supervisor/1`) and then the guard built into the player.
+- **Supervisor:** needs runner heartbeats (500 ms lease; inhibition is sticky). It rejects stale requests and observations, and bounds the normalized throttle and steering to the stage's profile.
+- **Motion gate:** motion is allowed only for a stage in the approval record (`docs/planning/s1-motion-approval.json`). The gate cannot be opened in code.
 
-## Requirements and setup
+## Data files
 
-- AVLite (tested with the development checkout, source version 0.6.3). No extra pip packages, so there is no `requirements.txt`.
-- **ROS 2 Humble**, sourced in the AVLite environment, for `connect()` (`rclpy`, `sensor_msgs`, `geometry_msgs`, `std_msgs`). Loading the plugin does not need ROS.
-- A running source-built SIM1-02 AutoDRIVE player and the provenance-enabled Devkit bridge (`scripts/autodrive_neutral.py --provenance`), which publish `/autodrive/f1tenth_1/*` and `/autodrive/f1tenth_1/provenance`. The bridge never starts them. This plugin ships no `launch.sh`.
+| File | Content | Provenance |
+| --- | --- | --- |
+| `data/c0-s3v1-plan.json` | V1 racing line and speed profile. Its `LeftBound`/`RightBound` are inaccurate in places and are not used by the lattice. | `.provenance.json` beside it |
+| `data/c0-icp-map.json` | C0 wall map for ICP and wall subtraction | `.provenance.json` |
+| `data/c0-lattice-bounds.json` | Lattice track bounds from the C0 map (D79) | `.provenance.json`; builder `scripts/roboracer_s5_lattice_bounds.py` |
 
-## Register (development checkout)
+## Register
 
 ```yaml
 c69_apps:
@@ -29,20 +43,17 @@ c69_apps:
     roboracer: /path/to/this/repository/roboracer
 ```
 
-Importing the package never starts a simulator, socket, ROS node, thread or process.
-
-## Known consumer behavior
-
-- **Executor:** AVLite runs control and actuation only when the stack or world provides `LOCALIZATION`. The bridge provides ground truth, so by default `HoldController`'s zero requests reach `control_ego_state`, where they are validated and recorded only. To run without ground truth, remove `LOCALIZATION` with AVLite's Bridge Setting filter (`c40_execution.c41_world_stack_capabilities`); the executor then never actuates. The ground-truth pose is unchanged until the first snapshot and is not checked for freshness here: rejecting stale or invalid localization belongs to the supervisor's publication boundary (the S1 supervisor skeleton, not yet built).
-- **Observation:** body origin is the rear-axle centre (the reported IPS point). LiDAR mount (0.2733, 0, 0.096) m, IMU mount (0.08, 0, 0.055) m. Sensor stamps are acquisition times on the host `CLOCK_MONOTONIC`. The IMU reports no gravity. `EgoState.velocity` is not observed by the bridge and is left unchanged.
-- **Visualizer gauges:** the gauges read `controller.cmd`. `HoldController` mirrors its steering there and shows zero acceleration, because none is commanded.
-- **Headless dashboard:** it reads the command's `acceleration` with a default, so it shows 0.0.
-- **BasicSim:** it integrates acceleration and raises `AttributeError` on the plugin command. Use `AutoDriveBridge`.
+**Requirements:**
+- AVLite 0.6.3 (commit `50dcd00`).
+- ROS 2 Humble, sourced, for `AutoDriveBridge.connect()`. Loading the plugin does not need ROS.
+- The pinned environment is built by `scripts/roboracer_s5_env.py` (see the operations guide).
+- Live runs go through the stage runner (`scripts/roboracer.py live`). AVLite's visualizer is for configuration only (D76).
 
 ## Tests
 
-Run with the AVLite interpreter (each case runs in a fresh process with isolated AVLite/XDG directories):
-
 ```bash
 <avlite-venv>/bin/python -B -m unittest discover -s roboracer/tests -t .
+<avlite-venv>/bin/python -B -m unittest discover -s scripts/tests
 ```
+
+Each plugin test case runs in a fresh process with isolated AVLite and XDG directories.

@@ -165,6 +165,11 @@ F1, F3 and H1 were not re-run in the re-qualification: their stages do not use t
   - the player has no seed.
 - **Run time:** about 37 min per 10-episode session.
 
+**Host paths:**
+- Some defaults point at this host's workspace and evidence: `scripts/roboracer.py` (player, build record, UI reference, geometry), `scripts/roboracer_s5_env.py` (the preflight and simulator-identity paths), and `scripts/roboracer_episode.py` (the AVLite checkout recorded in provenance).
+- On another host, pass the corresponding options or edit these defaults.
+- Tests that need this host's evidence skip when it is absent.
+
 **Tools:**
 - The AVLite visualizer cannot run live, because ground-truth perception is not implemented by design (D76).
 - `setting-cli validate` does not check plugin sections.
